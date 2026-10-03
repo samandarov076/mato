@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bosh sahifa — mato-savdo (eskiz)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --indigo: #23306B; --indigo-2: #3A4A96; --indigo-soft: #E6E9F5;
+  --madder: #A8323E; --madder-soft: #F7E6E8;
+  --saffron: #9A6A07; --saffron-soft: #FBF1DA;
+  --leaf: #2F6B45; --leaf-soft: #E3F1E8;
+  --ink: #1A1D29; --muted: #646A7E; --line: #DCE0EA;
+  --page: #F6F7FB; --panel: #FFFFFF; --bar: #C3CAE6; --bar-dim: #E4E7F2;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --indigo: #A9B5EC; --indigo-2: #C5CEF5; --indigo-soft: #232A4A;
+    --madder: #EE8C96; --madder-soft: #3A1E23;
+    --saffron: #E8BB5A; --saffron-soft: #3A2E14;
+    --leaf: #82C79A; --leaf-soft: #1C3226;
+    --ink: #E9EBF2; --muted: #9AA0B4; --line: #2E3346;
+    --page: #13151D; --panel: #1B1E29; --bar: #3E4A7C; --bar-dim: #262B40;
+  }
+}
+:root[data-theme="dark"] {
+  --indigo: #A9B5EC; --indigo-2: #C5CEF5; --indigo-soft: #232A4A;
+  --madder: #EE8C96; --madder-soft: #3A1E23;
+  --saffron: #E8BB5A; --saffron-soft: #3A2E14;
+  --leaf: #82C79A; --leaf-soft: #1C3226;
+  --ink: #E9EBF2; --muted: #9AA0B4; --line: #2E3346;
+  --page: #13151D; --panel: #1B1E29; --bar: #3E4A7C; --bar-dim: #262B40;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; overflow-x: hidden; background: var(--page); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { font-weight: 600; color: var(--indigo); }
+.biz { color: var(--muted); }
+.spacer { flex: 1; }
+.bell { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.bell b { background: var(--madder); color: #fff; border-radius: 10px; padding: 0 7px; font-size: 12px; font-weight: 500; transition: transform .2s; }
+.bell b.zero { background: var(--line); color: var(--muted); }
+.bell b.pop { transform: scale(1.25); }
+.theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; display: grid; place-items: center; }
+
+main { max-width: 1120px; margin: 0 auto; padding: 24px; }
+.head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.head h1 { font-size: 22px; font-weight: 600; margin: 0; }
+.head p { margin: 0; color: var(--muted); font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--panel); position: relative; }
+.seg button { position: relative; z-index: 1; border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--muted); font-size: 14px; white-space: nowrap; transition: color .2s; }
+.seg button[aria-pressed="true"] { color: var(--panel); }
+.seg .pill { position: absolute; z-index: 0; top: 3px; bottom: 3px; border-radius: 7px; background: var(--indigo); transition: left .25s ease, width .25s ease; }
+
+.money { display: grid; grid-template-columns: 1.3fr 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.money > div { padding: 20px 22px; position: relative; }
+.money > div + div { border-left: 1px solid var(--line); }
+.k { color: var(--muted); font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+.big { font-size: 38px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; margin: 0; color: var(--indigo); }
+.mid { font-size: 24px; font-weight: 600; line-height: 1.15; margin: 0; }
+.cur { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.chg { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; margin: 8px 0 0; padding: 2px 8px; border-radius: 6px; }
+.chg.up { color: var(--leaf); background: var(--leaf-soft); }
+.chg.down { color: var(--madder); background: var(--madder-soft); }
+.sub { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.split { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 10px; background: var(--bar-dim); }
+.split span { transition: width .4s ease; }
+.split .cash { background: var(--indigo); }
+.split .card { background: var(--bar); }
+.info { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); background: transparent; font-size: 11px; line-height: 1; color: var(--muted); cursor: pointer; padding: 0; }
+.pop { position: absolute; left: 22px; right: 22px; top: 44px; z-index: 5; background: var(--ink); color: var(--panel); font-size: 13px; padding: 10px 12px; border-radius: 8px; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .15s, transform .15s; }
+.pop.show { opacity: 1; transform: none; pointer-events: auto; }
+
+.watch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.w { text-align: left; cursor: pointer; padding: 14px 18px; border-radius: 12px; border: 1px solid var(--line); border-left-width: 4px; background: var(--panel); transition: background .15s, transform .15s; }
+.w:hover { background: var(--indigo-soft); }
+.w:active { transform: scale(.99); }
+.w.red { border-left-color: var(--madder); }
+.w.amber { border-left-color: var(--saffron); }
+.w .mid { font-size: 20px; }
+.w .go { float: right; color: var(--muted); font-size: 18px; transition: transform .15s; }
+.w:hover .go { transform: translateX(3px); color: var(--indigo); }
+.down-t { color: var(--madder); }
+
+.lower { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin-top: 12px; }
+.lower > * { min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.ph { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.ph h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.ph .hint { color: var(--muted); font-size: 13px; }
+.chart { position: relative; height: 210px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 25%; }
+.bar { flex: 1; height: 0; background: var(--bar); border-radius: 3px 3px 0 0; cursor: pointer; transition: height .45s cubic-bezier(.2,.8,.2,1), background .2s, opacity .2s; }
+.bar.dim { background: var(--bar-dim); }
+.bar.today { background: var(--indigo); }
+.bar:hover, .bar.hover { background: var(--indigo-2); }
+.tip { position: absolute; bottom: 100%; transform: translate(-50%, -8px); background: var(--ink); color: var(--panel); font-size: 12px; padding: 6px 10px; border-radius: 8px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s; }
+.tip.show { opacity: 1; }
+.tip b { display: block; font-size: 14px; font-weight: 600; }
+.axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 10px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.alerts { list-style: none; margin: 0; padding: 0; }
+.alerts li { display: grid; grid-template-columns: 10px 1fr auto; gap: 12px; align-items: start; padding: 11px 0; border-top: 1px solid var(--line); transition: opacity .25s; }
+.alerts li:first-child { border-top: 0; }
+.alerts li.read { opacity: .5; }
+.alerts li.read .dot { background: var(--line); }
+.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; transition: background .25s; }
+.dot.red { background: var(--madder); }
+.dot.amber { background: var(--saffron); }
+.t { display: block; font-size: 14px; }
+.m { display: block; font-size: 13px; color: var(--muted); }
+.mark { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.mark:hover { color: var(--indigo); border-color: var(--indigo); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--indigo); cursor: pointer; font-size: 14px; }
+.empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 20; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 860px) {
+  .money { grid-template-columns: 1fr 1fr; }
+  .money > div:first-child { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+  .money > div:nth-child(2) { border-left: none; }
+  .lower { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  main { padding: 16px; }
+  .top { padding: 10px 16px; gap: 10px; }
+  .biz, .user { display: none; }
+  .money { grid-template-columns: 1fr; }
+  .money > div + div { border-left: none; border-top: 1px solid var(--line); }
+  .money > div:first-child { border-bottom: none; }
+  .watch { grid-template-columns: 1fr; }
+  .big { font-size: 32px; }
+  .head .spacer { display: none; }
+  .seg { width: 100%; }
+  .seg button { flex: 1; padding: 6px 4px; font-size: 13px; }
+  .chart { gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">mato-savdo</span>
+  <span class="biz">Ipak yo'li matolari</span>
+  <span class="spacer"></span>
+  <button class="bell" id="bell" aria-label="Xabarlar">Xabarlar <b id="cnt">4</b></button>
+  <button class="theme" id="theme" aria-label="Rejimni almashtirish">◐</button>
+  <span class="user">Jasur Toshmatov</span>
+</header>
+
+<main>
+  <div class="head">
+    <div>
+      <h1 id="title">Bugun, 1-oktabr</h1>
+      <p>Soat 18:40 holatiga</p>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg" id="period" role="group" aria-label="Davr">
+      <span class="pill"></span>
+      <button data-v="day" aria-pressed="true">Bugun</button>
+      <button data-v="week" aria-pressed="false">Shu hafta</button>
+      <button data-v="month" aria-pressed="false">Shu oy</button>
+    </div>
+    <div class="seg" id="shop" role="group" aria-label="Do'kon">
+      <span class="pill"></span>
+      <button data-v="all" aria-pressed="true">Barcha do'konlar</button>
+      <button data-v="d1" aria-pressed="false">1-do'kon</button>
+      <button data-v="d2" aria-pressed="false">2-do'kon</button>
+    </div>
+  </div>
+
+  <section class="money" aria-label="Asosiy raqamlar">
+    <div>
+      <p class="k">Savdo</p>
+      <p class="big"><span id="v-s">0</span><span class="cur">so'm</span></p>
+      <span class="chg" id="c-s"></span>
+    </div>
+    <div>
+      <p class="k">Tushum</p>
+      <p class="mid" id="v-t">0</p>
+      <div class="split" aria-hidden="true"><span class="cash" id="sp-c"></span><span class="card" id="sp-k"></span></div>
+      <p class="sub">Naqd <span id="v-c"></span> · karta <span id="v-k"></span></p>
+    </div>
+    <div>
+      <p class="k">Foyda <button class="info" id="info" aria-expanded="false" aria-controls="pop">i</button></p>
+      <p class="mid" id="v-p">0</p>
+      <span class="chg" id="c-p"></span>
+      <div class="pop" id="pop" role="note">Foyda = savdo minus sotilgan tovar tannarxi. Metr farqi (kam chiqqan mato) va hisobdan chiqarilgan qarzlar bunga kirmaydi — ular alohida ko'rsatiladi.</div>
+    </div>
+  </section>
+
+  <section class="watch" aria-label="Nazorat">
+    <button class="w red" data-go="Nasiyalar hisoboti">
+      <span class="go">›</span>
+      <p class="k">Nasiya</p>
+      <p class="mid" id="v-n">0</p>
+      <p class="sub down-t">Muddati o'tgan: <span id="v-no"></span></p>
+    </button>
+    <button class="w amber" data-go="Kam qoldiqdagi tovarlar">
+      <span class="go">›</span>
+      <p class="k">Kam qoldiq</p>
+      <p class="mid"><span id="v-l">0</span> ta tovar</p>
+      <p class="sub">Chegaradan pastga tushgan</p>
+    </button>
+    <button class="w" data-go="Metr farqi hisoboti">
+      <span class="go">›</span>
+      <p class="k" id="k-km">Metr farqi, bugun</p>
+      <p class="mid" id="v-km">0</p>
+      <p class="sub down-t"><span id="v-kmm"></span> m kam chiqdi</p>
+    </button>
+  </section>
+
+  <div class="lower">
+    <section class="panel" aria-labelledby="g-t">
+      <div class="ph"><h2 id="g-t">Savdo, oxirgi 30 kun</h2><span class="hint">ustun ustiga olib boring</span></div>
+      <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+      <div class="axis"><span>2-sentabr</span><span>16-sentabr</span><span>Bugun</span></div>
+      <div class="legend"><span><i style="background:var(--indigo)"></i>Tanlangan davr</span><span><i style="background:var(--bar-dim)"></i>Oldingi kunlar</span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="e-t">
+      <div class="ph"><h2 id="e-t">E'tibor talab qiladi</h2><span class="spacer"></span><button class="linkbtn" id="readall">Hammasini o'qildi</button></div>
+      <ul class="alerts" id="alerts"></ul>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const fmt = n => Math.round(n).toLocaleString('ru-RU').replace(/[\u00a0,]/g, ' ');
+
+// 30 kunlik ma'lumot (eskiz uchun)
+const days = [];
+for (let i = 0; i < 30; i++) {
+  const d1 = 5.2e6 + 3.2e6 * Math.sin(i / 2.2) + i * 9e4;
+  const d2 = 3.1e6 + 1.8e6 * Math.cos(i / 3) + i * 4e4;
+  const date = i < 29 ? (i + 2) + '-sentabr' : '1-oktabr';
+  days.push({ date, d1, d2, all: d1 + d2 });
+}
+days[29].d1 = 7.9e6; days[29].d2 = 4.55e6; days[29].all = 12.45e6;
+
+const span = { day: 1, week: 7, month: 30 };
+const prevWord = { day: 'kechagiga', week: "o'tgan haftaga", month: "o'tgan oyga" };
+const titles = { day: 'Bugun, 1-oktabr', week: 'Shu hafta, 25-sentabr — 1-oktabr', month: 'Shu oy, sentabr — 1-oktabr' };
+const shopShare = { all: 1, d1: 0.63, d2: 0.37 };
+const static_ = {
+  all: { n: 18.7e6, no: 2.4e6, l: 4, km: 42 },
+  d1: { n: 11.2e6, no: 1.5e6, l: 3, km: 28 },
+  d2: { n: 7.5e6, no: 0.9e6, l: 1, km: 14 }
+};
+const trend = { day: { all: [8, 5], d1: [12, 9], d2: [-3, -2] }, week: { all: [6, 4], d1: [9, 7], d2: [-1, 0] }, month: { all: [14, 11], d1: [17, 15], d2: [9, 6] } };
+
+let state = { period: 'day', shop: 'all' };
+const shown = {};
+
+function countTo(id, target) {
+  const el = document.getElementById(id);
+  const from = shown[id] || 0; shown[id] = target;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = fmt(target); return; }
+  const t0 = performance.now(), dur = 450;
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(from + (target - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function chg(id, v) {
+  const el = document.getElementById(id);
+  el.className = 'chg ' + (v >= 0 ? 'up' : 'down');
+  el.textContent = (v >= 0 ? '▲ +' : '▼ −') + Math.abs(v) + '% ' + prevWord[state.period] + ' nisbatan';
+}
+
+function render() {
+  const { period, shop } = state;
+  const n = span[period];
+  const sel = days.slice(30 - n);
+  const s = sel.reduce((a, d) => a + d[shop], 0);
+  const r1 = x => Math.round(x / 1000) * 1000;
+  const t = r1(s * 0.787), c = r1(t * 0.53), k = t - c, p = r1(s * 0.249);
+  const st = static_[shop];
+  const kmMoney = period === 'day' ? 30000 * shopShare[shop] * 4 : period === 'week' ? 410000 * shopShare[shop] : 1260000 * shopShare[shop];
+  const kmM = period === 'day' ? Math.round(4 * shopShare[shop]) : period === 'week' ? Math.round(14 * shopShare[shop]) : st.km;
+
+  document.getElementById('title').textContent = titles[period];
+  countTo('v-s', r1(s)); countTo('v-t', t); countTo('v-p', p);
+  countTo('v-n', st.n); countTo('v-km', kmMoney);
+  document.getElementById('v-c').textContent = fmt(c);
+  document.getElementById('v-k').textContent = fmt(k);
+  document.getElementById('v-no').textContent = fmt(st.no);
+  document.getElementById('v-l').textContent = st.l;
+  document.getElementById('v-kmm').textContent = kmM;
+  document.getElementById('k-km').textContent = 'Metr farqi, ' + { day: 'bugun', week: 'shu hafta', month: 'shu oy' }[period];
+  document.getElementById('sp-c').style.width = (c / t * 100) + '%';
+  document.getElementById('sp-k').style.width = (k / t * 100) + '%';
+  chg('c-s', trend[period][shop][0]); chg('c-p', trend[period][shop][1]);
+
+  const max = Math.max(...days.map(d => d.all));
+  bars.forEach((b, i) => {
+    b.style.height = (days[i][shop] / max * 100) + '%';
+    const inRange = i >= 30 - n;
+    b.classList.toggle('dim', !inRange);
+    b.classList.toggle('today', inRange);
+  });
+}
+
+// Grafik
+const chart = document.getElementById('chart'), tip = document.getElementById('tip');
+const bars = days.map((d, i) => {
+  const b = document.createElement('div');
+  b.className = 'bar'; b.tabIndex = 0;
+  b.setAttribute('aria-label', d.date);
+  const show = () => {
+    tip.innerHTML = '<b>' + fmt(d[state.shop]) + " so'm</b>" + d.date;
+    const r = b.getBoundingClientRect(), cr = chart.getBoundingClientRect();
+    let x = r.left - cr.left + r.width / 2;
+    x = Math.max(60, Math.min(cr.width - 60, x));
+    tip.style.left = x + 'px';
+    tip.style.bottom = (r.height) + 'px';
+    tip.classList.add('show');
+  };
+  b.addEventListener('mouseenter', show); b.addEventListener('focus', show);
+  b.addEventListener('mouseleave', () => tip.classList.remove('show'));
+  b.addEventListener('blur', () => tip.classList.remove('show'));
+  chart.appendChild(b);
+  return b;
+});
+
+// Segment tugmalar
+function seg(id, key) {
+  const g = document.getElementById(id), pill = g.querySelector('.pill');
+  const move = () => {
+    const a = g.querySelector('[aria-pressed="true"]');
+    pill.style.left = a.offsetLeft + 'px'; pill.style.width = a.offsetWidth + 'px';
+  };
+  g.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true'); move();
+    state[key] = b.dataset.v; render();
+  }));
+  addEventListener('resize', move);
+  requestAnimationFrame(move);
+}
+seg('period', 'period'); seg('shop', 'shop');
+
+// Foyda izohi
+const info = document.getElementById('info'), pop = document.getElementById('pop');
+info.addEventListener('click', e => { e.stopPropagation(); const o = pop.classList.toggle('show'); info.setAttribute('aria-expanded', o); });
+document.addEventListener('click', () => { pop.classList.remove('show'); info.setAttribute('aria-expanded', 'false'); });
+
+// Toast
+const toast = document.getElementById('toast'); let tt;
+function say(m) { toast.textContent = m; toast.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => toast.classList.remove('show'), 1800); }
+document.querySelectorAll('.w').forEach(w => w.addEventListener('click', () => say(w.dataset.go + ' ochiladi')));
+
+// Xabarlar
+const alerts = [
+  { c: 'red', t: "K-00045 ko'chirish 12 m kam qabul qilindi", m: "1-do'kon · Ali Valiyev · 11:05" },
+  { c: 'amber', t: "3.5 m qaytarildi, 157 500 so'm naqd", m: "2-do'kon · Sardor Aliyev · 14:20" },
+  { c: 'amber', t: "Dilnoza Karimova qarzidan 300 000 so'm hisobdan chiqarildi", m: "1-do'kon · Ali Valiyev · 16:02 · Sabab: kelishilgan chegirma" },
+  { c: 'red', t: "3 mijozning qarzi 30 kundan oshdi", m: "Jami 2 400 000 so'm" }
+];
+const list = document.getElementById('alerts'), cnt = document.getElementById('cnt');
+function unread() {
+  const n = list.querySelectorAll('li:not(.read)').length;
+  cnt.textContent = n; cnt.classList.toggle('zero', n === 0);
+  cnt.classList.add('pop'); setTimeout(() => cnt.classList.remove('pop'), 180);
+}
+alerts.forEach(a => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="dot ' + a.c + '"></span><span><span class="t">' + a.t + '</span><span class="m">' + a.m + '</span></span>';
+  const b = document.createElement('button'); b.className = 'mark'; b.textContent = "O'qildi";
+  b.addEventListener('click', () => { li.classList.add('read'); b.remove(); unread(); });
+  li.appendChild(b); list.appendChild(li);
+});
+document.getElementById('readall').addEventListener('click', () => {
+  list.querySelectorAll('li').forEach(li => { li.classList.add('read'); li.querySelector('.mark')?.remove(); });
+  unread(); say("Barcha xabarlar o'qildi");
+});
+document.getElementById('bell').addEventListener('click', () => document.getElementById('e-t').scrollIntoView({ behavior: 'smooth', block: 'center' }));
+
+// Rejim
+document.getElementById('theme').addEventListener('click', () => {
+  const r = document.documentElement;
+  const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+});
+
+render();
+</script>
+</body>
+</html>

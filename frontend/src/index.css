@@ -1,0 +1,429 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ranglar "R G B" ko'rinishida — Tailwind shaffoflikni o'zi qo'shadi (bg-indigo/20). */
+:root {
+  /* Har rangning o'z ishi bor: indigo — asosiy amal; leaf — pul va muvaffaqiyat; saffron — nasiya va
+     ogohlantirish; madder — xato va kamomad; sky — ombor; plum — katalog; coral — hisobot; rose — tuzilma (odamlar va joylar). */
+  --indigo: 56 71 185;
+  --indigo-2: 44 58 160;
+  --indigo-soft: 232 235 252;
+  --madder: 154 42 54;
+  --madder-soft: 253 232 235;
+  --saffron: 122 72 4;
+  --saffron-soft: 253 240 212;
+  --leaf: 15 96 58;
+  --leaf-soft: 222 245 231;
+  --sky: 4 91 117;
+  --sky-soft: 219 243 250;
+  --plum: 124 66 188;
+  --plum-soft: 240 232 252;
+  --coral: 141 59 28;
+  --coral-soft: 253 234 224;
+  --rose: 190 50 120;
+  --rose-soft: 253 231 242;
+  --ink: 24 27 42;
+  /* muted — oq va och fonda 7:1 dan yuqori (WCAG AAA), lekin ink'dan aniq ochroq */
+  --muted: 73 77 94;
+  --line: 222 226 238;
+  /* Kiritish maydoni chegarasi: fon bilan 3:1 (WCAG 1.4.11); kartochka chegarasi — --line */
+  --edge: 126 141 188;
+  --page: 244 246 252;
+  --panel: 255 255 255;
+  /* Bosh sahifadagi asosiy kartochka gradienti (oq matn ikkala uchida ham 7:1) */
+  --hero-from: 49 66 180;
+  --hero-to: 62 70 200;
+  color-scheme: light;
+
+  /* Harakat tokenlari: to'rt davomiylik, uch egri chiziq. Prujina — qaror ko'rsatilgan transform'larda */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-4: 500ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring-soft: cubic-bezier(0.22, 1.2, 0.36, 1);
+
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Haqiqiy prujina: so'ngan tebranish namunasi (stiffness 260 / damping 14 va 200 / 22), linear() qo'llagan brauzerlarda */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.181 4.2%, 0.552 8.3%, 0.906 12.5%, 1.135 16.7%, 1.218 20.8%, 1.193 25%, 1.115 29.2%, 1.034 33.3%, 0.977 37.5%, 0.953 41.7%, 0.955 45.8%, 0.971 50%, 0.989 54.2%, 1.003 58.3%, 1.01 62.5%, 1.01 66.7%, 1.007 70.8%, 1.003 75%, 1);
+    --ease-spring-soft: linear(0, 0.127 4.2%, 0.371 8.3%, 0.607 12.5%, 0.789 16.7%, 0.908 20.8%, 0.976 25%, 1.008 29.2%, 1.02 33.3%, 1.02 37.5%, 1.015 41.7%, 1.01 45.8%, 1.006 50%, 1.003 54.2%, 1);
+  }
+}
+
+/* Tungi rejim: qurilma sozlamasi bo'yicha, foydalanuvchi qo'lda tanlamagan bo'lsa */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --indigo: 172 184 237;
+    --indigo-2: 197 206 245;
+    --indigo-soft: 35 42 74;
+    --madder: 240 153 162;
+    --madder-soft: 58 30 35;
+    --saffron: 232 187 90;
+    --saffron-soft: 58 46 20;
+    --leaf: 133 200 156;
+    --leaf-soft: 28 50 38;
+    --sky: 110 200 228;
+    --sky-soft: 18 48 60;
+    --plum: 196 166 244;
+    --plum-soft: 46 34 70;
+    --coral: 244 164 132;
+    --coral-soft: 62 36 26;
+    --rose: 244 152 195;
+    --rose-soft: 66 28 48;
+    --ink: 233 235 242;
+    --muted: 181 185 200;
+    --line: 46 51 70;
+    --edge: 93 103 142;
+    --page: 19 21 29;
+    --panel: 27 30 41;
+    --hero-from: 38 46 110;
+    --hero-to: 60 72 160;
+    color-scheme: dark;
+  }
+}
+
+/* Tungi rejim: foydalanuvchi qo'lda tanlagan */
+:root[data-theme="dark"] {
+  --indigo: 172 184 237;
+  --indigo-2: 197 206 245;
+  --indigo-soft: 35 42 74;
+  --madder: 240 153 162;
+  --madder-soft: 58 30 35;
+  --saffron: 232 187 90;
+  --saffron-soft: 58 46 20;
+  --leaf: 133 200 156;
+  --leaf-soft: 28 50 38;
+  --sky: 110 200 228;
+  --sky-soft: 18 48 60;
+  --plum: 196 166 244;
+  --plum-soft: 46 34 70;
+  --coral: 244 164 132;
+  --coral-soft: 62 36 26;
+  --rose: 244 152 195;
+  --rose-soft: 66 28 48;
+  --ink: 233 235 242;
+  --muted: 181 185 200;
+  --line: 46 51 70;
+  --edge: 93 103 142;
+  --page: 19 21 29;
+  --panel: 27 30 41;
+  --hero-from: 38 46 110;
+  --hero-to: 60 72 160;
+  color-scheme: dark;
+}
+
+/* Fokus yoki "ko'rinadigan joyga suril" paytida element qotirilgan sarlavha va pastki menyu ostida qolmaydi */
+html {
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 6rem;
+}
+
+body {
+  @apply bg-page font-sans text-base text-ink antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sensorli ekranda brauzerning kulrang "bosildi" chaqnashi o'zimizning holatimiz bilan talashmasin */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Klaviatura bilan yurganda fokus doim ko'rinadi */
+:focus-visible {
+  outline: 2px solid rgb(var(--indigo));
+  outline-offset: 2px;
+}
+
+/*
+ * Harakat va chuqurlik (3D). Hammasi yengil: faqat transform va opacity o'zgaradi, ish tezligiga ta'sir qilmaydi.
+ */
+
+/* Guruh ichidagi kartochkalar navbat bilan ochiladi (birinchi 8 tasi; qolgani birga) */
+@keyframes stagger-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+.stagger > * {
+  animation: stagger-rise var(--dur-3) var(--ease-emphasized) backwards;
+}
+.stagger > :nth-child(2) { animation-delay: 40ms; }
+.stagger > :nth-child(3) { animation-delay: 80ms; }
+.stagger > :nth-child(4) { animation-delay: 120ms; }
+.stagger > :nth-child(5) { animation-delay: 160ms; }
+.stagger > :nth-child(n + 6) { animation-delay: 200ms; }
+
+/* Uzun ro'yxat qatorlari ko'rinish maydoniga kirganda yengil paydo bo'ladi (scroll-driven; qo'llamagan brauzerda — oddiy) */
+@keyframes reveal {
+  from {
+    opacity: 0.35;
+    transform: translateY(8px);
+  }
+}
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 30%;
+  }
+}
+
+/* Bosiladigan element: barmoq ostida ozgina kichrayadi (sensorli ekranda hover yo'q — shu bitta javob) */
+.pressable {
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    background-color var(--dur-1),
+    border-color var(--dur-1),
+    color var(--dur-1);
+}
+.pressable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Skelet: ma'lumot kelguncha joy band — sahifa sakramaydi; yaltirash faqat transform bilan */
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: shimmer 1.4s var(--ease-standard) infinite;
+}
+:root[data-theme="dark"] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+  }
+}
+
+/*
+ * 3D og'ish: kartochka sichqoncha tomonga buriladi (burchaklarni `useTilt` beradi — shared/ui/motion.tsx).
+ * Faqat sichqonchali qurilmalarda: sensorli ekranda og'ish yo'q, shuning uchun 3D qatlam ham ochilmaydi.
+ * Ko'tarilgan soya alohida qatlamda (::after) opacity bilan chiqadi — soyaning o'zi animatsiya qilinmaydi.
+ */
+.tilt,
+.lift {
+  position: relative;
+}
+.tilt::after,
+.lift::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 2px 4px rgb(26 29 41 / 0.05), 0 18px 34px -16px rgb(26 29 41 / 0.3);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-standard);
+  pointer-events: none;
+  z-index: -1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tilt {
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transform-style: preserve-3d;
+    transition:
+      transform var(--dur-2) var(--ease-standard),
+      border-color var(--dur-2) var(--ease-standard);
+  }
+  .tilt:hover::after,
+  .lift:hover::after {
+    opacity: 1;
+  }
+  /* Og'gan kartochka ichida oldinga chiqib turadigan qism (belgi, asosiy son) */
+  .tilt-pop {
+    transition: transform var(--dur-2) var(--ease-standard);
+  }
+  .tilt:hover .tilt-pop {
+    transform: translateZ(22px);
+  }
+  .tilt:hover > .tilt-glare {
+    opacity: 1;
+  }
+}
+/* Yaltirash: yorug'lik dog'i sichqoncha ortidan yuradi — dog' transform bilan siljiydi, gradient qayta chizilmaydi */
+.tilt-glare {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+.tilt-glare-spot {
+  position: absolute;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgb(255 255 255 / 0.28), transparent 28%);
+  transform: translate(var(--gx, 0px), var(--gy, 0px));
+  will-change: transform;
+}
+
+/* Belgi katakchasi: tepasida yorug'lik, pastida soya — bo'rtib turgan tugmachadek */
+.chip-3d {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 -2px 0 rgb(0 0 0 / 0.07);
+}
+:root[data-theme="dark"] .chip-3d {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -2px 0 rgb(0 0 0 / 0.3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chip-3d {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      inset 0 -2px 0 rgb(0 0 0 / 0.3);
+  }
+}
+
+/* Bosiladigan tugma: pastki "qirra" bor, bosilganda cho'kadi */
+.press {
+  box-shadow:
+    inset 0 -3px 0 rgb(0 0 0 / 0.2),
+    0 1px 2px rgb(26 29 41 / 0.14);
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    box-shadow var(--dur-1) var(--ease-standard),
+    background-color var(--dur-1),
+    opacity var(--dur-1);
+}
+.press:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.2);
+}
+
+/* 3D mato taxlami (shared/ui/brand.tsx — FabricStack) */
+.fabric-scene {
+  transform: rotateX(58deg) rotateZ(-40deg);
+  transform-style: preserve-3d;
+}
+.fabric-sheet {
+  transform: translateZ(var(--z));
+  transform-style: preserve-3d;
+}
+
+/*
+ * Jadval telefonda: sarlavha qatori yashiriladi, har qator — kartochka; ustun nomi katak ustida turadi
+ * (nomlarni `Table` yozib qo'yadi — reports/parts.tsx). Yonga surish kerak bo'lmaydi.
+ */
+@media (max-width: 767px) {
+  .rtable,
+  .rtable tbody {
+    display: block;
+  }
+  .rtable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .rtable tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.55rem 1rem;
+    padding: 0.9rem 1rem;
+  }
+  .rtable td {
+    display: block;
+    min-width: 0;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  .rtable td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: rgb(var(--muted));
+  }
+  /* Birinchi ustun — qatorning nomi (sana, joy, tovar): to'liq enida, yorliqsiz */
+  .rtable td:first-child {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+  .rtable td:first-child::before,
+  .rtable td:empty {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+  /* Yuklanish belgisi — bezak emas, holat: sekin bo'lsa ham aylanaveradi */
+  .animate-spin {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .animate-pulse {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .reveal,
+  .skeleton::after {
+    animation: none !important;
+  }
+}
+
+/*
+ * Etiketka chop etish (kirim kartochkasi). Etiketkalar varag'i ekranda ko'rinmaydi;
+ * chop etishda esa ilovaning o'zi yashirinib, faqat shu varaq chiqadi — har etiketka alohida betda.
+ */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .print-sheet {
+    display: block !important;
+  }
+
+  .print-sheet .label {
+    break-after: page;
+  }
+}

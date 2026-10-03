@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mato_dev_parol}
+      POSTGRES_DB: ${POSTGRES_DB:-mato_savdo}
+    ports:
+      # Kompyuterda 5432 band bo'lsa .env da DB_PORT ni o'zgartiring
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mato} -d ${POSTGRES_DB:-mato_savdo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:

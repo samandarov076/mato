@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+# Yuklangan rasmlar (lokal saqlash)
+/media/
+.DS_Store
