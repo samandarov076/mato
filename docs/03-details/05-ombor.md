@@ -60,6 +60,7 @@ Skladda:    60 rulon, 3000 m davom etadi
 - Ustunlar: partiya, SKU, joy, yozilgan metr, chiqqan metr, farq (m va %), farq (so'm), kim yopdi, qachon
 - Filtr: davr, joy, xodim, faqat kamomad / faqat ortiqcha
 - Ko'chirish farqlari ham shu yerda alohida bo'limda
+- Jami sonlar (kam chiqdi, ortiq chiqdi, ko'chirishda) filtrga mos **barcha** qatorlar bo'yicha bazada hisoblanadi; ro'yxatlar 100 tadan, "Yana ko'rsatish" bilan ochiladi. Bosh sahifadagi "Metr farqi" ham shu jamidan (2026-10-03, audit).
 
 ## Biznes qoidalari
 - **Ko'chirish ikki bosqichli:** jo'natish → qabul. Qabul qilinmaguncha tovar "yo'lda".
@@ -70,6 +71,7 @@ Skladda:    60 rulon, 3000 m davom etadi
 - **Qayta ochish:** xato yopilgan partiyani biznes egasi yoki omborchi qayta ochadi; kamomad yozuvi bekor qilinadi. Jurnalga yoziladi.
 - Barcha harakatlar jurnalga ("Ombor" kategoriyasi).
 - Kam qoldiq chegarasidan pastga tushganda → bildirishnoma (09).
+- **Takrorlanishdan himoya (2026-10-03, audit):** ko'chirish yaratish formasi har yangi ko'chirishga noyob identifikator (`client_uuid`) yuboradi. Javob yo'qolib "Jo'natish" qayta bosilsa, ko'chirish ikki marta yozilmaydi (metr ikki marta ayrilmaydi) — server avvalgi ko'chirishni qaytaradi. Shu identifikator bilan boshqa mazmun kelsa — 409.
 
 ## Chekka holatlar
 - Yopilgan joyga shu partiyadan yangi ko'chirish kelsa → partiya shu joyda avtomatik qayta ochiladi.

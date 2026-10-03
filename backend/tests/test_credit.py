@@ -1,5 +1,6 @@
 """07-nasiya: mijozlar, qarz to'lovi, hisobdan chiqarish, muddati o'tgan qarz xabari."""
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
@@ -44,7 +45,7 @@ async def _card(s, customer: int, headers=None) -> dict:
 def _pay(s, customer: int, amount: int, headers=None, **fields):
     return s.client.post(
         f"/api/customers/{customer}/payments",
-        json={"amount": amount, "method": "cash", **fields},
+        json={"client_uuid": str(uuid.uuid4()), "amount": amount, "method": "cash", **fields},
         headers=headers or s.headers,
     )
 
@@ -392,3 +393,45 @@ async def test_credit_is_closed_to_keepers_and_other_businesses(shop, keeper, cl
     assert (await client.get("/api/customers", headers=stranger.headers)).json()["total"] == 0
     assert (await client.get("/api/customers")).status_code == 401
     assert (await _card(s, sardor))["debt"] == 90_000
+
+
+async def test_the_same_payment_is_recorded_once(shop):
+    """Javob yo'qolib tugma qayta bosilsa — to'lov ikki marta yozilmaydi."""
+    s = await shop()
+    batch = await s.in_store(0, "200")
+    sardor = await s.customer()
+    await _credit(s, sardor, batch, "10")  # 450 000
+    key = str(uuid.uuid4())
+
+    first = await _pay(s, sardor, 100_000, client_uuid=key)
+    again = await _pay(s, sardor, 100_000, client_uuid=key)
+
+    assert (first.status_code, again.status_code) == (201, 200), again.text
+    assert again.json() == first.json() == {"id": first.json()["id"], "amount": 100_000, "debt": 350_000}
+    assert len((await _card(s, sardor))["payments"]) == 1
+
+    # Bir vaqtda kelgan takrorlar ham bitta to'lov
+    rush = str(uuid.uuid4())
+    results = await asyncio.gather(*(_pay(s, sardor, 50_000, client_uuid=rush) for _ in range(4)))
+    assert {r.json()["id"] for r in results} == {results[0].json()["id"]}
+    assert (await _card(s, sardor))["debt"] == 300_000
+
+    # Shu identifikator bilan boshqa summa yoki to'lov turi — jimgina eskisi qaytmaydi
+    for changed in (
+        await _pay(s, sardor, 120_000, client_uuid=key),
+        await _pay(s, sardor, 100_000, client_uuid=key, method="card"),
+    ):
+        assert changed.status_code == 409 and changed.json()["code"] == "request_changed", changed.text
+    assert (await _card(s, sardor))["debt"] == 300_000
+
+    # Identifikatorsiz to'lov qabul qilinmaydi
+    bare = await s.client.post(
+        f"/api/customers/{sardor}/payments", json={"amount": 1000, "method": "cash"}, headers=s.headers
+    )
+    assert bare.status_code == 422
+
+    # Noyoblik biznes ichida: boshqa biznes shu identifikatorni bemalol ishlatadi
+    other = await shop()
+    theirs = await other.customer()
+    await _credit(other, theirs, await other.in_store(0, "200"), "10")
+    assert (await _pay(other, theirs, 100_000, client_uuid=key)).status_code == 201

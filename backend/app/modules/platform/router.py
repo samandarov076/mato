@@ -3,7 +3,9 @@ from typing import Literal
 
 from fastapi import APIRouter, Response
 
+from app.core.config import get_settings
 from app.core.deps import PlatformAuth
+from app.core.errors import AppError
 from app.modules.auth.router import respond_with_session
 from app.modules.auth.schemas import AuthOut
 from app.modules.platform import service, two_factor
@@ -11,6 +13,7 @@ from app.modules.platform.schemas import (
     BusinessCreatedOut,
     BusinessCreateIn,
     BusinessDetail,
+    BusinessNameIn,
     BusinessRow,
     ChallengeIn,
     CodeIn,
@@ -18,10 +21,13 @@ from app.modules.platform.schemas import (
     OwnerPasswordOut,
     OwnerPhoneIn,
     PrimaryOwnerIn,
+    ProfileCodeIn,
     ReasonIn,
+    RecoveryCodesOut,
     TempPasswordOut,
     TwoFactorConfirmedOut,
     TwoFactorSetupOut,
+    TwoFactorStatusOut,
 )
 
 two_factor_router = APIRouter(prefix="/auth/2fa", tags=["kirish"])
@@ -48,6 +54,36 @@ async def confirm_setup(body: CodeIn, response: Response) -> TwoFactorConfirmedO
 @two_factor_router.post("/verify")
 async def verify(body: CodeIn, response: Response) -> AuthOut:
     return respond_with_session(response, await two_factor.verify(body.challenge_token, body.code))
+
+
+# ---------- Ikki bosqichli tasdiqlash: profildan yoqish / o'chirish ----------
+
+
+@platform_router.get("/2fa")
+async def two_factor_status(ctx: PlatformAuth) -> TwoFactorStatusOut:
+    enabled, left = await two_factor.status(ctx.db, ctx.user)
+    return TwoFactorStatusOut(
+        enabled=enabled, recovery_left=left, required=get_settings().platform_2fa_required
+    )
+
+
+@platform_router.post("/2fa/setup")
+async def two_factor_profile_setup(ctx: PlatformAuth) -> TwoFactorSetupOut:
+    secret, uri = await two_factor.profile_setup(ctx.user)
+    return TwoFactorSetupOut(secret=secret, otpauth_uri=uri)
+
+
+@platform_router.post("/2fa/enable")
+async def two_factor_enable(ctx: PlatformAuth, body: ProfileCodeIn) -> RecoveryCodesOut:
+    """Ilovadagi birinchi kod bilan yoqadi; zaxira kodlar faqat shu javobda ko'rsatiladi."""
+    return RecoveryCodesOut(recovery_codes=await two_factor.profile_enable(ctx.db, ctx.user, body.code))
+
+
+@platform_router.post("/2fa/disable", status_code=204)
+async def two_factor_disable(ctx: PlatformAuth, body: ProfileCodeIn) -> None:
+    if get_settings().platform_2fa_required:
+        raise AppError(403, "two_factor_required")
+    await two_factor.profile_disable(ctx.db, ctx.user, body.code)
 
 
 # ---------- Bizneslar ----------
@@ -108,6 +144,12 @@ async def reveal_owner_password(
     return OwnerPasswordOut(
         password=await service.reveal_owner_password(ctx, business_id, user_id)
     )
+
+
+@platform_router.patch("/businesses/{business_id}", status_code=204)
+async def rename_business(business_id: int, body: BusinessNameIn, ctx: PlatformAuth) -> None:
+    """Biznes nomini o'zgartirish (biznes jurnaliga yoziladi)."""
+    await service.rename_business(ctx, business_id, body.name)
 
 
 @platform_router.patch("/businesses/{business_id}/owners/{user_id}")

@@ -130,6 +130,9 @@ erDiagram
     text name
     text address
     text phone
+    text login "do'kon logini, butun tizimda noyob (0011)"
+    text password_hash
+    text password_enc
     bool is_active
   }
   FABRICS {
@@ -562,3 +565,11 @@ erDiagram
 3. Kunlik xulosa vaqti — mavjud `businesses.daily_summary_time` (1-migratsiya); API orqali faqat to'liq soat qabul qilinadi.
 4. Huquqlar: `telegram_links` — SELECT, INSERT, UPDATE.
 5. Sxemadagi 32 jadvaldan qurilmagani bitta: `daily_summary` (10-ko'rib chiqish).
+
+## 12-ko'rib chiqish (2026-10-03, audit — 13-migratsiya) — nima aniqlashdi
+1. **Takrorlanishdan himoya uch jadvalga kengaydi:** `debt_payments.client_uuid`, `receipts.client_uuid`, `transfers.client_uuid` (uuid, bo'sh bo'lishi mumkin) + `UNIQUE (business_id, client_uuid)` — `sales.client_uuid` naqshi (7-migratsiya). Bo'sh qiymat — 13-migratsiyagacha yozilgan qatorlar (NULL'lar noyoblikni buzmaydi); API orqali kelgan har yangi yozuvda maydon majburiy.
+2. Server xulqi to'rt amalda bir xil (sotuv, qarz to'lovi, kirim, ko'chirish): identifikator qayta kelsa — avvalgi yozuv (HTTP 200); mazmuni farq qilsa — 409 (`sale_basket_changed` / `request_changed`). Solishtirish saqlangan qatorlardan: sotuv — do'kon, qatorlar (partiya, metr, narx), to'lov turi, mijoz, boshlang'ich to'lov; to'lov — mijoz, summa, to'lov turi; kirim — sklad, sana, qatorlar (mato, rang, gul, rulon, metr, tannarx); ko'chirish — qayerdan, qayerga, qatorlar (partiya, rulon, metr).
+3. Bir vaqtda kelgan takrorlar: yozuv va uning raqami bitta "saqlash nuqtasi" (savepoint) ichida — noyoblik buzilsa raqam ham qaytadi (raqamlarda bo'shliq qolmaydi). To'lovda mijozning qarz qatorlari qulflangach tekshiriladi.
+4. RLS va huquqlar o'zgarmadi (jadval darajasida berilgan: `receipts`, `transfers` — SELECT, INSERT, UPDATE; `debt_payments` — SELECT, INSERT). Noyoblik biznes ichida — boshqa biznes shu identifikatorni ishlata oladi (test bilan tekshirilgan).
+5. **`sessions`:** sxema o'zgarmadi. Uzoq muddatli token har yangilashda almashadi — `refresh_token_hash` yangilanadi; almashtirilgan token 60 soniya davomida o'rnidagi yangisiga yo'llaydi (Redis'da, shifrlangan) — bir vaqtda yangilayotgan oynalar bitta tokenni oladi.
+6. PIN bloki hisoblagichlari (do'kon bo'yicha "nechanchi blok") — Redis'da, bazada emas.

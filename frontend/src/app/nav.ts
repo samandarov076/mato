@@ -7,6 +7,7 @@ import {
   Layers,
   PackagePlus,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Tags,
   Warehouse,
@@ -59,6 +60,7 @@ const NAV: Record<Role, NavItem[]> = {
   seller: [],
   platform_owner: [
     { key: "businesses", icon: Building2, tone: "indigo", to: "/", activePrefix: "/businesses" },
+    { key: "security", icon: ShieldCheck, tone: "neutral", to: "/security" },
   ],
 };
 

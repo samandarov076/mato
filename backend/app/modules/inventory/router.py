@@ -6,7 +6,7 @@ rulon (narx va tannarxsiz). Kim qayerda nima qila olishi servisda tekshiriladi.
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import Auth, AuthContext, OwnerAuth, require_roles
 from app.modules.inventory import service, transfers
@@ -66,10 +66,20 @@ async def differences(
     location_id: int | None = None,
     user_id: int | None = None,
     kind: Literal["shortage", "surplus"] | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Differences:
-    """Metr farqi hisoboti: yopilgan partiyalar va ko'chirish farqlari. Faqat biznes egasi."""
+    """Metr farqi hisoboti: yopilgan partiyalar va ko'chirish farqlari. Faqat biznes egasi.
+    Ro'yxatlar sahifalanadi; jami sonlar filtrga mos barcha qatorlar bo'yicha."""
     return await service.differences(
-        ctx, date_from=date_from, date_to=date_to, location_id=location_id, user_id=user_id, kind=kind
+        ctx,
+        date_from=date_from,
+        date_to=date_to,
+        location_id=location_id,
+        user_id=user_id,
+        kind=kind,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -134,8 +144,11 @@ async def sendable(ctx: StaffAuth, location_id: int, search: str | None = None) 
 
 
 @router.post("/transfers", status_code=201)
-async def create_transfer(body: TransferCreate, ctx: StaffAuth) -> dict[str, int]:
-    return {"id": (await transfers.create_transfer(ctx, body)).id}
+async def create_transfer(body: TransferCreate, ctx: StaffAuth, response: Response) -> dict[str, int]:
+    transfer, duplicate = await transfers.create_transfer(ctx, body)
+    if duplicate:  # shu ko'chirish avval yozilgan — yangisi yaratilmadi
+        response.status_code = 200
+    return {"id": transfer.id}
 
 
 @router.get("/transfers/{transfer_id}")

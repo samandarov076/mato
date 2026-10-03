@@ -1,4 +1,5 @@
 """Kirim API'sining shakllari: kirim hujjati, uning qatorlari (partiyalar) va tuzatish."""
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -36,6 +37,7 @@ class LineIn(SkuPick):
 
 
 class ReceiptCreate(BaseModel):
+    client_uuid: uuid.UUID  # forma beradi — qayta yuborilsa ham kirim bir marta yoziladi
     warehouse_id: int
     receipt_date: date
     note: Note | None = None

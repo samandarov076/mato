@@ -3,6 +3,13 @@ import { Link, type LinkProps } from "react-router-dom";
 import { feedback } from "@/shared/feedback";
 import { Spinner } from "./feedback";
 
+/** Faqat belgidan iborat tugma (yuqori paneldagi til, tovush, o'rnatish, menyu ...): 40px, sensorli nishon */
+export const iconButton =
+  "pressable grid size-10 shrink-0 place-items-center rounded-control text-muted hover:bg-indigo-soft hover:text-ink";
+/** Ro'yxat qatoridagi kichik belgi-tugma (tahrirlash, o'chirish): 36px, sensorli ekranda 44px; rangi joyida beriladi */
+export const iconButtonSmall =
+  "pressable grid size-9 place-items-center rounded-control text-muted transition-colors [@media(pointer:coarse)]:size-11";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
 type Size = "md" | "sm" | "lg";
 

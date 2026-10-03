@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ArrowLeftRight, Ruler, TrendingDown, TrendingUp, X } from "lucide-react";
 import { api } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
@@ -10,16 +10,19 @@ import { Card } from "@/shared/ui/Card";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { SelectField, TextField } from "@/shared/ui/fields";
-import { Empty, IconChip, RowAction, rowClass, SectionHeader } from "@/shared/ui/list";
+import { Empty, IconChip, LoadMore, RowAction, rowClass, SectionHeader } from "@/shared/ui/list";
 import { Stat, statGrid } from "@/shared/ui/Stat";
 import type { Tone } from "@/shared/ui/tones";
 import { InventoryHeader } from "./InventoryHeader";
 import { inventoryKeys, skuNames, type Differences, type StockPage } from "./types";
+import { Hint } from "@/shared/ui/Hint";
 
 type Kind = "" | "shortage" | "surplus";
 type Filters = { date_from: string; date_to: string; location_id: string; kind: Kind };
 
 const NO_FILTERS: Filters = { date_from: "", date_to: "", location_id: "", kind: "" };
+/** Ro'yxatlar shunchadan yuklanadi; jami sonlar serverda barcha qatorlar bo'yicha hisoblanadi */
+const PAGE = 100;
 
 /**
  * Musbat farq — kam (qizil), manfiy — ortiq (sariq). Yopilgan partiyada "kam / ortiq chiqdi",
@@ -53,25 +56,34 @@ export function DifferencesPage() {
   const filtered = Object.values(filters).some(Boolean);
   const sum = t("settings.units.sum");
 
-  const report = useQuery({
+  const report = useInfiniteQuery({
     queryKey: inventoryKeys.differences(JSON.stringify(filters)),
-    queryFn: () => {
-      const query = new URLSearchParams();
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const query = new URLSearchParams({ limit: String(PAGE), offset: String(pageParam) });
       for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
       return api<Differences>(`/stock/differences?${query}`);
     },
+    getNextPageParam: (last, pages) =>
+      pages.length * PAGE < Math.max(last.closures_total, last.transfers_total) ? pages.length * PAGE : undefined,
   });
   // Joylar ro'yxati filtr uchun — qoldiq so'rovidan (bitta qator yetarli)
   const places = useQuery({
     queryKey: inventoryKeys.stock("places"),
     queryFn: () => api<StockPage>("/stock?limit=1"),
   });
-  const data = report.data;
+  // Jami — birinchi sahifadan (hammasida bir xil); ro'yxatlar — yuklangan sahifalar ketma-ketligi
+  const pages = report.data?.pages;
+  const data = pages && {
+    ...pages[0],
+    closures: pages.flatMap((page) => page.closures),
+    transfers: pages.flatMap((page) => page.transfers),
+  };
 
   return (
     <div>
       <InventoryHeader title={t("inventory.tab_differences")} />
-      <p className="mt-6 max-w-2xl text-muted">{t("inventory.differences.intro")}</p>
+      <Hint id="differences" className="mt-6">{t("inventory.differences.intro")}</Hint>
 
       <Card className="mt-5">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -261,6 +273,9 @@ export function DifferencesPage() {
               ))}
             </ul>
           </section>
+          {report.hasNextPage && (
+            <LoadMore loading={report.isFetchingNextPage} onClick={() => void report.fetchNextPage()} />
+          )}
         </>
       )}
     </div>

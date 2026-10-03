@@ -69,6 +69,13 @@ class LanguageIn(BaseModel):
     language: Literal["uz", "en", "ru"]
 
 
+class MeUpdateIn(BaseModel):
+    """Profil: berilgan maydon o'zgaradi, berilmagani — yo'q."""
+
+    language: Literal["uz", "en", "ru"] | None = None
+    full_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)] | None = None
+
+
 class ChangePasswordIn(BaseModel):
     old_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=6, max_length=128)
@@ -79,6 +86,13 @@ class ChangePasswordIn(BaseModel):
 
 class PinIn(BaseModel):
     pin: str = Field(pattern=r"^\d{4}$")
+
+
+class StoreLoginIn(BaseModel):
+    """Do'kon qurilmasini ochish: do'konning o'z logini va paroli (biznes egasi Tuzilmada beradi)."""
+
+    login: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class DeviceBindIn(BaseModel):

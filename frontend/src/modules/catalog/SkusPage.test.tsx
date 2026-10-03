@@ -8,6 +8,9 @@ import { SkusPage } from "./SkusPage";
 import { parseDecimal, similarCodes } from "./types";
 
 const { api, post } = vi.hoisted(() => ({ api: vi.fn(), post: vi.fn() }));
+vi.mock("@/modules/auth/AuthProvider", () => ({
+  useCurrentUser: () => ({ user: { id: 1, full_name: "Akmal Ega", role: "owner" } }),
+}));
 vi.mock("@/shared/api/client", async (original) => ({
   ...(await original<typeof import("@/shared/api/client")>()),
   api,
@@ -80,6 +83,38 @@ describe("SKU ro'yxati", () => {
     const unpriced = screen.getByText("M101-02").closest("li") as HTMLElement;
     expect(within(unpriced).getByText("narx yo'q")).toBeInTheDocument();
     expect(screen.getByText("2 tadan 2 tasi ko'rsatilmoqda")).toBeInTheDocument();
+  });
+
+  it("chegarasi belgilanmagan SKU'da 'standart' so'zi emas — biznes standartining o'zi (kulrang, izohi bilan)", async () => {
+    api.mockImplementation((path: string) => {
+      if (path.startsWith("/settings")) return Promise.resolve({ low_stock_default: "700.00" });
+      if (path.startsWith("/catalog/fabrics")) return Promise.resolve(fabrics);
+      if (path.startsWith("/catalog/colors")) return Promise.resolve(colors);
+      if (path.startsWith("/catalog/patterns")) return Promise.resolve(patterns);
+      return Promise.resolve({ items: [skus[0], { ...skus[1], low_stock_threshold: "50.00" }], total: 2 });
+    });
+    renderPage();
+    const usual = (await screen.findByText("M101-01")).closest("li") as HTMLElement;
+    const standard = await within(usual).findByText("700 m");
+    expect(standard).toHaveAttribute("title", "Biznes standarti");
+    expect(standard).toHaveClass("text-muted");
+    expect(within(usual).queryByText("standart")).toBeNull();
+    // O'z chegarasi bor SKU — oddiy matn, izohsiz
+    const own = within(screen.getByText("M101-02").closest("li") as HTMLElement).getByText("50 m");
+    expect(own).not.toHaveAttribute("title");
+  });
+
+  it("qidiruv va mato ko'rinib turadi; rang va gul 'Filtr' tugmasi ortida, faol filtrlar soni bilan", async () => {
+    renderPage("/catalog/skus?color_id=11");
+    await screen.findByText("M101-01");
+    expect(screen.getByRole("searchbox")).toBeVisible();
+    expect(screen.getByLabelText("Mato")).toBeVisible();
+    expect(screen.getByLabelText("Rang")).not.toBeVisible();
+    const toggle = screen.getByRole("button", { name: /^Filtr(?!larni)/ });
+    expect(toggle).toHaveTextContent("1"); // manzildan kelgan rang filtri
+    await userEvent.click(toggle);
+    expect(screen.getByLabelText("Rang")).toBeVisible();
+    expect(screen.getByLabelText("Gul")).toBeVisible();
   });
 
   it("filtrlar serverga yuboriladi va manzildan o'qiladi", async () => {

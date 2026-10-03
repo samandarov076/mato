@@ -57,6 +57,7 @@ Qator (partiya) qismi:
 - Yetkazib beruvchi yozilmaydi.
 - **Tuzatish:** partiyadan hali hech narsa sotilmagan yoki ko'chirilmagan bo'lsa — kiritgan omborchi yoki biznes egasi tahrirlaydi. Harakat bo'lgan bo'lsa — faqat biznes egasi tuzatadi. Har ikki holat jurnalga ("Ombor").
 - Kirim o'chirilmaydi; harakatsiz kirimni biznes egasi bekor qila oladi (jurnalga).
+- **Takrorlanishdan himoya (2026-10-03, audit):** kirim formasi har yangi kirimga noyob identifikator (`client_uuid`) yuboradi. Javob yo'qolib "Saqlash" qayta bosilsa, kirim ikki marta yozilmaydi (qoldiq ikki barobar kirmaydi) — server avvalgi kirimni qaytaradi. Shu identifikator bilan boshqa mazmun kelsa — 409 "avval boshqa mazmunda saqlangan".
 
 ## Chekka holatlar
 - Hisoblangan koeffitsient matodagi standartdan 20% dan ko'p farq qilsa → "Metr yoki kg xato kiritilmaganmi?" ogohlantirishi (taqiqlanmaydi).

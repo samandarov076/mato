@@ -11,7 +11,14 @@ from app.core.audit import Category, log_event
 from app.core.deps import OwnerAuth
 from app.core.errors import AppError
 from app.core.models import AuditLog
-from app.core.schemas import AuditItem, AuditLocation, AuditPage, AuditUser, SettingsBody
+from app.core.schemas import (
+    AuditItem,
+    AuditLocation,
+    AuditPage,
+    AuditUser,
+    BusinessNameIn,
+    SettingsBody,
+)
 from app.modules.auth.models import User
 from app.modules.structure.models import Location
 
@@ -56,6 +63,21 @@ async def update_settings(body: SettingsBody, ctx: OwnerAuth) -> SettingsBody:
     return SettingsBody.model_validate(ctx.business)
 
 
+@settings_router.put("/name", status_code=204)
+async def rename_business(body: BusinessNameIn, ctx: OwnerAuth) -> None:
+    """Biznes nomi — yuqori panelda, cheklarda va platforma panelida ko'rinadi."""
+    if body.name != ctx.business.name:
+        log_event(
+            ctx.db,
+            business_id=ctx.business.id,
+            user_id=ctx.user.id,
+            category="staff",
+            event_code="business.renamed",
+            data={"old": ctx.business.name, "new": body.name},
+        )
+        ctx.business.name = body.name
+
+
 # ---------- Jurnal ----------
 
 
@@ -79,6 +101,8 @@ async def list_audit_logs(
     user_id: int | None = None,
     location_id: int | None = None,
     category: Category | None = None,
+    # Shu kategoriyasiz: jurnal standart holatda kirish-chiqishsiz ochiladi (`exclude_category=login`)
+    exclude_category: Category | None = None,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> AuditPage:
@@ -104,6 +128,8 @@ async def list_audit_logs(
         query = query.where(AuditLog.location_id == location_id)
     if category is not None:
         query = query.where(AuditLog.category == category)
+    if exclude_category is not None:
+        query = query.where(AuditLog.category != exclude_category)
     if cursor is not None:
         query = query.where(
             tuple_(AuditLog.created_at, AuditLog.id) < tuple_(*_decode_cursor(cursor))

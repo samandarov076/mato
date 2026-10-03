@@ -182,6 +182,51 @@ async def test_the_same_basket_is_recorded_once(shop):
     assert [row["number"] for row in listed.json()["items"]] == ["S-000002", "S-000001"]  # raqamda bo'shliq yo'q
 
 
+async def test_a_changed_basket_under_the_same_id_is_refused(shop):
+    """Savat yozilgandan keyin o'zgartirilib o'sha identifikator bilan kelsa — jimgina eski sotuv qaytmaydi."""
+    s = await shop()
+    batch, other = await s.in_store(0, "200"), await s.in_store(1, "200")
+    basket = str(uuid.uuid4())
+    first = await s.sell_to((batch, "10", 45000), client_uuid=basket)
+    assert first.status_code == 201
+
+    changed = [
+        await s.sell_to((batch, "10", 45000), (other, "5", 30000), client_uuid=basket),  # tovar qo'shildi
+        await s.sell_to((batch, "12", 45000), client_uuid=basket),  # metr
+        await s.sell_to((batch, "10", 40000), client_uuid=basket),  # narx
+        await s.sell_to((batch, "10", 45000), client_uuid=basket, payment_type="card"),  # to'lov turi
+    ]
+    for response in changed:
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "sale_basket_changed"
+        assert response.json()["number"] == first.json()["number"]
+    # Hech narsa qo'shimcha yozilmadi
+    assert await s.stock(batch, s.store) == (D("190.00"), D("200.00"))
+    assert await s.stock(other, s.store) == (D("200.00"), D("200.00"))
+
+    # Aynan o'sha savat (metr boshqacha yozilgan bo'lsa ham: 10 = 10.00) — avvalgidek takror
+    same = await s.sell_to((batch, "10.00", 45000), client_uuid=basket)
+    assert (same.status_code, same.json()["duplicate"]) == (200, True)
+
+
+async def test_a_repeated_credit_basket_is_still_a_duplicate(shop):
+    """Nasiya savat (boshlang'ich to'lov bilan, shu jumladan to'liq to'langan) qayta kelsa — o'sha sotuv."""
+    s = await shop()
+    batch = await s.in_store(0, "200")
+    customer = await s.customer()
+    for initial in (100_000, 450_000):  # 450 000 = jami: sotuv "naqd" bo'lib yoziladi
+        fields = {
+            "client_uuid": str(uuid.uuid4()), "payment_type": "credit", "customer_id": customer,
+            "initial_payment": initial, "initial_payment_method": "cash",
+        }  # fmt: skip
+        first = await s.sell_to((batch, "10", 45000), **fields)
+        again = await s.sell_to((batch, "10", 45000), **fields)
+        assert (first.status_code, again.status_code) == (201, 200), again.text
+        assert again.json()["id"] == first.json()["id"]
+        other = await s.sell_to((batch, "10", 45000), **{**fields, "initial_payment": 50_000})
+        assert other.status_code == 409 and other.json()["code"] == "sale_basket_changed"
+
+
 async def test_selling_more_than_recorded_needs_a_note(shop, seller):
     s = await shop()
     batch = await s.in_store(0, "50", 1)

@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import Select, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
@@ -17,6 +17,7 @@ from app.core.audit import log_event
 from app.core.config import get_settings
 from app.core.db import system_session
 from app.core.errors import AppError
+from app.core.redis import get_redis
 from app.core.security import (
     create_access_token,
     create_challenge_token,
@@ -25,7 +26,7 @@ from app.core.security import (
     new_token,
     verify_password,
 )
-from app.core.vault import seal
+from app.core.vault import seal, unseal
 from app.modules.auth.models import Device, User, UserSession
 from app.modules.auth.schemas import normalize_phone
 from app.modules.platform.models import Business
@@ -146,11 +147,15 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
         elif not user.is_active:
             error = AppError(403, "account_inactive")
         elif user.business_id is None:
-            # Platforma egasi: parol yetarli emas — sessiya faqat ikkinchi bosqichdan keyin ochiladi
             await ratelimit.clear(ratelimit.LOGIN, subject)
-            issued = TwoFactorChallenge(
-                token=create_challenge_token(user.id), setup_required=user.totp_secret is None
-            )
+            if user.totp_secret is None and not settings.platform_2fa_required:
+                # Platforma egasi tasdiqlash ilovasini ulamagan va u majburiy emas — parol yetarli
+                issued = await issue_platform_session(db, user)
+            else:
+                # Ilova ulangan (yoki ulash majburiy) — sessiya faqat ikkinchi bosqichdan keyin ochiladi
+                issued = TwoFactorChallenge(
+                    token=create_challenge_token(user.id), setup_required=user.totp_secret is None
+                )
         else:
             business = await db.get(Business, user.business_id)
             if business.status != "active":
@@ -188,21 +193,45 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
     return issued
 
 
+# Almashtirilgan (eski) uzoq muddatli token shuncha soniya davomida o'rnidagi yangisiga yo'llaydi —
+# bir vaqtda yangilayotgan boshqa oynalar va yo'lda yo'qolgan javoblar uchun
+ROTATION_GRACE_SECONDS = 60
+
+
+def _successor_key(refresh_token: str) -> str:
+    return f"rt:next:{hash_token(refresh_token)}"
+
+
+def _live_session(refresh_token: str) -> Select:
+    return (
+        select(UserSession)
+        .where(
+            UserSession.refresh_token_hash == hash_token(refresh_token),
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > _now(),
+        )
+        .with_for_update()
+    )
+
+
 async def refresh(refresh_token: str | None) -> Issued:
-    """Yangi qisqa muddatli token beradi. Xodim faolsizlantirilgan, biznes bloklangan
-    yoki qurilma uzilgan bo'lsa — rad etadi."""
+    """Yangi qisqa muddatli token beradi va uzoq muddatli tokenni almashtiradi. Xodim faolsizlantirilgan,
+    biznes bloklangan yoki qurilma uzilgan bo'lsa — rad etadi."""
     if not refresh_token:
         raise AppError(401, "session_expired")
     issued: Issued | None = None
 
     async with system_session() as db:
-        row = await db.scalar(
-            select(UserSession).where(
-                UserSession.refresh_token_hash == hash_token(refresh_token),
-                UserSession.revoked_at.is_(None),
-                UserSession.expires_at > _now(),
-            )
-        )
+        # Qator qulflanadi: bir nechta oyna bir vaqtda yangilasa, biri almashtirguncha qolganlari kutadi
+        row = await db.scalar(_live_session(refresh_token))
+        rotate = row is not None
+        if row is None:
+            # Token hozirgina boshqa oyna tomonidan almashtirilgan bo'lishi mumkin — o'sha yangi token beriladi
+            # (hamma oynalar bitta cookie'ni bo'lishadi: har xil token berilsa, biri sessiyani uzib qo'yardi)
+            successor = unseal(await get_redis().get(_successor_key(refresh_token)))
+            if successor is not None:
+                refresh_token = successor
+                row = await db.scalar(_live_session(successor))
         if row is not None:
             user = await db.get(User, row.user_id)
             business = await db.get(Business, row.business_id) if row.business_id else None
@@ -227,6 +256,13 @@ async def refresh(refresh_token: str | None) -> Issued:
                     lifetime = device_idle_limit(business)
                     device.last_seen_at = now
                 row.expires_at = now + lifetime  # faol foydalanuvchi qayta-qayta kirib yurmaydi
+                if rotate:
+                    # Uzoq muddatli token har yangilashda almashadi: o'g'irlangan eski token tez yaroqsiz bo'ladi.
+                    # Eskisi bilan kelgan oynalar qisqa muhlat ichida shu yangi tokenni oladi.
+                    old_token, (refresh_token, row.refresh_token_hash) = refresh_token, new_token()
+                    await get_redis().set(
+                        _successor_key(old_token), seal(refresh_token), ex=ROTATION_GRACE_SECONDS
+                    )
                 if business is not None:
                     business.last_activity_at = now
                 issued = Issued(
@@ -248,12 +284,17 @@ async def logout(refresh_token: str | None) -> None:
     if not refresh_token:
         return
     async with system_session() as db:
+        by_token = select(UserSession).where(UserSession.revoked_at.is_(None))
         row = await db.scalar(
-            select(UserSession).where(
-                UserSession.refresh_token_hash == hash_token(refresh_token),
-                UserSession.revoked_at.is_(None),
-            )
+            by_token.where(UserSession.refresh_token_hash == hash_token(refresh_token))
         )
+        if row is None:
+            # Token hozirgina almashtirilgan, yangisi brauzerga yetib kelmagan — sessiya baribir tugatiladi
+            successor = unseal(await get_redis().get(_successor_key(refresh_token)))
+            if successor is not None:
+                row = await db.scalar(
+                    by_token.where(UserSession.refresh_token_hash == hash_token(successor))
+                )
         if row is None:
             return
         row.revoked_at = _now()

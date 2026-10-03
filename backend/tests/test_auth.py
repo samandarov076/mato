@@ -3,6 +3,7 @@ import asyncio
 from typing import Annotated
 
 import httpx
+import pyotp
 import pytest
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, update
@@ -123,7 +124,11 @@ async def test_blocked_business_cannot_log_in(client, new_account):
 async def test_platform_owner_password_alone_does_not_open_a_session(client, new_user):
     phone = random_phone()
     await new_user(
-        None, role="platform_owner", phone=phone, password_hash=hash_password(PASSWORD)
+        None,
+        role="platform_owner",
+        phone=phone,
+        password_hash=hash_password(PASSWORD),
+        totp_secret=pyotp.random_base32(),  # tasdiqlash ilovasi ulangan
     )
 
     response = await _login(client, phone)
@@ -164,6 +169,84 @@ async def test_refresh_issues_new_access_token(client, new_account):
     assert response.status_code == 200
     assert response.json()["user"]["id"] == user_id
     assert (await client.get("/api/auth/me", headers=_bearer(response))).status_code == 200
+
+
+async def _refresh_with(client: httpx.AsyncClient, token: str) -> tuple[httpx.Response, str | None]:
+    """Boshqa oyna: shu (ehtimol eskirgan) uzoq muddatli token bilan yangilaydi. (javob, yangi token)."""
+    response = await client.post("/api/auth/refresh", headers={"Cookie": f"mato_refresh={token}"})
+    return response, response.cookies.get("mato_refresh")
+
+
+async def test_refresh_rotates_the_refresh_token(browser, new_account):
+    """Har yangilashda uzoq muddatli token almashadi; eskisi faqat qisqa vaqt (boshqa oynalar uchun) o'tadi."""
+    from app.core.redis import get_redis
+    from app.core.security import hash_token
+
+    _, _, phone = await new_account()
+    tab = browser()
+    await _login(tab, phone)
+    old = tab.cookies["mato_refresh"]
+
+    first = await tab.post("/api/auth/refresh")
+    new = tab.cookies["mato_refresh"]
+    assert first.status_code == 200 and new != old
+
+    # Boshqa oyna shu paytda eski token bilan yangilayapti — sessiya uzilmaydi va O'SHA yangi tokenni oladi
+    late, given = await _refresh_with(browser(), old)
+    assert (late.status_code, given) == (200, new)
+
+    # Qisqa muhlat o'tgach eski token ishlamaydi; yangisi ishlaydi (va yana almashadi)
+    await get_redis().delete(f"rt:next:{hash_token(old)}")
+    assert (await _refresh_with(browser(), old))[0].status_code == 401
+    assert (await tab.post("/api/auth/refresh")).status_code == 200
+    assert tab.cookies["mato_refresh"] not in (old, new)
+
+    # Chiqish yangi token bilan ham sessiyani tugatadi
+    assert (await tab.post("/api/auth/logout")).status_code == 204
+    assert (await tab.post("/api/auth/refresh")).status_code == 401
+
+
+async def test_logout_with_a_just_rotated_token_still_ends_the_session(browser, new_account):
+    """Yangilash javobi yo'lda yo'qolgan (brauzerda eski token qolgan) bo'lsa ham chiqish sessiyani tugatadi."""
+    _, _, phone = await new_account()
+    tab = browser()
+    await _login(tab, phone)
+    old = tab.cookies["mato_refresh"]
+    _, new = await _refresh_with(browser(), old)  # token almashdi, lekin `tab` buni bilmaydi
+    assert new and new != old
+
+    assert (await tab.post("/api/auth/logout")).status_code == 204  # eski token bilan
+
+    assert (await _refresh_with(browser(), new))[0].status_code == 401
+
+
+async def test_many_tabs_refreshing_at_once_keep_the_session(browser, new_account):
+    """Bir nechta oyna bir vaqtda yangilasa — hammasi bitta yangi tokenni oladi, sessiya uzilmaydi."""
+    _, _, phone = await new_account()
+    first = browser()
+    await _login(first, phone)
+    old = first.cookies["mato_refresh"]
+
+    results = await asyncio.gather(*(_refresh_with(browser(), old) for _ in range(4)))
+
+    assert [response.status_code for response, _ in results] == [200] * 4
+    tokens = {token for _, token in results}
+    assert len(tokens) == 1 and old not in tokens
+    assert (await _refresh_with(browser(), tokens.pop()))[0].status_code == 200
+
+
+def test_credentials_key_is_required_outside_dev():
+    """Ishlab chiqishdan tashqarida `CREDENTIALS_KEY` bo'sh (yoki SECRET_KEY bilan bir xil) bo'lsa ilova ishga tushmaydi."""
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    base = {"database_url": "x", "database_owner_url": "y", "secret_key": "s" * 32, "_env_file": None}
+    assert Settings(**base, app_env="dev", credentials_key="").credentials_key == ""
+    assert Settings(**base, app_env="prod", credentials_key="k" * 32).credentials_key == "k" * 32
+    for bad in ("", "   ", "s" * 32):
+        with pytest.raises(ValidationError, match="CREDENTIALS_KEY"):
+            Settings(**base, app_env="prod", credentials_key=bad)
 
 
 async def test_refresh_without_cookie_is_rejected(client):
@@ -363,8 +446,8 @@ async def test_block_ends_by_itself_when_time_passes():
     limit = ratelimit.Limit("sinov", max_failures=2, window_seconds=60, block_seconds=1)
     subject = random_phone()
 
-    assert await ratelimit.record_failure(limit, subject) is False
-    assert await ratelimit.record_failure(limit, subject) is True
+    assert await ratelimit.record_failure(limit, subject) == 0  # hali blok yo'q
+    assert await ratelimit.record_failure(limit, subject) == limit.block_seconds  # blok boshlandi
     assert await ratelimit.blocked_for(limit, subject) > 0
 
     await asyncio.sleep(1.2)

@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
@@ -8,20 +9,29 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "..", ["BACKEND_PORT", "FRONTEND_PORT"]);
   const backendPort = env.BACKEND_PORT || "8000";
   const frontendPort = Number(env.FRONTEND_PORT || 5173);
+  // Telefonda sinash: brauzer kamerani faqat https'da beradi — o'z-o'zidan imzolangan sertifikat (faqat lokal)
+  const phone = mode === "phone";
 
   return {
     plugins: [
       react(),
+      ...(phone ? [basicSsl()] : []),
       VitePWA({
         registerType: "prompt",
         injectRegister: null,
         includeAssets: ["icons/*.png"],
+        // Dev rejimda ham service worker — brauzer "Ilovani o'rnatish"ni taklif qiladi (o'rnatish shartlaridan biri)
+        devOptions: { enabled: true, suppressWarnings: true, navigateFallback: "index.html" },
         manifest: {
+          id: "/",
           name: "mato-savdo",
           short_name: "mato-savdo",
           description: "Mato savdosi: sklad, sotuv, nasiya, hisobotlar",
           lang: "uz",
+          scope: "/",
           start_url: "/",
+          orientation: "any",
+          categories: ["business", "productivity"],
           display: "standalone",
           background_color: "#F6F7FB",
           theme_color: "#23306B",
@@ -63,6 +73,10 @@ export default defineConfig(({ mode }) => {
         output: {
           // Kutubxonalar alohida bo'laklarda — ilova kodi o'zgarganda qayta yuklanmaydi
           manualChunks(id) {
+            // Vite'ning dinamik import yuklagichi va CommonJS yordamchisi doim yuklanadigan bo'lakda tursin:
+            // aks holda Rollup ularni `three` ga qo'yib, kirish nuqtasini 1 MB li 3D bo'lagiga bog'lab qo'yadi
+            // (har sahifada yuklanadi, PWA keshida esa yo'q — oflayn ochilmaydi)
+            if (id.includes("vite/preload-helper") || id === "\0commonjsHelpers.js") return "react";
             if (!id.includes("node_modules/")) return undefined;
             if (/node_modules\/(three|@react-three|postprocessing|maath|three-stdlib|@monogrid|camera-controls|detect-gpu|stats-gl|meshline|troika|hls\.js|zustand|suspend-react|its-fine|@use-gesture|react-use-measure|glsl-noise|@babel\/runtime)\//.test(id)) return "three";
             if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "react";
@@ -77,8 +91,14 @@ export default defineConfig(({ mode }) => {
     // Vitest: komponent testlari brauzersiz (jsdom) ishlaydi — `npm test`
     test: { environment: "jsdom", setupFiles: ["./src/test-setup.ts"], css: false },
     server: {
-      port: frontendPort,
+      // Telefon rejimi keyingi portda — kompyuterdagi oddiy http://localhost:<port> bilan bir vaqtda ishlaydi
+      port: phone ? frontendPort + 1 : frontendPort,
       strictPort: true,
+      // `npm run dev:phone`: telefon/planshet shu Wi-Fi'dan kompyuter manzili orqali ochadi
+      host: phone ? true : undefined,
+      // `npm run dev:tunnel`: Cloudflare tunnel (haqiqiy https, istalgan tarmoqdan) — faqat shu rejimda
+      // trycloudflare domeniga ruxsat; oddiy rejimda Vite begona domenlarni to'sib turadi
+      allowedHosts: process.env.MATO_TUNNEL ? [".trycloudflare.com"] : undefined,
       proxy: { "/api": `http://localhost:${backendPort}` },
     },
   };

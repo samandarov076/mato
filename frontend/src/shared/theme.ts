@@ -8,7 +8,8 @@ const STORAGE_KEY = "mato.theme";
 function currentTheme(): Theme {
   const chosen = document.documentElement.dataset.theme;
   if (chosen === "light" || chosen === "dark") return chosen;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // matchMedia yo'q muhitda (eski brauzer, testlar) — kunduzgi rejim
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export function useTheme() {

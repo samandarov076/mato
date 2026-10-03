@@ -2,6 +2,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
@@ -24,8 +25,12 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
     password_hash_rounds: int = 12  # bcrypt; testlarda tezlik uchun kamaytiriladi
     # Ko'rinadigan parol/PIN shifrlanadigan kalit (app/core/vault.py). Bo'sh bo'lsa SECRET_KEY dan
-    # hosil qilinadi — faqat ishlab chiqishda; serverda alohida, uzun tasodifiy qiymat qo'yiladi.
+    # hosil qilinadi — faqat ishlab chiqishda (APP_ENV=dev); boshqa muhitda alohida, uzun tasodifiy
+    # qiymat majburiy — usiz ilova ishga tushmaydi (`_separate_secrets`).
     credentials_key: str = ""
+    # Platforma egasining ikki bosqichli kirishi: false — ixtiyoriy (profilda o'zi yoqadi; yoqilgan bo'lsa
+    # kod so'raladi), true — majburiy (ulanmagan bo'lsa birinchi kirishda ulash talab qilinadi)
+    platform_2fa_required: bool = False
 
     # Yuklangan rasmlar papkasi (mato, rang, gul). Serverda doimiy diskka qaratiladi.
     media_dir: Path = ROOT_DIR / "media"
@@ -36,6 +41,19 @@ class Settings(BaseSettings):
 
     app_timezone: str = "Asia/Tashkent"
     cors_origins: str = "http://localhost:5173"
+
+    @model_validator(mode="after")
+    def _separate_secrets(self) -> "Settings":
+        """Serverda sirlar bitta kalitda turmaydi: tokenlar — SECRET_KEY, ko'rinadigan parollar — CREDENTIALS_KEY.
+        Biri oshkor bo'lsa, ikkinchisi bilan himoyalangan narsa ochilmasin."""
+        if self.app_env != "dev":
+            key = self.credentials_key.strip()
+            if not key or key == self.secret_key:
+                raise ValueError(
+                    "CREDENTIALS_KEY majburiy (APP_ENV=dev dan boshqa muhitda): alohida, uzun tasodifiy "
+                    "qiymat qo'ying — bo'sh yoki SECRET_KEY bilan bir xil bo'lmasin"
+                )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

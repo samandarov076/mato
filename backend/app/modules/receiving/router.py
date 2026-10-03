@@ -6,7 +6,7 @@ tannarx shu sahifalarda unga ham ko'rinadi (docs/03-details/04-kirim.md).
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import AuthContext, OwnerAuth, require_roles
 from app.modules.receiving import service
@@ -52,8 +52,11 @@ async def receipt_options(ctx: ReceivingAuth) -> Options:
 
 
 @router.post("/receipts", status_code=201)
-async def create_receipt(body: ReceiptCreate, ctx: ReceivingAuth) -> dict[str, int]:
-    return {"id": (await service.create_receipt(ctx, body)).id}
+async def create_receipt(body: ReceiptCreate, ctx: ReceivingAuth, response: Response) -> dict[str, int]:
+    receipt, duplicate = await service.create_receipt(ctx, body)
+    if duplicate:  # shu kirim avval yozilgan — yangisi yaratilmadi
+        response.status_code = 200
+    return {"id": receipt.id}
 
 
 @router.get("/receipts/{receipt_id}")

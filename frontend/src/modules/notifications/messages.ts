@@ -41,6 +41,7 @@ export const EVENTS = [
   "debt.written_off",
   "debt.overdue",
   "telegram.disconnected",
+  "pin.store_locked",
 ] as const;
 
 export const notificationKeys = {
@@ -61,6 +62,7 @@ const STYLES: Record<string, { icon: LucideIcon; tone: Tone }> = {
   "debt.written_off": { icon: HandCoins, tone: "madder" },
   "debt.overdue": { icon: CalendarClock, tone: "saffron" },
   "telegram.disconnected": { icon: Send, tone: "neutral" },
+  "pin.store_locked": { icon: TriangleAlert, tone: "madder" },
 };
 
 export const eventStyle = (eventCode: string) => STYLES[eventCode] ?? { icon: Bell, tone: "indigo" as Tone };
@@ -126,6 +128,8 @@ export function describe(item: Notification, t: TFunction): { text: string; link
       };
     case "telegram.disconnected":
       return { text: t("notifications.text.telegram.disconnected"), link: "/profile" };
+    case "pin.store_locked":
+      return { text: t("notifications.text.pin.store_locked", d), link: "/structure/staff" };
     default:
       return { text: item.event_code, link: null };
   }

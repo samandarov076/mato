@@ -22,6 +22,13 @@ class Location(Base):
             text("lower(name)"),
             unique=True,
         ),
+        # Do'kon logini butun tizimda noyob — 0011-migratsiya
+        Index(
+            "uq_locations_login",
+            text("lower(login)"),
+            unique=True,
+            postgresql_where=text("login IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
@@ -30,6 +37,11 @@ class Location(Base):
     name: Mapped[str]
     address: Mapped[str | None]
     phone: Mapped[str | None]
+    # Do'kon qurilmasini ochish uchun do'konning o'z logini (butun tizimda noyob) va paroli — 0011-migratsiya.
+    # Faqat do'konda; bo'sh bo'lsa — qurilmani faqat biznes egasi bog'laydi.
+    login: Mapped[str | None]
+    password_hash: Mapped[str | None]
+    password_enc: Mapped[str | None]  # ega ko'rishi uchun shifrlangan nusxa (app/core/vault.py)
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

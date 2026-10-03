@@ -13,6 +13,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import log_event
 from app.core.counters import next_numbers
@@ -287,22 +288,72 @@ async def _apply_line_price(ctx: AuthContext, line: LineIn, sku, fabric, color, 
         )
 
 
-async def create_receipt(ctx: AuthContext, body: ReceiptCreate) -> Receipt:
+async def _same_receipt(ctx: AuthContext, receipt: Receipt, body: ReceiptCreate) -> Receipt:
+    """Shu identifikator bilan avval yozilgan kirim. Qayta kelgan mazmun undan farq qilsa — rad etiladi
+    (jimgina eskisi qaytsa, forma "saqlandi" deydi, o'zgartirish esa yozilmay qoladi)."""
+    saved = (
+        await ctx.db.execute(
+            select(
+                Sku.fabric_id,
+                Sku.color_id,
+                Sku.pattern_id,
+                Batch.rolls_count,
+                Batch.meters_labeled,
+                Batch.cost_per_m,
+            )
+            .join(Sku, Sku.id == Batch.sku_id)
+            .where(Batch.receipt_id == receipt.id)
+            .order_by(Batch.id)
+        )
+    ).all()
+    same = (
+        receipt.warehouse_id == body.warehouse_id
+        and receipt.receipt_date == body.receipt_date
+        and len(saved) == len(body.lines)
+        and all(
+            (fabric, color, rolls, meters, cost)
+            == (line.fabric_id, line.color_id, line.rolls_count, line.meters, line.cost_per_m)
+            and line.pattern_id in (None, pattern)  # gul tanlanmagan — "gulsiz"
+            for (fabric, color, pattern, rolls, meters, cost), line in zip(
+                saved, body.lines, strict=True
+            )
+        )
+    )
+    if not same:
+        raise AppError(409, "request_changed", number=receipt.number)
+    return receipt
+
+
+async def create_receipt(ctx: AuthContext, body: ReceiptCreate) -> tuple[Receipt, bool]:
+    """Kirimni yozadi. (kirim, takrormi) qaytaradi: shu identifikator bilan avval yozilgan bo'lsa — o'sha."""
+    by_uuid = select(Receipt).where(Receipt.client_uuid == body.client_uuid)
+    existing = await ctx.db.scalar(by_uuid)
+    if existing is not None:
+        return await _same_receipt(ctx, existing, body), True
     warehouse = await require_location(ctx, body.warehouse_id, "warehouse", field="warehouse_id")
     _check_date(ctx, body.receipt_date)
 
-    receipt_number = (await next_numbers(ctx.db, ctx.business.id, "receipt"))[0]
-    batch_numbers = await next_numbers(ctx.db, ctx.business.id, "batch", len(body.lines))
-    receipt = Receipt(
-        business_id=ctx.business.id,
-        warehouse_id=warehouse.id,
-        number=f"KR-{receipt_number:05d}",
-        receipt_date=body.receipt_date,
-        note=body.note or None,
-        created_by=ctx.user.id,
-    )
-    ctx.db.add(receipt)
-    await ctx.db.flush()
+    try:
+        async with ctx.db.begin_nested():  # takror bo'lsa raqamlar ham qaytadi — bo'shliq qolmaydi
+            receipt_number = (await next_numbers(ctx.db, ctx.business.id, "receipt"))[0]
+            batch_numbers = await next_numbers(ctx.db, ctx.business.id, "batch", len(body.lines))
+            receipt = Receipt(
+                business_id=ctx.business.id,
+                client_uuid=body.client_uuid,
+                warehouse_id=warehouse.id,
+                number=f"KR-{receipt_number:05d}",
+                receipt_date=body.receipt_date,
+                note=body.note or None,
+                created_by=ctx.user.id,
+            )
+            ctx.db.add(receipt)
+            await ctx.db.flush()
+    except IntegrityError:
+        # Xuddi shu kirim bir vaqtda ikki marta yuborilgan (javob kelmay, tugma qayta bosilgan)
+        existing = await ctx.db.scalar(by_uuid)
+        if existing is None:
+            raise
+        return await _same_receipt(ctx, existing, body), True
 
     total_m = Decimal(0)
     for line, number in zip(body.lines, batch_numbers, strict=True):
@@ -345,7 +396,7 @@ async def create_receipt(ctx: AuthContext, body: ReceiptCreate) -> Receipt:
         batches=len(body.lines),
         meters=str(total_m.quantize(_METERS)),
     )
-    return receipt
+    return receipt, False
 
 
 # ====================== Tuzatish va bekor qilish ======================

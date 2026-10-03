@@ -11,6 +11,7 @@ import { useAuth, useCurrentUser } from "./AuthProvider";
 import { PasswordForm } from "./PasswordForm";
 import { BadgeCheck, Building2, Globe, LockKeyhole, type LucideIcon, Phone, UserRound, Vibrate, Volume2 } from "lucide-react";
 import { PageTitle } from "@/shared/ui/PageTitle";
+import { RenameField } from "@/shared/ui/RenameField";
 import { Avatar } from "@/shared/ui/Avatar";
 import { Chip } from "@/shared/ui/list";
 import { setFeedbackPrefs, useFeedbackPrefs } from "@/shared/feedback";
@@ -75,7 +76,6 @@ export function ProfilePage() {
   }
 
   const rows: [LucideIcon, string, string][] = [
-    [UserRound, t("profile.name"), user.full_name],
     [Phone, t("profile.phone"), user.phone ? `+998 ${formatPhone(user.phone.slice(4))}` : "—"],
     [BadgeCheck, t("profile.role"), t(roleKey(user))],
     [Building2, t("profile.business"), business?.name ?? "—"],
@@ -100,7 +100,18 @@ export function ProfilePage() {
                 </p>
               </div>
             </div>
-            <dl className="mt-5 divide-y divide-line border-t border-line">
+            {/* O'z ismi — har kim o'zinikini (asosiy ega ham); jurnalga yoziladi */}
+            <div className="mt-5 border-t border-line pt-4">
+              <RenameField
+                label={t("profile.name")}
+                value={user.full_name}
+                onSave={async (full_name) => {
+                  const saved = await patch<User>("/auth/me", { full_name });
+                  updateUser({ full_name: saved.full_name });
+                }}
+              />
+            </div>
+            <dl className="mt-4 divide-y divide-line border-t border-line">
               {rows.map(([Icon, label, value]) => (
                 <div key={label} className="flex items-center justify-between gap-6 py-3">
                   <dt className="flex shrink-0 items-center gap-2.5 text-sm text-muted">

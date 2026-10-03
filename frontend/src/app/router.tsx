@@ -36,6 +36,7 @@ const SettingsPage = lazy(() => import("@/modules/core/SettingsPage").then((m) =
 const DifferencesPage = lazy(() => import("@/modules/inventory/DifferencesPage").then((m) => ({ default: m.DifferencesPage })));
 const TransferCreatePage = lazy(() => import("@/modules/inventory/TransferCreatePage").then((m) => ({ default: m.TransferCreatePage })));
 const BusinessCreatePage = lazy(() => import("@/modules/platform/BusinessCreatePage").then((m) => ({ default: m.BusinessCreatePage })));
+const SecurityPage = lazy(() => import("@/modules/platform/SecurityPage").then((m) => ({ default: m.SecurityPage })));
 const BusinessesPage = lazy(() => import("@/modules/platform/BusinessesPage").then((m) => ({ default: m.BusinessesPage })));
 const BusinessPage = lazy(() => import("@/modules/platform/BusinessPage").then((m) => ({ default: m.BusinessPage })));
 const ReceiptCreatePage = lazy(() => import("@/modules/receiving/ReceiptCreatePage").then((m) => ({ default: m.ReceiptCreatePage })));
@@ -75,7 +76,12 @@ function GuestOnly() {
   if (device?.bound && !usePassword) {
     return <PinPage device={device} onUsePassword={() => setUsePassword(true)} />;
   }
-  return <LoginPage onBackToPin={device?.bound ? () => setUsePassword(false) : undefined} />;
+  return (
+    <LoginPage
+      onBackToPin={device?.bound ? () => setUsePassword(false) : undefined}
+      onStoreOpened={() => setUsePassword(false)}
+    />
+  );
 }
 
 function Home() {
@@ -280,6 +286,14 @@ export const router = createBrowserRouter(
           element: (
             <PlatformOnly>
               <BusinessPage />
+            </PlatformOnly>
+          ),
+        },
+        {
+          path: "security",
+          element: (
+            <PlatformOnly>
+              <SecurityPage />
             </PlatformOnly>
           ),
         },

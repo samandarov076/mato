@@ -1,5 +1,6 @@
 """04-kirim: kirim hujjati, partiyalar, skladdagi qoldiq, tuzatish va bekor qilish."""
 import asyncio
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
@@ -129,7 +130,12 @@ async def test_receipt_validation(shop, new_location):
     assert (await s.receive(receipt_date=tomorrow)).json()["fields"] == {"receipt_date": "future"}
     empty = await s.client.post(
         "/api/receipts",
-        json={"warehouse_id": s.warehouse, "receipt_date": TODAY, "lines": []},
+        json={
+            "client_uuid": str(uuid.uuid4()),
+            "warehouse_id": s.warehouse,
+            "receipt_date": TODAY,
+            "lines": [],
+        },
         headers=s.headers,
     )
     assert empty.status_code == 422
@@ -402,3 +408,47 @@ async def test_stock_always_equals_the_sum_of_movements(shop):
     qty, received = await s.stock(batch)
     assert (qty, received) == (Decimal("927.50"), Decimal("1000.00"))
     assert sum(q for _, q in await s.movements(batch)) == qty
+
+
+async def test_the_same_receipt_is_recorded_once(shop):
+    """Javob yo'qolib "Saqlash" qayta bosilsa — kirim ikki marta yozilmaydi, qoldiq ikki barobar kirmaydi."""
+    s = await shop()
+    key = str(uuid.uuid4())
+
+    first = await s.receive(client_uuid=key)
+    again = await s.receive(client_uuid=key)
+
+    assert (first.status_code, again.status_code) == (201, 200), again.text
+    assert again.json() == first.json()
+    batch = (await s.card(first.json()["id"]))["lines"][0]["id"]
+    assert await s.stock(batch) == (Decimal("500.00"), Decimal("500.00"))
+
+    # Bir vaqtda kelgan takrorlar ham bitta kirim; raqamlarda bo'shliq qolmaydi
+    rush = str(uuid.uuid4())
+    results = await asyncio.gather(*(s.receive(client_uuid=rush) for _ in range(4)))
+    assert {r.json()["id"] for r in results} == {results[0].json()["id"]}
+    assert (await s.client.get("/api/receipts", headers=s.headers)).json()["total"] == 2
+    third = await s.card((await s.receive()).json()["id"])
+    assert (third["number"], third["lines"][0]["number"]) == ("KR-00003", "P-000003")
+
+    # Shu identifikator bilan boshqa mazmun — jimgina eskisi qaytmaydi
+    for changed in (
+        await s.receive(s.line(meters="600"), client_uuid=key),
+        await s.receive(s.line(), s.line(1), client_uuid=key),
+        await s.receive(s.line(cost_per_m=31000), client_uuid=key),
+    ):
+        assert changed.status_code == 409 and changed.json()["code"] == "request_changed", changed.text
+        assert changed.json()["number"] == "KR-00001"
+    assert await s.stock(batch) == (Decimal("500.00"), Decimal("500.00"))
+
+    # Identifikatorsiz kirim qabul qilinmaydi
+    bare = await s.client.post(
+        "/api/receipts",
+        json={"warehouse_id": s.warehouse, "receipt_date": TODAY, "lines": [s.line()]},
+        headers=s.headers,
+    )
+    assert bare.status_code == 422 and bare.json()["fields"] == {"client_uuid": "missing"}
+
+    # Noyoblik biznes ichida: boshqa biznes shu identifikatorni bemalol ishlatadi
+    other = await shop()
+    assert (await other.receive(client_uuid=key)).status_code == 201

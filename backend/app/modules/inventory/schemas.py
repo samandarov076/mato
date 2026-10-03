@@ -1,4 +1,5 @@
 """Ombor API'sining shakllari: qoldiq, partiya kartochkasi, yopish, ko'chirish va metr farqi."""
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -158,6 +159,7 @@ class TransferLineIn(BaseModel):
 
 
 class TransferCreate(BaseModel):
+    client_uuid: uuid.UUID  # forma beradi — qayta yuborilsa ham ko'chirish bir marta yoziladi
     from_location_id: int
     to_location_id: int
     note: Note | None = None
@@ -274,12 +276,19 @@ class TransferDiff(BaseModel):
     note: str | None
 
 
-class Differences(BaseModel):
-    closures: list[ClosureDiff]
-    transfers: list[TransferDiff]
+class DifferenceTotals(BaseModel):
+    """Filtrga mos BARCHA qatorlar bo'yicha jami (ro'yxat sahifasiga bog'liq emas)."""
+
+    closures_total: int  # farqli yopilgan partiyalar soni
+    transfers_total: int  # farqli ko'chirish qatorlari soni
     shortage_m: Decimal  # kam chiqdi
     shortage_amount: int
     surplus_m: Decimal  # ortiq chiqdi
     surplus_amount: int
     transfer_m: Decimal  # ko'chirishda yo'qolgan (manfiy — ortiq kelgan)
     transfer_amount: int
+
+
+class Differences(DifferenceTotals):
+    closures: list[ClosureDiff]  # shu sahifadagi qatorlar (eng yangisi birinchi)
+    transfers: list[TransferDiff]

@@ -6,8 +6,11 @@ import { api } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { formatDateTime, formatDecimal, formatNumber, formatPrice } from "@/shared/format";
 import { Card } from "@/shared/ui/Card";
+import { ALL_TIME, type Period } from "@/shared/period";
 import { Alert, Loading } from "@/shared/ui/feedback";
-import { SelectField, TextField } from "@/shared/ui/fields";
+import { SelectField } from "@/shared/ui/fields";
+import { FilterPanel } from "@/shared/ui/FilterPanel";
+import { PeriodFilter } from "@/shared/ui/PeriodFilter";
 import { HandCoins, History, Layers, LogIn, type LucideIcon, ShoppingCart, Tag, Users, X } from "lucide-react";
 import { Chip, Empty, IconChip, LoadMore, RowAction, rowClassCompact, sectionStrip } from "@/shared/ui/list";
 import type { Tone } from "@/shared/ui/tones";
@@ -40,14 +43,15 @@ type Entry = {
 type Page = { items: Entry[]; next_cursor: string | null };
 
 type Filters = {
-  date_from: string;
-  date_to: string;
   user_id: string;
   location_id: string;
+  /** Kategoriya; "" — barchasi; NO_LOGIN — kirish-chiqishdan tashqari hammasi (standart) */
   category: string;
 };
 
-const NO_FILTERS: Filters = { date_from: "", date_to: "", user_id: "", location_id: "", category: "" };
+// Kirish-chiqish yozuvlari ko'p va muhim hodisalarni ko'mib yuboradi — jurnal standart holatda ularsiz ochiladi
+const NO_LOGIN = "no_login";
+const NO_FILTERS: Filters = { user_id: "", location_id: "", category: NO_LOGIN };
 
 /** Sozlama qiymati: yoqilgan/o'chirilgan, bo'sh — chiziqcha, qolgani — o'zi. */
 function settingValue(value: unknown, t: TFunction): string {
@@ -155,6 +159,7 @@ export function JournalPage() {
   const { t } = useTranslation();
   const errorText = useErrorText();
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [period, setPeriod] = useState<Period>(ALL_TIME);
 
   const users = useQuery({
     queryKey: ["users"],
@@ -166,11 +171,16 @@ export function JournalPage() {
   });
 
   const journal = useInfiniteQuery({
-    queryKey: ["audit", filters],
+    queryKey: ["audit", filters, period.date_from, period.date_to],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
+      const { category, ...rest } = filters;
+      Object.entries({ ...rest, date_from: period.date_from, date_to: period.date_to }).forEach(
+        ([key, value]) => value && params.set(key, value),
+      );
+      if (category === NO_LOGIN) params.set("exclude_category", "login");
+      else if (category) params.set("category", category);
       if (pageParam) params.set("cursor", pageParam);
       return api<Page>(`/audit-logs?${params}`);
     },
@@ -178,7 +188,8 @@ export function JournalPage() {
   });
 
   const set = (key: keyof Filters) => (value: string) => setFilters({ ...filters, [key]: value });
-  const filtered = Object.values(filters).some(Boolean);
+  const hidden = [filters.user_id, filters.location_id].filter(Boolean).length; // "Filtr" tugmasi ortidagilar
+  const filtered = hidden > 0 || filters.category !== NO_LOGIN || period.preset !== "";
   const entries = journal.data?.pages.flatMap((page) => page.items) ?? [];
   const eventText = (entry: Entry) =>
     t(`audit.events.${entry.event_code}`, { defaultValue: entry.event_code });
@@ -186,59 +197,59 @@ export function JournalPage() {
   return (
     <div>
       <Card>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <TextField
-            type="date"
-            label={t("audit.filters.from")}
-            value={filters.date_from}
-            onChange={set("date_from")}
-            max={filters.date_to || undefined}
-          />
-          <TextField
-            type="date"
-            label={t("audit.filters.to")}
-            value={filters.date_to}
-            onChange={set("date_to")}
-            min={filters.date_from || undefined}
-          />
-          <SelectField label={t("audit.filters.user")} value={filters.user_id} onChange={set("user_id")}>
-            <option value="">{t("common.all")}</option>
-            {users.data?.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.full_name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label={t("audit.filters.location")}
-            value={filters.location_id}
-            onChange={set("location_id")}
+        <PeriodFilter value={period} onChange={setPeriod} />
+        <div className="mt-4">
+          <FilterPanel
+            count={hidden}
+            main={
+              <div className="min-w-0 flex-1 basis-56 sm:max-w-xs">
+                <SelectField
+                  label={t("audit.filters.category")}
+                  value={filters.category}
+                  onChange={set("category")}
+                >
+                  <option value={NO_LOGIN}>{t("audit.without_login")}</option>
+                  <option value="">{t("common.all")}</option>
+                  {CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {t(`audit.categories.${category}`)}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            }
+            after={
+              filtered && (
+                <RowAction icon={X} className="h-11" onClick={() => (setFilters(NO_FILTERS), setPeriod(ALL_TIME))}>
+                  {t("common.clear")}
+                </RowAction>
+              )
+            }
           >
-            <option value="">{t("common.all")}</option>
-            {locations.data?.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label={t("audit.filters.category")}
-            value={filters.category}
-            onChange={set("category")}
-          >
-            <option value="">{t("common.all")}</option>
-            {CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {t(`audit.categories.${category}`)}
-              </option>
-            ))}
-          </SelectField>
+            <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+              <SelectField label={t("audit.filters.user")} value={filters.user_id} onChange={set("user_id")}>
+                <option value="">{t("common.all")}</option>
+                {users.data?.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.full_name}
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField
+                label={t("audit.filters.location")}
+                value={filters.location_id}
+                onChange={set("location_id")}
+              >
+                <option value="">{t("common.all")}</option>
+                {locations.data?.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+          </FilterPanel>
         </div>
-        {filtered && (
-          <RowAction icon={X} className="mt-4" onClick={() => setFilters(NO_FILTERS)}>
-            {t("common.clear")}
-          </RowAction>
-        )}
       </Card>
 
       <section className="mt-4 overflow-hidden rounded-card border border-line bg-panel shadow-card">

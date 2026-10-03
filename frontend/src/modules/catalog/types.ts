@@ -93,9 +93,5 @@ export function similarCodes<T extends { id: number; code: string }>(
     .slice(0, 5);
 }
 
-/** Kasr son: "3,25" → "3.25". Musbat son bo'lmasa yoki kasr qismi uzun bo'lsa — null. */
-export function parseDecimal(text: string, decimals: number): string | null {
-  const value = text.trim().replace(",", ".");
-  const valid = new RegExp(`^\\d{1,6}(\\.\\d{1,${decimals}})?$`).test(value) && Number(value) > 0;
-  return valid ? value : null;
-}
+// Kasr sonni tekshirish va aniq hisob — `shared/decimal.ts` da (bitta joyda)
+export { parseDecimal } from "@/shared/decimal";

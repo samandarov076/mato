@@ -5,7 +5,7 @@ mijozning qarzini ko'radi va to'lovini qabul qiladi.
 """
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import AuthContext, require_roles
 from app.modules.credit import service
@@ -81,9 +81,14 @@ async def set_customer_active(customer_id: int, body: ActiveIn, ctx: CreditAuth)
 
 
 @router.post("/customers/{customer_id}/payments", status_code=201)
-async def receive_payment(customer_id: int, body: PaymentIn, ctx: CreditAuth) -> PaymentCreated:
+async def receive_payment(
+    customer_id: int, body: PaymentIn, ctx: CreditAuth, response: Response
+) -> PaymentCreated:
     """Qarz to'lovi: eng eski qarzdan boshlab; `debt_id` berilsa — faqat o'sha qarzga."""
-    return await service.receive_payment(ctx, customer_id, body)
+    payment, duplicate = await service.receive_payment(ctx, customer_id, body)
+    if duplicate:  # shu to'lov avval yozilgan — yangisi yaratilmadi
+        response.status_code = 200
+    return payment
 
 
 @router.post("/debts/{debt_id}/writeoff", status_code=204)

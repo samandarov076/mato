@@ -1,6 +1,6 @@
 /** Kirim API'sining shakllari (/api/receipts, /api/batches) va forma yordamchilari. */
 import type { Attribute, Fabric, PriceUnit, Sku } from "@/modules/catalog/types";
-import { parseDecimal } from "@/modules/catalog/types";
+import { divRound, parseDecimal, toUnits } from "@/shared/decimal";
 
 export type Ref = { id: number; name: string };
 
@@ -122,26 +122,28 @@ export type LineErrors = Partial<
 
 export type Catalog = { fabrics: Fabric[]; colors: Attribute[]; patterns: Attribute[] };
 
-const number = (text: string, decimals: number) => {
+/** Kiritilgan musbat son — butun birliklarda (metr: yuzdan bir, kg: mingdan bir); yaroqsiz bo'lsa null */
+const units = (text: string, decimals: number) => {
   const parsed = parseDecimal(text, decimals);
-  return parsed === null ? null : Number(parsed);
+  return parsed === null ? null : toUnits(parsed, decimals);
 };
 
 /** 1 kg = X metr: metr va kg ikkalasi bor — metr ÷ kg; aks holda qo'lda yozilgani yoki matoning standarti. */
 export function lineCoefficient(line: LineDraft, fabric: Fabric | undefined): number | null {
-  const meters = number(line.meters, 2);
-  const kg = number(line.kg, 3);
-  if (meters !== null && kg !== null) return Math.round((meters / kg) * 10000) / 10000;
-  const manual = number(line.coefficient, 4);
-  if (manual !== null) return manual;
+  const meters = units(line.meters, 2);
+  const kg = units(line.kg, 3);
+  // (m/100) ÷ (kg/1000), 4 xonagacha — serverdagidek ROUND_HALF_UP
+  if (meters !== null && kg !== null) return divRound(meters * 100_000, kg) / 10_000;
+  const manual = parseDecimal(line.coefficient, 4);
+  if (manual !== null) return Number(manual);
   return fabric?.default_m_per_kg ? Number(fabric.default_m_per_kg) : null;
 }
 
 /** Qator summasi (metr × tannarx), so'mda; hali to'ldirilmagan bo'lsa — null. */
 export function lineAmount(line: LineDraft): number | null {
-  const meters = number(line.meters, 2);
+  const meters = units(line.meters, 2);
   if (meters === null || line.cost === "") return null;
-  return Math.round(meters * Number(line.cost));
+  return divRound(meters * Number(line.cost), 100);
 }
 
 /** Qatorni tekshiradi: xatolar (tarjima kalitlari bilan). Bo'sh obyekt — hammasi joyida. */
@@ -176,8 +178,3 @@ export const skuPick = (line: LineDraft) => ({
   color_id: Number(line.colorId),
   pattern_id: line.patternId ? Number(line.patternId) : null,
 });
-
-/** Bugungi sana Toshkent vaqti bo'yicha: "2026-10-02" (sana maydoni uchun) */
-export function todayInTashkent(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tashkent" }).format(new Date());
-}

@@ -13,7 +13,10 @@ import { Card } from "@/shared/ui/Card";
 import { Avatar } from "@/shared/ui/Avatar";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
+import { Hint } from "@/shared/ui/Hint";
 import { Chip, Empty, LoadMore, rowClass } from "@/shared/ui/list";
+import { LinkRow, num, SortTh, Table, td, Th } from "@/shared/ui/table";
+import { useWide } from "@/shared/useWide";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { Stat, statGrid } from "@/shared/ui/Stat";
 import { focusRing } from "@/shared/ui/tones";
@@ -38,6 +41,7 @@ export function CustomersPage() {
   const queryClient = useQueryClient();
   const { user } = useCurrentUser();
   const sum = t("settings.units.sum");
+  const wide = useWide();
 
   // Boshlang'ich filtr manzildan: "muddati o'tgan qarz" xabari bosilganda shu filtr bilan ochiladi
   const [params] = useSearchParams();
@@ -88,7 +92,9 @@ export function CustomersPage() {
       >
         {t(user.role === "owner" ? "nav.credit" : "store.nav.customers")}
       </PageTitle>
-      <p className="mt-3 max-w-2xl text-muted">{t("credit.intro")}</p>
+      <Hint id="credit" className="mt-3">
+        {t("credit.intro")}
+      </Hint>
 
       {adding && (
         <Card title={t("credit.customer.add")} icon={UserPlus} tone="saffron" className="mt-5 max-w-2xl">
@@ -133,18 +139,21 @@ export function CustomersPage() {
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted">{t("credit.sort")}</span>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
-            className={`h-11 rounded-control border border-edge bg-panel px-2 text-[16px] transition-colors focus:border-indigo ${focusRing}`}
-          >
-            <option value="name">{t("credit.sort_name")}</option>
-            <option value="debt">{t("credit.sort_debt")}</option>
-            <option value="oldest">{t("credit.sort_oldest")}</option>
-          </select>
-        </label>
+        {/* Telefonda — saralash tanlovi; jadvalda (≥768px) ustun sarlavhasi bosiladi */}
+        {!wide && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted">{t("credit.sort")}</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as Sort)}
+              className={`h-11 rounded-control border border-edge bg-panel px-2 text-[16px] transition-colors focus:border-indigo ${focusRing}`}
+            >
+              <option value="name">{t("credit.sort_name")}</option>
+              <option value="debt">{t("credit.sort_debt")}</option>
+              <option value="oldest">{t("credit.sort_oldest")}</option>
+            </select>
+          </label>
+        )}
         <ShowInactive checked={showInactive} onChange={setShowInactive} />
       </div>
 
@@ -160,11 +169,41 @@ export function CustomersPage() {
             {t(filtered ? "credit.empty_filtered" : "credit.empty")}
           </Empty>
         )}
-        <ul className="divide-y divide-line">
-          {rows.map((row) => (
-            <CustomerLine key={row.id} row={row} sum={sum} />
-          ))}
-        </ul>
+        {/* Planshet va kompyuterda — jadval (saralash sarlavhadan); telefonda — kartochkalar */}
+        {wide && rows.length > 0 && (
+          <Table
+            flush
+            label={t(user.role === "owner" ? "nav.credit" : "store.nav.customers")}
+            head={
+              <tr>
+                {/* Server uch xil tartib beradi: ism (A→Z), qarz (kattadan), eng eski qarz (eskidan) */}
+                <SortTh active={sort === "name"} direction="asc" onSort={() => setSort("name")}>
+                  {t("credit.customer.name")}
+                </SortTh>
+                <Th>{t("credit.customer.phone")}</Th>
+                <SortTh active={sort === "debt"} direction="desc" onSort={() => setSort("debt")} className="text-right">
+                  {t("credit.col_debt")}
+                </SortTh>
+                <Th className="text-right">{t("credit.overdue")}</Th>
+                <SortTh active={sort === "oldest"} direction="desc" onSort={() => setSort("oldest")} className="text-right">
+                  {t("credit.sort_oldest")}
+                </SortTh>
+                <Th>{t("credit.last_payment")}</Th>
+              </tr>
+            }
+          >
+            {rows.map((row) => (
+              <CustomerTableRow key={row.id} row={row} />
+            ))}
+          </Table>
+        )}
+        {!wide && (
+          <ul className="divide-y divide-line">
+            {rows.map((row) => (
+              <CustomerLine key={row.id} row={row} sum={sum} />
+            ))}
+          </ul>
+        )}
       </section>
 
       {customers.hasNextPage && (
@@ -173,6 +212,37 @@ export function CustomersPage() {
     </div>
   );
 }
+
+/** Jadval qatori (≥768px): butun qator bosiladi; ism — havola. Qarzi yo'q mijozda — chiziqchalar. */
+const CustomerTableRow = memo(function CustomerTableRow({ row }: { row: CustomerRow }) {
+  const { t } = useTranslation();
+  const dash = <span className="text-muted">—</span>;
+  return (
+    <LinkRow to={`/customers/${row.id}`} className={row.is_active ? "" : "bg-page/60 text-muted"}>
+      <td className={td}>
+        <span className="flex items-center gap-2.5">
+          <Avatar name={row.name} />
+          <span className="min-w-0">
+            <Link to={`/customers/${row.id}`} className="break-words font-medium text-indigo hover:underline">
+              {row.name}
+            </Link>
+            {!row.is_active && <Chip className="ml-2">{t("common.inactive")}</Chip>}
+            {row.note && <span className="block break-words text-[13px] text-muted">{row.note}</span>}
+          </span>
+        </span>
+      </td>
+      <td className={`${td} whitespace-nowrap`}>{phoneText(row.phone)}</td>
+      <td className={`${td} ${num} font-medium`}>{row.debt > 0 ? formatNumber(row.debt) : dash}</td>
+      <td className={`${td} ${num}`}>
+        {row.overdue > 0 ? <span className="font-medium text-madder">{formatNumber(row.overdue)}</span> : dash}
+      </td>
+      <td className={`${td} ${num}`}>
+        {row.debt > 0 && row.oldest_days !== null ? t("credit.card.days", { count: row.oldest_days }) : dash}
+      </td>
+      <td className={`${td} whitespace-nowrap`}>{row.last_payment_at ? formatDate(row.last_payment_at) : dash}</td>
+    </LinkRow>
+  );
+});
 
 /** Ro'yxat qatori. memo: "yana ko'rsatish"da avvalgi qatorlar qayta chizilmaydi. */
 const CustomerLine = memo(function CustomerLine({ row, sum }: { row: CustomerRow; sum: string }) {

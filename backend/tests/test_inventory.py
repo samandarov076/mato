@@ -1,5 +1,6 @@
 """05-ombor: ko'chirish (jo'natish → qabul), qoldiq, partiya kartochkasi, yopish va metr farqi."""
 import asyncio
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -595,6 +596,91 @@ async def test_transferred_batch_can_no_longer_be_edited_by_the_keeper(shop, kee
     assert edit.status_code == 403
     cancel = await s.client.post(f"/api/receipts/{receipt}/cancel", headers=s.headers)
     assert (cancel.status_code, cancel.json()["code"]) == (409, "batch_has_movement")
+
+
+async def test_difference_totals_cover_everything_while_the_lists_are_paged(shop):
+    """Jami — barcha qatorlar bo'yicha (bazada hisoblanadi), ro'yxat esa sahifalab beriladi."""
+    s = await shop()
+    red, blue, green = await s.batch(0), await s.batch(1), await s.batch(0)
+    await _in_store(s, red)
+    await s.sell(red, "-150", s.store)
+    await _close(s, red, s.store)  # do'konda 200 m dan 150 sotilgan: 50 m kam
+    await s.sell(blue, "-490")
+    await _close(s, blue, s.warehouse)  # skladda 10 m kam
+    for sent_m, arrived_m in (("100", "90"), ("50", "45.5")):  # ko'chirishda 10 m va 4.5 m yo'qoldi
+        sent = await s.send((green, 1, sent_m))
+        assert (await s.accept(sent.json()["id"], note="Kam keldi", **{"P-000003": (1, arrived_m)})).status_code == 204
+
+    async def report(**params) -> dict:
+        response = await s.client.get("/api/stock/differences", params=params, headers=s.headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    totals = {
+        "shortage_m": "60.00", "shortage_amount": 1_800_000, "surplus_m": "0", "surplus_amount": 0,
+        "transfer_m": "14.50", "transfer_amount": 435_000, "closures_total": 2, "transfers_total": 2,
+    }  # fmt: skip
+    everything = await report()
+    assert {key: everything[key] for key in totals} == totals
+    assert (len(everything["closures"]), len(everything["transfers"])) == (2, 2)
+
+    first, second = await report(limit=1), await report(limit=1, offset=1)
+    for page in (first, second):
+        assert {key: page[key] for key in totals} == totals  # jami sahifaga bog'liq emas
+        assert (len(page["closures"]), len(page["transfers"])) == (1, 1)
+    assert [page["closures"][0]["batch_number"] for page in (first, second)] == ["P-000002", "P-000001"]
+    assert {page["transfers"][0]["diff_m"] for page in (first, second)} == {"10.00", "4.50"}
+    assert (await report(limit=1, offset=2))["closures"] == []
+
+    # Bosh sahifa (dashboard) shu jamidan foydalanadi
+    board = (await s.client.get("/api/reports/dashboard", headers=s.headers)).json()
+    assert (board["diff_m"], board["diff_amount"]) == ("74.50", 2_235_000)
+
+
+async def test_the_same_transfer_is_recorded_once(shop):
+    """Javob yo'qolib "Jo'natish" qayta bosilsa — ko'chirish ikki marta yozilmaydi, metr ikki marta ayrilmaydi."""
+    s = await shop()
+    batch = await s.batch()  # skladda 500 m
+    key = str(uuid.uuid4())
+
+    first = await s.send((batch, 2, "100"), client_uuid=key)
+    again = await s.send((batch, 2, "100"), client_uuid=key)
+
+    assert (first.status_code, again.status_code) == (201, 200), again.text
+    assert again.json() == first.json()
+    assert (await s.stock(batch))[0] == D("400.00")
+
+    # Bir vaqtda kelgan takrorlar ham bitta ko'chirish; raqamda bo'shliq qolmaydi
+    rush = str(uuid.uuid4())
+    results = await asyncio.gather(*(s.send((batch, 1, "50"), client_uuid=rush) for _ in range(4)))
+    assert {r.json()["id"] for r in results} == {results[0].json()["id"]}
+    assert (await s.stock(batch))[0] == D("350.00")
+    third = await s.send((batch, 1, "10"))
+    assert (await s.transfer(third.json()["id"]))["number"] == "K-00003"
+
+    # Shu identifikator bilan boshqa mazmun — jimgina eskisi qaytmaydi
+    for changed in (
+        await s.send((batch, 2, "120"), client_uuid=key),
+        await s.send((batch, 3, "100"), client_uuid=key),
+    ):
+        assert changed.status_code == 409 and changed.json()["code"] == "request_changed", changed.text
+        assert changed.json()["number"] == "K-00001"
+    assert (await s.stock(batch))[0] == D("340.00")
+
+    # Identifikatorsiz ko'chirish qabul qilinmaydi
+    bare = await s.client.post(
+        "/api/transfers",
+        json={
+            "from_location_id": s.warehouse, "to_location_id": s.store,
+            "lines": [{"batch_id": batch, "rolls": 1, "meters": "1"}],
+        },
+        headers=s.headers,
+    )
+    assert bare.status_code == 422 and bare.json()["fields"] == {"client_uuid": "missing"}
+
+    # Noyoblik biznes ichida: boshqa biznes shu identifikatorni bemalol ishlatadi
+    other = await shop()
+    assert (await other.send((await other.batch(), 1, "10"), client_uuid=key)).status_code == 201
 
 
 @pytest.mark.parametrize("path", ["/api/stock", "/api/transfers", "/api/batches/1"])

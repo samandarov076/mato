@@ -30,6 +30,21 @@ class TwoFactorConfirmedOut(AuthOut):
     recovery_codes: list[str]  # faqat bir marta ko'rsatiladi
 
 
+class TwoFactorStatusOut(BaseModel):
+    enabled: bool
+    recovery_left: int  # ishlatilmagan zaxira kodlar
+    required: bool  # serverda majburiy qilingan — o'chirib bo'lmaydi
+
+
+class ProfileCodeIn(BaseModel):
+    # Ilovadagi 6 xonali kod yoki zaxira kod ("abcd-efgh")
+    code: str = Field(min_length=6, max_length=20)
+
+
+class RecoveryCodesOut(BaseModel):
+    recovery_codes: list[str]  # faqat bir marta ko'rsatiladi
+
+
 # ---------- Bizneslar ----------
 
 
@@ -71,6 +86,10 @@ class StatusEventOut(BaseModel):
 class BusinessDetail(BusinessRow):
     owners: list[OwnerOut]
     events: list[StatusEventOut]  # bloklash va egani almashtirish tarixi, eng yangisi birinchi
+
+
+class BusinessNameIn(BaseModel):
+    name: Name
 
 
 class BusinessCreateIn(BaseModel):

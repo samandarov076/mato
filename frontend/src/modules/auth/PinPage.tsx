@@ -4,7 +4,7 @@ import { Delete, KeyRound } from "lucide-react";
 import { ApiError, type DeviceStatus } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { Logo, Selvedge } from "@/shared/ui/brand";
-import { LanguageSelect } from "@/shared/ui/LanguageSelect";
+import { HeaderControls } from "@/shared/ui/HeaderControls";
 import { useAuth } from "./AuthProvider";
 import { feedback } from "@/shared/feedback";
 import { Button } from "@/shared/ui/Button";
@@ -107,8 +107,8 @@ export function PinPage({
     <div className="flex min-h-dvh flex-col">
       <Selvedge />
       <header className="flex items-center justify-between gap-4 px-6 py-5 sm:px-10">
-        <Logo />
-        <LanguageSelect />
+        <Logo compact />
+        <HeaderControls />
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-6 pb-10">

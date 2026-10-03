@@ -17,7 +17,7 @@ import { Thumb } from "@/modules/catalog/parts";
 import { catalogKeys, type Attribute, type Fabric } from "@/modules/catalog/types";
 import { ApiError, api, patch, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
-import { formatDate, formatDateTime, formatDecimal, formatNumber, trimDecimal } from "@/shared/format";
+import { formatDate, formatDateTime, formatDecimal, formatNumber, todayISO, trimDecimal } from "@/shared/format";
 import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
@@ -30,7 +30,6 @@ import {
   lineBody,
   receivingKeys,
   skuPick,
-  todayInTashkent,
   validateLine,
   type BatchLine,
   type Catalog,
@@ -238,7 +237,7 @@ function ReceiptView({ id }: { id: number }) {
                   label={t("receiving.date")}
                   type="date"
                   value={header.date}
-                  max={todayInTashkent()}
+                  max={todayISO()}
                   onChange={(date) => setHeader({ ...header, date })}
                 />
                 <TextField

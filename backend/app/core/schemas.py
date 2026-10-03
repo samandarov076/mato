@@ -1,9 +1,13 @@
 """Biznes sozlamalari va harakatlar jurnali API'sining shakllari."""
 from datetime import datetime, time
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+
+
+class BusinessNameIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
 
 
 class SettingsBody(BaseModel):

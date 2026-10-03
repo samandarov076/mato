@@ -12,6 +12,7 @@ import { Card } from "@/shared/ui/Card";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { PhoneField, TextAreaField } from "@/shared/ui/fields";
 import { PageTitle } from "@/shared/ui/PageTitle";
+import { RenameField } from "@/shared/ui/RenameField";
 import { Stat, statGrid } from "@/shared/ui/Stat";
 import { formatPhoneFull, SecretBox, StatusChip, type BusinessRow } from "./parts";
 import { Avatar } from "@/shared/ui/Avatar";
@@ -189,6 +190,18 @@ export function BusinessPage() {
           </span>
         </PageTitle>
       </div>
+
+      {/* Biznes nomi — platforma egasi o'zgartiradi (biznes jurnaliga yoziladi) */}
+      <Card className="mt-5">
+        <RenameField
+          label={t("platform.card.business_name")}
+          value={data.name}
+          onSave={async (name) => {
+            await patch(url, { name });
+            await reload();
+          }}
+        />
+      </Card>
 
       <div className={`${statGrid} mt-5 lg:grid-cols-4`}>
         <Stat icon={Store} accent="leaf" label={t("platform.card.stats_stores")} value={data.stores_count} />

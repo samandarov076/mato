@@ -48,6 +48,7 @@ class Shop:
 
     async def receive(self, *lines: dict, headers=None, **fields) -> httpx.Response:
         body = {
+            "client_uuid": str(uuid.uuid4()),
             "warehouse_id": self.warehouse,
             "receipt_date": TODAY,
             "lines": list(lines) or [self.line()],
@@ -96,6 +97,7 @@ class Shop:
     async def send(self, *lines: tuple[int, int, str], headers=None, **fields) -> httpx.Response:
         """Ko'chirish yaratadi: qatorlar — (partiya, rulon, metr). Standart: skladdan do'konga."""
         body = {
+            "client_uuid": str(uuid.uuid4()),
             "from_location_id": self.warehouse,
             "to_location_id": self.store,
             "lines": [{"batch_id": b, "rolls": r, "meters": m} for b, r, m in lines],

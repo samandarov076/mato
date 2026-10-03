@@ -10,6 +10,8 @@ import { Card } from "@/shared/ui/Card";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { formatPhone, PhoneField, TextField } from "@/shared/ui/fields";
 import { actionClass, Chip, Empty, IconChip, RowAction } from "@/shared/ui/list";
+import { StoreAccess } from "./StoreAccess";
+import { Hint } from "@/shared/ui/Hint";
 
 export type LocationRow = {
   id: number;
@@ -19,6 +21,8 @@ export type LocationRow = {
   phone: string | null;
   is_active: boolean;
   devices_count: number;
+  /** Do'kon qurilmasini ochadigan login (faqat do'konda) */
+  login: string | null;
   staff: string[];
 };
 
@@ -139,7 +143,7 @@ export function LocationsPage({ type }: { type: "store" | "warehouse" }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{k("intro")}</p>
+        <Hint id={`locations-${type}`}>{k("intro")}</Hint>
         {editing === null && (
           <Button onClick={() => open(null)}>
             <Plus className="size-[18px]" aria-hidden="true" />
@@ -266,6 +270,10 @@ export function LocationsPage({ type }: { type: "store" | "warehouse" }) {
                   </span>
                 </li>
               </ul>
+
+              {type === "store" && row.is_active && (
+                <StoreAccess storeId={row.id} login={row.login} onChanged={() => void reload()} />
+              )}
 
               <div className="mt-auto pt-4">
                 <div className="flex flex-wrap gap-2 border-t border-line pt-4">

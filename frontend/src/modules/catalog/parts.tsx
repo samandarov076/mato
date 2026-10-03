@@ -12,12 +12,14 @@ const SIZES = {
   md: "size-10 rounded-xl text-xs",
   lg: "size-12 rounded-2xl text-sm",
   xl: "size-16 rounded-2xl text-base",
+  // Sotuvda tanlangan tovar: sotuvchi matoni rasmdan bir qarashda taniydi
+  hero: "size-24 rounded-2xl text-xl sm:size-28",
 };
-const PIXELS = { sm: 32, md: 40, lg: 48, xl: 64 };
+const PIXELS = { sm: 32, md: 40, lg: 48, xl: 64, hero: 112 };
 
-/** Rasmning kichik varianti (96px) — ro'yxat va chiplar uchun; katta fayl faqat xl da */
+/** Rasmning kichik varianti (96px) — ro'yxat va chiplar uchun; katta fayl faqat xl va hero da */
 function thumbUrl(url: string, size: keyof typeof SIZES) {
-  return size === "xl" ? url : url.replace(/\.webp$/, ".s.webp");
+  return size === "xl" || size === "hero" ? url : url.replace(/\.webp$/, ".s.webp");
 }
 
 /** Tovar belgisi: rasm, bo'lmasa rang namunasi, u ham bo'lmasa — kodning bosh harflari. */

@@ -1,14 +1,14 @@
 import { Suspense, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LogOut, Menu, Moon, Sun, TabletSmartphone, Volume2, VolumeX, X } from "lucide-react";
+import { LogOut, Menu, TabletSmartphone, X } from "lucide-react";
 import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
 import { roleKey } from "@/modules/auth/ProfilePage";
 import { Logo, Selvedge } from "@/shared/ui/brand";
-import { feedback, setFeedbackPrefs, useFeedbackPrefs } from "@/shared/feedback";
-import { HeaderLanguage } from "@/shared/ui/HeaderLanguage";
-import { TONES } from "@/shared/ui/tones";
-import { useTheme } from "@/shared/theme";
+import { feedback } from "@/shared/feedback";
+import { HeaderControls } from "@/shared/ui/HeaderControls";
+import { iconButton } from "@/shared/ui/Button";
+import { focusRing, TONES } from "@/shared/ui/tones";
 import { Bell } from "@/modules/notifications/Bell";
 import { Loading } from "@/shared/ui/feedback";
 import { navFor } from "./nav";
@@ -16,31 +16,9 @@ import { navFor } from "./nav";
 const itemBase = "group flex h-11 items-center gap-3 rounded-control px-2 text-[15px] transition-colors";
 const chipBase =
   "chip-3d grid size-8 shrink-0 place-items-center rounded-lg transition-[transform,background-color,color] duration-200 group-hover:-rotate-6 group-hover:scale-110 group-active:scale-95";
-const iconButton =
-  "pressable grid size-10 place-items-center rounded-control text-muted hover:bg-indigo-soft hover:text-ink";
 
 /** React 18 `inert`ni bilmaydi — atribut matn sifatida beriladi (ochiq menyu ortidagi sahifa fokus olmaydi) */
 const inert = (on: boolean) => (on ? ({ inert: "" } as unknown as Record<string, string>) : {});
-
-/** Yuqori paneldagi tovush tugmasi: bir bosishda o'chadi/yonadi (sozlama qurilmada saqlanadi) */
-export function SoundToggle() {
-  const { t } = useTranslation();
-  const { sound } = useFeedbackPrefs();
-  return (
-    <button
-      type="button"
-      aria-label={t(sound ? "feedback.mute" : "feedback.unmute")}
-      aria-pressed={sound}
-      onClick={(event) => {
-        setFeedbackPrefs({ sound: !sound });
-        if (!sound) feedback("toggle", event, { on: true });
-      }}
-      className={iconButton}
-    >
-      {sound ? <Volume2 className="size-5" aria-hidden="true" /> : <VolumeX className="size-5" aria-hidden="true" />}
-    </button>
-  );
-}
 
 function initials(fullName: string): string {
   return fullName
@@ -79,7 +57,18 @@ function Sidebar({ onClose, closeRef }: { onClose?: () => void; closeRef?: RefOb
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 shrink-0 items-center justify-between px-5">
-        <Logo />
+        {/* Logotip — bosh sahifaga (telefonda menyu ham yopiladi) */}
+        <Link
+          to="/"
+          onClick={(event) => {
+            feedback("tap", event);
+            onClose?.();
+          }}
+          aria-label={t("nav.home_link")}
+          className={`-m-1 rounded-control p-1 ${focusRing}`}
+        >
+          <Logo />
+        </Link>
         {onClose && (
           <button ref={closeRef} type="button" onClick={onClose} aria-label={t("nav.close")} className={iconButton}>
             <X className="size-5" aria-hidden="true" />
@@ -164,7 +153,6 @@ export function AppShell() {
   const { t } = useTranslation();
   const { device, logout } = useAuth();
   const { user, business } = useCurrentUser();
-  const { theme, toggle } = useTheme();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   // Yopilish animatsiyasi tugaguncha menyu DOM'da turadi
@@ -255,23 +243,7 @@ export function AppShell() {
               {business?.name ?? t("platform.title")}
             </span>
             {business && <Bell />}
-            <HeaderLanguage />
-            <SoundToggle />
-            <button
-              type="button"
-              onClick={(event) => {
-                feedback("toggle", event, { on: theme !== "dark" });
-                toggle();
-              }}
-              aria-label={t(theme === "dark" ? "theme.to_light" : "theme.to_dark")}
-              className={iconButton}
-            >
-              {theme === "dark" ? (
-                <Sun className="size-5" aria-hidden="true" />
-              ) : (
-                <Moon className="size-5" aria-hidden="true" />
-              )}
-            </button>
+            <HeaderControls />
           </header>
 
           <main

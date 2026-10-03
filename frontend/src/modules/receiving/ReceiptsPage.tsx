@@ -9,16 +9,20 @@ import { useErrorText } from "@/shared/api/errors";
 import { formatDate, formatDecimal, formatNumber } from "@/shared/format";
 import { ButtonLink } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
+import { ALL_TIME, type Period } from "@/shared/period";
 import { Alert, Loading } from "@/shared/ui/feedback";
-import { SelectField, TextField } from "@/shared/ui/fields";
+import { SelectField } from "@/shared/ui/fields";
+import { FilterPanel } from "@/shared/ui/FilterPanel";
+import { Hint } from "@/shared/ui/Hint";
+import { PeriodFilter } from "@/shared/ui/PeriodFilter";
 import { Chip, Empty, IconChip, LoadMore, RowAction, rowClass, sectionStrip } from "@/shared/ui/list";
 import { receivingKeys, type ReceiptOptions, type ReceiptPage, type ReceiptRow } from "./types";
 
 const PAGE_SIZE = 50;
 
-type Filters = { date_from: string; date_to: string; warehouse_id: string; created_by: string };
+type Filters = { warehouse_id: string; created_by: string };
 
-const NO_FILTERS: Filters = { date_from: "", date_to: "", warehouse_id: "", created_by: "" };
+const NO_FILTERS: Filters = { warehouse_id: "", created_by: "" };
 
 // Keng ekranda ustunlar: kirim · sklad · partiyalar · metr · summa · kim · o'tish belgisi
 const columns = "md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_70px_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_16px]";
@@ -27,9 +31,11 @@ const columns = "md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_70px_minmax(0,0.9
 export function ReceiptsPage() {
   const { t } = useTranslation();
   const errorText = useErrorText();
+  const [period, setPeriod] = useState<Period>(ALL_TIME);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const set = (key: keyof Filters, value: string) => setFilters({ ...filters, [key]: value });
-  const filtered = Object.values(filters).some(Boolean);
+  const filtered = Object.values(filters).some(Boolean) || period.preset !== "";
+  const params = { date_from: period.date_from, date_to: period.date_to, ...filters };
 
   const options = useQuery({
     queryKey: receivingKeys.options,
@@ -37,11 +43,11 @@ export function ReceiptsPage() {
   });
 
   const receipts = useInfiniteQuery({
-    queryKey: receivingKeys.list(JSON.stringify(filters)),
+    queryKey: receivingKeys.list(JSON.stringify(params)),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(pageParam) });
-      for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+      for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
       return api<ReceiptPage>(`/receipts?${query}`);
     },
     getNextPageParam: (last, pages) => {
@@ -62,52 +68,55 @@ export function ReceiptsPage() {
           </ButtonLink>
         }
       />
-      <p className="mt-6 max-w-2xl text-muted">{t("receiving.intro")}</p>
+      <Hint id="receiving" className="mt-6">
+        {t("receiving.intro")}
+      </Hint>
 
       <Card className="mt-5">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <TextField
-            label={t("audit.filters.from")}
-            type="date"
-            value={filters.date_from}
-            onChange={(v) => set("date_from", v)}
-          />
-          <TextField
-            label={t("audit.filters.to")}
-            type="date"
-            value={filters.date_to}
-            onChange={(v) => set("date_to", v)}
-          />
-          <SelectField
-            label={t("receiving.warehouse")}
-            value={filters.warehouse_id}
-            onChange={(v) => set("warehouse_id", v)}
+        <PeriodFilter value={period} onChange={setPeriod} />
+        <div className="mt-4">
+          <FilterPanel
+            count={filters.created_by ? 1 : 0}
+            main={
+              <div className="min-w-0 flex-1 basis-56 sm:max-w-xs">
+                <SelectField
+                  label={t("receiving.warehouse")}
+                  value={filters.warehouse_id}
+                  onChange={(v) => set("warehouse_id", v)}
+                >
+                  <option value="">{t("common.all")}</option>
+                  {options.data?.warehouses.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            }
+            after={
+              filtered && (
+                <RowAction icon={X} className="h-11" onClick={() => (setFilters(NO_FILTERS), setPeriod(ALL_TIME))}>
+                  {t("common.clear")}
+                </RowAction>
+              )
+            }
           >
-            <option value="">{t("common.all")}</option>
-            {options.data?.warehouses.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label={t("receiving.created_by")}
-            value={filters.created_by}
-            onChange={(v) => set("created_by", v)}
-          >
-            <option value="">{t("common.all")}</option>
-            {options.data?.creators.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </SelectField>
+            <div className="max-w-xs">
+              <SelectField
+                label={t("receiving.created_by")}
+                value={filters.created_by}
+                onChange={(v) => set("created_by", v)}
+              >
+                <option value="">{t("common.all")}</option>
+                {options.data?.creators.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+          </FilterPanel>
         </div>
-        {filtered && (
-          <RowAction icon={X} className="mt-4" onClick={() => setFilters(NO_FILTERS)}>
-            {t("common.clear")}
-          </RowAction>
-        )}
       </Card>
 
       <section className="mt-4 overflow-hidden rounded-card border border-line bg-panel shadow-card">

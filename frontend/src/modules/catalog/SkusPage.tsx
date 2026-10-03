@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Barcode, ChevronRight, Plus, X } from "lucide-react";
+import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { api, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { feedback } from "@/shared/feedback";
@@ -12,6 +13,8 @@ import { Card } from "@/shared/ui/Card";
 import { MoneyInput, Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { SelectField } from "@/shared/ui/fields";
+import { FilterPanel } from "@/shared/ui/FilterPanel";
+import { Hint } from "@/shared/ui/Hint";
 import { InactiveChip, SearchInput, ShowInactive, Thumb, linkButton } from "./parts";
 import { Chip, Empty, LoadMore, RowAction, rowClass, sectionStrip } from "@/shared/ui/list";
 import { focusRing } from "@/shared/ui/tones";
@@ -36,6 +39,7 @@ type Created = { created: number; existing: number };
 export function SkusPage() {
   const { t } = useTranslation();
   const errorText = useErrorText();
+  const { user } = useCurrentUser();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const bulkErrorId = useId();
@@ -96,6 +100,14 @@ export function SkusPage() {
   });
   const rows = skus.data?.pages.flatMap((page) => page.items) ?? [];
   const total = skus.data?.pages[0]?.total ?? 0;
+  // Biznesning standart kam qoldiq chegarasi — o'z chegarasi yo'q SKU'larda shu son ko'rsatiladi.
+  // Sozlamalar faqat biznes egasiga ochiq: boshqa rolda so'rov yuborilmaydi (o'shanda "standart" so'zi qoladi).
+  const settings = useQuery({
+    queryKey: ["settings"],
+    enabled: user.role === "owner",
+    queryFn: () => api<{ low_stock_default: string | null }>("/settings"),
+  });
+  const standard = settings.data?.low_stock_default ?? null;
   const filtered = filterKey !== "";
 
   // Tanlov shu filtrga tegishli: filtr o'zgarsa, tanlov o'z-o'zidan bo'shaydi
@@ -184,7 +196,7 @@ export function SkusPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{t("catalog.sku.intro")}</p>
+        <Hint id="skus">{t("catalog.sku.intro")}</Hint>
         {!adding && (
           <Button onClick={() => (setNotice(null), setAdding(true))}>
             <Plus className="size-[18px]" aria-hidden="true" />
@@ -204,45 +216,60 @@ export function SkusPage() {
         />
       )}
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
-        <SelectField
-          label={t("catalog.sku.fabric")}
-          value={filters.fabricId}
-          onChange={(v) => setFilter("fabric_id", v)}
+      {/* Qidiruv va mato doim ko'rinadi; rang, gul va "faolsizlar" — "Filtr" tugmasi ortida (telefonda joy tejaladi) */}
+      <div className="mt-5">
+        <FilterPanel
+          count={[filters.colorId, filters.patternId, filters.inactive].filter(Boolean).length}
+          main={
+            <>
+              {/* Qidiruv maydoni o'zi 300 ms kutadi — bu yerga faqat tingan matn keladi */}
+              <SearchInput value={filters.q} onChange={(q) => setFilter("q", q.trim())} label={t("catalog.search")} />
+              <div className="min-w-0 flex-1 basis-48 sm:max-w-xs">
+                <SelectField
+                  label={t("catalog.sku.fabric")}
+                  value={filters.fabricId}
+                  onChange={(v) => setFilter("fabric_id", v)}
+                >
+                  <option value="">{t("common.all")}</option>
+                  {fabrics.data?.map(option)}
+                </SelectField>
+              </div>
+            </>
+          }
+          after={
+            <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                className={checkbox}
+                checked={filters.noPrice}
+                onChange={(e) => setFilter("no_price", e.target.checked ? "1" : "")}
+              />
+              {t("catalog.sku.only_no_price")}
+            </label>
+          }
         >
-          <option value="">{t("common.all")}</option>
-          {fabrics.data?.map(option)}
-        </SelectField>
-        <SelectField
-          label={t("catalog.sku.color")}
-          value={filters.colorId}
-          onChange={(v) => setFilter("color_id", v)}
-        >
-          <option value="">{t("common.all")}</option>
-          {colors.data?.map(option)}
-        </SelectField>
-        <SelectField
-          label={t("catalog.sku.pattern")}
-          value={filters.patternId}
-          onChange={(v) => setFilter("pattern_id", v)}
-        >
-          <option value="">{t("common.all")}</option>
-          {patterns.data?.map(option)}
-        </SelectField>
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-        {/* Qidiruv maydoni o'zi 300 ms kutadi — bu yerga faqat tingan matn keladi */}
-        <SearchInput value={filters.q} onChange={(q) => setFilter("q", q.trim())} label={t("catalog.search")} />
-        <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm">
-          <input
-            type="checkbox"
-            className={checkbox}
-            checked={filters.noPrice}
-            onChange={(e) => setFilter("no_price", e.target.checked ? "1" : "")}
-          />
-          {t("catalog.sku.only_no_price")}
-        </label>
-        <ShowInactive checked={filters.inactive} onChange={(on) => setFilter("inactive", on ? "1" : "")} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+            <SelectField
+              label={t("catalog.sku.color")}
+              value={filters.colorId}
+              onChange={(v) => setFilter("color_id", v)}
+            >
+              <option value="">{t("common.all")}</option>
+              {colors.data?.map(option)}
+            </SelectField>
+            <SelectField
+              label={t("catalog.sku.pattern")}
+              value={filters.patternId}
+              onChange={(v) => setFilter("pattern_id", v)}
+            >
+              <option value="">{t("common.all")}</option>
+              {patterns.data?.map(option)}
+            </SelectField>
+          </div>
+          <div className="mt-3">
+            <ShowInactive checked={filters.inactive} onChange={(on) => setFilter("inactive", on ? "1" : "")} />
+          </div>
+        </FilterPanel>
       </div>
 
       {notice && (
@@ -294,7 +321,13 @@ export function SkusPage() {
 
         <ul className="divide-y divide-line">
           {rows.map((sku) => (
-            <SkuRow key={sku.id} sku={sku} checked={selected.has(sku.id)} onToggle={toggle} />
+            <SkuRow
+              key={sku.id}
+              sku={sku}
+              checked={selected.has(sku.id)}
+              onToggle={toggle}
+              standard={standard}
+            />
           ))}
         </ul>
       </section>
@@ -351,10 +384,13 @@ const SkuRow = memo(function SkuRow({
   sku,
   checked,
   onToggle,
+  standard,
 }: {
   sku: Sku;
   checked: boolean;
   onToggle: (id: number) => void;
+  /** Biznesning standart chegarasi (sozlamalardan); noma'lum yoki belgilanmagan — null */
+  standard: string | null;
 }) {
   const { t } = useTranslation();
   const parts = [sku.fabric.name, sku.color.name, !sku.pattern.is_plain && sku.pattern.name].filter(Boolean);
@@ -395,9 +431,19 @@ const SkuRow = memo(function SkuRow({
           )}
         </span>
         <span className="hidden text-sm text-muted md:block">
-          {sku.low_stock_threshold === null
-            ? t("catalog.sku.threshold_standard")
-            : t("catalog.sku.threshold_value", { value: trimDecimal(sku.low_stock_threshold) })}
+          {sku.low_stock_threshold !== null ? (
+            <span className="text-ink">
+              {t("catalog.sku.threshold_value", { value: trimDecimal(sku.low_stock_threshold) })}
+            </span>
+          ) : standard !== null ? (
+            // O'z chegarasi yo'q — biznes standarti amal qiladi: sonning o'zi kulrang, nimaligi izohda
+            <span title={t("catalog.sku.threshold_standard_hint")} className="text-muted">
+              {t("catalog.sku.threshold_value", { value: trimDecimal(standard) })}
+              <span className="sr-only"> ({t("catalog.sku.threshold_standard_hint")})</span>
+            </span>
+          ) : (
+            t("catalog.sku.threshold_standard")
+          )}
         </span>
         <ChevronRight className="hidden size-4 text-muted md:block" aria-hidden="true" />
       </Link>

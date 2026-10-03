@@ -1,5 +1,5 @@
 /** Hisobotlar API'sining shakllari (/api/reports) va davr yordamchilari. Pul — butun so'm; metr — matn. */
-import { todayISO } from "@/shared/format";
+import { presetRange, shift } from "@/shared/period";
 
 /** Davr ko'rsatkichlari. Savdo = sotuvlar − qaytarishlar; foyda = savdo − tannarx. */
 export type Money = {
@@ -101,34 +101,8 @@ export type Filters = {
   fabric_id: string;
 };
 
-const iso = (date: Date) => date.toISOString().slice(0, 10);
-const parse = (day: string) => new Date(`${day}T00:00:00Z`);
-
-/** Kunni siljitadi: shift("2026-10-02", -1) → "2026-10-01" */
-export function shift(day: string, days: number): string {
-  const date = parse(day);
-  date.setUTCDate(date.getUTCDate() + days);
-  return iso(date);
-}
-
-/** Tayyor davrlar (Toshkent kuni bo'yicha): hafta — dushanbadan, oy — 1-kundan bugungacha. */
-export function presetRange(preset: Exclude<Preset, "custom">, today = todayISO()): [string, string] {
-  const date = parse(today);
-  switch (preset) {
-    case "today":
-      return [today, today];
-    case "yesterday":
-      return [shift(today, -1), shift(today, -1)];
-    case "week":
-      return [shift(today, -((date.getUTCDay() + 6) % 7)), today];
-    case "month":
-      return [`${today.slice(0, 8)}01`, today];
-    case "last_month": {
-      const end = shift(`${today.slice(0, 8)}01`, -1);
-      return [`${end.slice(0, 8)}01`, end];
-    }
-  }
-}
+// Davr hisobi — umumiy (`shared/period.ts`): ro'yxat filtrlari ham shuni ishlatadi
+export { presetRange, shift };
 
 export function defaultFilters(): Filters {
   const [date_from, date_to] = presetRange("month");

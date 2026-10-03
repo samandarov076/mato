@@ -1,4 +1,5 @@
 /** Ombor API'sining shakllari (/api/stock, /api/batches, /api/transfers). Metr va kg — aniq son (matn). */
+import { fromUnits, toUnits } from "@/shared/decimal";
 
 export type Ref = { id: number; name: string };
 export type Place = Ref & { type: "store" | "warehouse" };
@@ -186,6 +187,9 @@ export type TransferDiff = {
 export type Differences = {
   closures: ClosureDiff[];
   transfers: TransferDiff[];
+  /** Filtrga mos barcha qatorlar soni (ro'yxatlar sahifalab keladi) */
+  closures_total: number;
+  transfers_total: number;
   shortage_m: string;
   shortage_amount: number;
   surplus_m: string;
@@ -208,6 +212,7 @@ export const inventoryKeys = {
 
 /** Rulon soni o'zgarsa — metr o'rtacha rulon uzunligi bo'yicha: 3 rulon × 50 m = "150" */
 export function metersForRolls(rolls: string, rollM: string): string {
-  if (!/^\d+$/.test(rolls)) return "";
-  return String(Math.round(Number(rolls) * Number(rollM) * 100) / 100);
+  const length = toUnits(rollM, 2);
+  if (!/^\d+$/.test(rolls) || length === null) return "";
+  return fromUnits(Number(rolls) * length, 2);
 }

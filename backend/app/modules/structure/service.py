@@ -26,6 +26,8 @@ from app.modules.structure.schemas import (
     StaffOut,
     StaffSecretOut,
     StaffUpdate,
+    StoreAccessIn,
+    StoreSecretOut,
 )
 
 # Rolga mos joy turi: sotuvchi — do'konlar, omborchi — skladlar
@@ -104,6 +106,7 @@ async def list_locations(
             phone=location.phone,
             is_active=location.is_active,
             devices_count=devices.get(location.id, 0),
+            login=location.login,
             staff=[
                 user.full_name
                 for user in staff
@@ -211,6 +214,50 @@ async def set_location_active(ctx: AuthContext, location_id: int, active: bool) 
                 .values(revoked_at=now)
             )
     _log(ctx, "location.activated" if active else "location.deactivated", location.name, location.id)
+
+
+async def _store(ctx: AuthContext, location_id: int) -> Location:
+    location = await _location(ctx, location_id)
+    if location.type != "store":
+        raise AppError(400, "store_only")
+    return location
+
+
+async def set_store_access(ctx: AuthContext, location_id: int, body: StoreAccessIn) -> None:
+    """Do'kon logini va parolini o'rnatadi yoki o'zgartiradi.
+
+    Login butun tizimda noyob — boshqa bizneslarning loginlari RLS ortida, shuning uchun noyoblikni
+    baza indeksi tekshiradi. Parol almashtirilsa, avval shu login bilan ochilgan qurilmalar ishlayveradi
+    (ular o'z tokeni bilan bog'langan) — kerak bo'lsa ega ularni "Qurilmalar"da uzadi.
+    """
+    store = await _store(ctx, location_id)
+    if body.password is None and store.password_hash is None:
+        raise _field_error("password", "required")
+    store.login = body.login
+    if body.password is not None:
+        store.password_hash = await asyncio.to_thread(hash_password, body.password)
+        store.password_enc = seal(body.password)
+    try:
+        async with ctx.db.begin_nested():
+            await ctx.db.flush()
+    except IntegrityError as error:
+        if "uq_locations_login" in str(error.orig):
+            raise AppError(409, "login_taken") from None
+        raise
+    _log(ctx, "location.login_set", store.name, store.id)
+
+
+async def clear_store_access(ctx: AuthContext, location_id: int) -> None:
+    """Do'kon logini o'chiriladi: shu login bilan endi kirib bo'lmaydi (bog'langan qurilmalar qoladi)."""
+    store = await _store(ctx, location_id)
+    store.login = store.password_hash = store.password_enc = None
+    _log(ctx, "location.login_cleared", store.name, store.id)
+
+
+async def reveal_store_password(ctx: AuthContext, location_id: int) -> StoreSecretOut:
+    store = await _store(ctx, location_id)
+    _log(ctx, "location.password_viewed", store.name, store.id)
+    return StoreSecretOut(password=unseal(store.password_enc))
 
 
 # ====================== Xodimlar ======================

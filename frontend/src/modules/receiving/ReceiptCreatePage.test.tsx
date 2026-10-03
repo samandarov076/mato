@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ApiError } from "@/shared/api/client";
 import i18n from "@/shared/i18n";
+import { setScreenWidth } from "@/test-utils";
 import { ReceiptCreatePage } from "./ReceiptCreatePage";
-import { lineCoefficient, type LineDraft } from "./types";
+import { lineAmount, lineCoefficient, type LineDraft } from "./types";
 
 const { api, post } = vi.hoisted(() => ({ api: vi.fn(), post: vi.fn() }));
 vi.mock("@/shared/api/client", async (original) => ({
@@ -134,6 +136,28 @@ describe("Kirim yaratish", () => {
     expect(await screen.findByText("kirim kartochkasi")).toBeInTheDocument();
   });
 
+  it("javob kelmasa qayta saqlash o'sha identifikator bilan ketadi — kirim ikki marta yozilmaydi", async () => {
+    post.mockRejectedValueOnce(new ApiError(504, "server_error", "Gateway Timeout"));
+    post.mockResolvedValueOnce({ id: 77 });
+    renderPage();
+    await screen.findByRole("heading", { name: "1-partiya" });
+    await fill(batch(1), "11", "10", "500", "30000");
+    const save = () => userEvent.click(screen.getByRole("button", { name: "Kirimni saqlash" }));
+
+    await save();
+    expect(await screen.findByText(/Serverda xatolik yuz berdi/)).toBeInTheDocument();
+    const sent = post.mock.calls[0][1].client_uuid;
+    expect(sent).toMatch(/^[0-9a-f-]{36}$/);
+
+    cleanup(); // sahifa yangilandi — qoralama va identifikator qurilmada
+    renderPage();
+    await screen.findByRole("heading", { name: "1-partiya" });
+    await save();
+
+    expect(await screen.findByText("kirim kartochkasi")).toBeInTheDocument();
+    expect(post.mock.calls[1][1].client_uuid).toBe(sent);
+  });
+
   it("metr va kg matoning standartidan ancha farq qilsa — ogohlantiradi", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "1-partiya" });
@@ -208,6 +232,86 @@ describe("Kirim yaratish", () => {
   });
 });
 
+describe("Kirim yaratish — kompyuterda (≥1024px) qatorli jadval", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    post.mockReset();
+    api.mockReset();
+    api.mockImplementation((path: string) => {
+      if (path.startsWith("/receipts/options")) {
+        return Promise.resolve({ warehouses: [{ id: 5, name: "Asosiy sklad" }], creators: [] });
+      }
+      if (path.startsWith("/catalog/fabrics")) return Promise.resolve([fabric]);
+      if (path.startsWith("/catalog/colors")) return Promise.resolve(colors);
+      if (path.startsWith("/catalog/patterns")) return Promise.resolve(patterns);
+      const found = path.includes("color_id=11") ? [existingSku] : [];
+      return Promise.resolve({ items: found, total: found.length });
+    });
+    setScreenWidth(1280);
+  });
+  afterEach(() => setScreenWidth(null));
+
+  /** n-partiya qatori (jadvalda) */
+  const row = (n: number) => screen.getByRole("row", { name: `${n}-partiya` });
+
+  it("har partiya — bitta jadval qatori; Tab bilan chapdan o'ngga yuriladi; saqlash o'sha so'rovni yuboradi", async () => {
+    post.mockResolvedValue({ id: 77 });
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Partiyalar" });
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+      "№", "Mato", "Rang", "Gul", "Rulon", "Metr", "Kg", "1 kg = m", "Tannarx", "Tavsiya narx", "",
+    ]);
+    expect(screen.queryByRole("heading", { name: "1-partiya" })).toBeNull(); // kartochka ko'rinishi chizilmaydi
+
+    await fill(row(1), "11", "10", "500", "30000");
+    expect(await within(table).findByText(/Hozir: 40 000 so'm \/ m/)).toBeInTheDocument();
+
+    // Tab tartibi — ustunlar tartibida
+    within(row(1)).getByLabelText("Mato").focus();
+    const order = ["Rang", "Gul", "Rulonlar soni", "Metr (rulonlar jami)", "Jami kg", "1 kg necha metr", "Tannarx, 1 metr uchun", "Tavsiya narx"];
+    for (const label of order) {
+      await userEvent.tab();
+      expect(within(row(1)).getByLabelText(label)).toHaveFocus();
+    }
+
+    await userEvent.click(screen.getByRole("button", { name: "Qator qo'shish" }));
+    await fill(row(2), "12", "4", "200,5", "10000");
+    await userEvent.type(within(row(2)).getByLabelText("Tavsiya narx"), "25000");
+    expect(screen.getByText("700.5 m")).toBeInTheDocument();
+    expect(screen.getByText("17 005 000 so'm")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Kirimni saqlash" }));
+
+    expect(post.mock.calls[0][1].lines).toEqual([
+      {
+        fabric_id: 1, color_id: 11, pattern_id: null,
+        rolls_count: 10, meters: "500", kg: null, m_per_kg: null, cost_per_m: 30000,
+      },
+      {
+        fabric_id: 1, color_id: 12, pattern_id: null,
+        rolls_count: 4, meters: "200.5", kg: null, m_per_kg: null, cost_per_m: 10000,
+        price: 25000, price_unit: "m",
+      },
+    ]);
+    expect(await screen.findByText("kirim kartochkasi")).toBeInTheDocument();
+  });
+
+  it("xatolar qator ostida; qatorni olib tashlash ishlaydi", async () => {
+    renderPage();
+    await screen.findByRole("table", { name: "Partiyalar" });
+    await userEvent.click(screen.getByRole("button", { name: "Kirimni saqlash" }));
+    expect(screen.getByText("Matoni tanlang")).toBeInTheDocument();
+    expect(screen.getByText("Tannarxni kiriting")).toBeInTheDocument();
+    expect(within(row(1)).getByLabelText("Mato")).toHaveAttribute("aria-invalid", "true");
+    expect(post).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Qator qo'shish" }));
+    expect(screen.getAllByRole("row", { name: /-partiya$/ })).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "2-partiyani olib tashlash" })); // bo'sh qator — darhol
+    expect(screen.getAllByRole("row", { name: /-partiya$/ })).toHaveLength(1);
+  });
+});
+
 describe("koeffitsient (1 kg = X metr)", () => {
   const line = (changes: Partial<LineDraft>): LineDraft => ({
     key: 1, fabricId: "1", colorId: "11", patternId: "", rolls: "1", meters: "", kg: "",
@@ -219,6 +323,9 @@ describe("koeffitsient (1 kg = X metr)", () => {
     expect(lineCoefficient(line({ meters: "500", coefficient: "4,5" }), fabric)).toBe(4.5);
     expect(lineCoefficient(line({ meters: "500" }), fabric)).toBe(4);
     expect(lineCoefficient(line({ meters: "100", kg: "3" }), fabric)).toBe(33.3333);
+    // Yarim holat serverdagi ROUND_HALF_UP bilan bir xil (float bilan 47.3437 chiqardi)
+    expect(lineCoefficient(line({ meters: "99.99", kg: "2.112" }), fabric)).toBe(47.3438);
+    expect(lineAmount(line({ meters: "269.59", cost: "49550" }))).toBe(13_358_185); // 13 358 184.5
     expect(lineCoefficient(line({ meters: "500" }), { ...fabric, default_m_per_kg: null })).toBeNull();
   });
 });

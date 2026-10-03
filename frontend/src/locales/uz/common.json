@@ -34,7 +34,9 @@
     "settings": "Sozlamalar",
     "logout": "Chiqish",
     "businesses": "Bizneslar",
-    "skip": "Asosiy qismga o'tish"
+    "skip": "Asosiy qismga o'tish",
+    "security": "Xavfsizlik",
+    "home_link": "Bosh sahifa"
   },
   "login": {
     "title": "Kirish",
@@ -72,7 +74,7 @@
     "phone": "Telefon",
     "role": "Lavozim",
     "business": "Biznes",
-    "readonly_note": "Ism va telefon bu yerda o'zgartirilmaydi.",
+    "readonly_note": "Telefon raqami bu yerda o'zgartirilmaydi — u bilan tizimga kirasiz.",
     "language_title": "Interfeys tili",
     "language_hint": "Tanlangan til barcha qurilmalaringizda qo'llanadi.",
     "language_saved": "Til saqlandi",
@@ -95,7 +97,15 @@
     "active": "faol",
     "keep": "Yo'q, qolsin",
     "draft_restored": "Saqlanmagan qoralama tiklandi.",
-    "clear_draft": "Qoralamani tozalash"
+    "clear_draft": "Qoralamani tozalash",
+    "rename": "O'zgartirish",
+    "retry": "Qayta urinish",
+    "filters": "Filtr",
+    "filters_active": "Faol filtrlar",
+    "hide_hint": "Tushuntirishni yopish",
+    "more": "Boshqa amallar",
+    "total": "Jami",
+    "number": "Raqam"
   },
   "pin": {
     "prompt": "PIN kodni kiriting",
@@ -116,11 +126,19 @@
       "stock": "Qoldiq",
       "transfers": "Ko'chirishlar",
       "close_batch": "Partiyani yopish"
+    },
+    "nav_short": {
+      "my_sales": "Sotuvlarim",
+      "close_batch": "Yopish",
+      "sale": "Sotuv",
+      "customers": "Mijozlar",
+      "stock": "Qoldiq",
+      "transfers": "Ko'chirish"
     }
   },
   "devices": {
     "title": "Do'kon qurilmalari",
-    "intro": "Har do'konda bitta umumiy qurilma bo'ladi. Uni bir marta bog'laysiz — keyin sotuvchilar unda faqat 4 xonali PIN bilan kiradi.",
+    "intro": "Do'kon qurilmasida sotuvchilar faqat 4 xonali PIN bilan kiradi. Qurilmani ikki usulda ochish mumkin: do'kon logini bilan (Do'konlar → kartochkadagi «Do'kon logini»; kirish sahifasining «Do'kon» varag'i) yoki shu yerda o'zingiz bog'laysiz.",
     "bind_title": "Shu qurilmani do'konga bog'lash",
     "store": "Do'kon",
     "store_placeholder": "Do'konni tanlang",
@@ -186,7 +204,9 @@
       "credit_days": "1 dan 365 gacha butun son kiriting",
       "low_stock_default": "Musbat son kiriting yoki bo'sh qoldiring",
       "autolock_minutes": "1 dan 480 gacha butun son kiriting"
-    }
+    },
+    "business_name": "Biznes nomi",
+    "business_name_hint": "Yuqori panelda, xabarlarda va platforma panelida shu nom ko'rinadi."
   },
   "audit": {
     "empty": "Bu shartlar bo'yicha yozuv topilmadi.",
@@ -230,13 +250,16 @@
       },
       "device": {
         "bound": "Qurilmani do'konga bog'ladi",
-        "revoked": "Qurilmani uzdi"
+        "revoked": "Qurilmani uzdi",
+        "bound_by_login": "Do'kon logini bilan qurilma ochildi"
       },
       "settings": {
         "changed": "Sozlamalarni o'zgartirdi"
       },
       "business": {
-        "created": "Biznes tizimga qo'shildi"
+        "created": "Biznes tizimga qo'shildi",
+        "renamed": "Biznes nomini o'zgartirdi",
+        "renamed_by_platform": "Platforma administratori biznes nomini o'zgartirdi"
       },
       "owner": {
         "primary_changed": "Asosiy ega almashtirildi",
@@ -246,7 +269,10 @@
         "created": "Joy qo'shdi",
         "updated": "Joyni tahrirladi",
         "deactivated": "Joyni faolsizlantirdi",
-        "activated": "Joyni qayta faollashtirdi"
+        "activated": "Joyni qayta faollashtirdi",
+        "login_set": "Do'kon loginini o'rnatdi",
+        "login_cleared": "Do'kon loginini o'chirdi",
+        "password_viewed": "Do'kon parolini ko'rdi"
       },
       "user": {
         "created": "Xodim qo'shdi",
@@ -255,7 +281,8 @@
         "activated": "Xodimni qayta faollashtirdi",
         "password_reset": "Xodim parolini yangiladi",
         "pin_changed": "Sotuvchi PIN'ini almashtirdi",
-        "secret_viewed": "Xodimning paroli yoki PIN'ini ko'rdi"
+        "secret_viewed": "Xodimning paroli yoki PIN'ini ko'rdi",
+        "name_changed": "O'z ismini o'zgartirdi"
       },
       "fabric": {
         "created": "Mato qo'shdi",
@@ -312,7 +339,8 @@
         "paid": "Qarz to'lovini qabul qildi",
         "written_off": "Qarzni hisobdan chiqardi"
       }
-    }
+    },
+    "without_login": "Kirish-chiqishsiz"
   },
   "twofactor": {
     "title": "Tasdiqlash kodi",
@@ -416,7 +444,8 @@
       "hide_password": "Yashirish",
       "password_now": "Hozirgi parol:",
       "password_missing": "Parol hali saqlanmagan: u shu imkoniyat qo'shilishidan oldin o'rnatilgan. Ega keyingi safar kirganda ko'rinadi — yoki parolni tiklang.",
-      "password_logged": "Ko'rganingiz biznesning jurnaliga yozildi — ega buni ko'radi."
+      "password_logged": "Ko'rganingiz biznesning jurnaliga yozildi — ega buni ko'radi.",
+      "business_name": "Biznes nomi"
     }
   },
   "structure": {
@@ -482,7 +511,8 @@
       "secret_pin": "Hozirgi PIN:",
       "secret_missing": "Hali saqlanmagan: u shu imkoniyat qo'shilishidan oldin o'rnatilgan. Xodim keyingi safar kirganda ko'rinadi — yoki hozir yangisini qo'ying.",
       "secret_logged": "Ko'rganingiz harakatlar jurnaliga yozildi.",
-      "created_login": "{{name}} qo'shildi. Telefon raqami va parol bilan kira oladi."
+      "created_login": "{{name}} qo'shildi. Telefon raqami va parol bilan kira oladi.",
+      "more": "{{name}}: boshqa amallar"
     },
     "discard_draft": "To'ldirilayotgan forma yopiladi — {{name}} tahrirlansinmi?"
   },
@@ -603,7 +633,8 @@
       "saved": "Saqlandi",
       "history": "Narx tarixi",
       "history_empty": "Narx hali o'zgartirilmagan.",
-      "inactive_note": "Faolsiz SKU yangi kirimda tanlanmaydi, qoldig'i esa sotilaveradi."
+      "inactive_note": "Faolsiz SKU yangi kirimda tanlanmaydi, qoldig'i esa sotilaveradi.",
+      "threshold_standard_hint": "Biznes standarti"
     }
   },
   "receiving": {
@@ -693,7 +724,12 @@
       "cost_per_m": "Tannarx"
     },
     "remove_confirm": "{{n}}-partiya olib tashlansinmi? Yozilganlar yo'qoladi.",
-    "remove_yes": "Ha, olib tashlash"
+    "remove_yes": "Ha, olib tashlash",
+    "col_rolls": "Rulon",
+    "col_meters": "Metr",
+    "col_kg": "Kg",
+    "col_coefficient": "1 kg = m",
+    "col_cost": "Tannarx"
   },
   "inventory": {
     "tab_stock": "Qoldiq",
@@ -715,7 +751,14 @@
       "only_in_transit": "Yo'lda",
       "empty": "Hali qoldiq yo'q — tovar kirim qilingach shu yerda ko'rinadi.",
       "empty_filtered": "Bu shartlarga mos qoldiq yo'q.",
-      "low": "kam"
+      "legend_warehouse": "Sklad",
+      "legend_store": "Do'kon",
+      "legend_low": "Chegaradan kam qolgan",
+      "low_hint": "Kam qoldi — chegara {{threshold}} m",
+      "batches_count": "{{count}} ta partiya",
+      "batches_count_one": "{{count}} ta partiya",
+      "batches_count_other": "{{count}} ta partiya",
+      "col_item": "Tovar"
     },
     "batch": {
       "title": "Partiya",
@@ -806,7 +849,10 @@
       "cancel_yes": "Ha, bekor qilish",
       "sent_by": "Jo'natdi",
       "received_by": "Qabul qildi",
-      "cancelled_by": "Bekor qildi"
+      "cancelled_by": "Bekor qildi",
+      "col_route": "Qayerdan → qayerga",
+      "col_by": "Kim",
+      "col_when": "Qachon"
     },
     "receive": {
       "short": "{{meters}} m kam",
@@ -873,6 +919,9 @@
       },
       "telegram": {
         "disconnected": "Telegram uzildi"
+      },
+      "pin": {
+        "store_locked": "PIN bloki"
       }
     },
     "text": {
@@ -899,6 +948,9 @@
       },
       "telegram": {
         "disconnected": "Telegram uzildi — bot bloklangan. Xabar olishni davom ettirish uchun profilda qayta ulang."
+      },
+      "pin": {
+        "store_locked": "«{{store}}» do'konida PIN ko'p marta xato kiritildi — do'kon qurilmalari {{minutes}} daqiqaga bloklandi. Sotuvchilardan so'rang; shubha bo'lsa, PIN'larni almashtiring."
       }
     }
   },
@@ -913,7 +965,8 @@
     "finish": "Yakunlash",
     "done": "{{number}} yozildi — {{amount}} so'm.",
     "open_sale": "Sotuvni ochish",
-    "pending": "Sotuv yuborilmadi — internet yo'q. Savat saqlandi; ulanish tiklangach o'zi yuboriladi.",
+    "pending": "Sotuv tasdiqlanmadi — serverdan javob kelmadi. Savat saqlandi va o'zgartirilmaydi; ulanish tiklangach o'zi qayta yuboriladi.",
+    "pending_other": "{{seller}}ning {{amount}} so'mlik sotuvi tasdiqlanmagan. U PIN bilan kirgach, sotuv qayta yuboriladi.",
     "retry": "Qayta yuborish",
     "entry": {
       "scan": "Partiya raqami yoki tovar (skaner ham shu yerga)",
@@ -924,19 +977,24 @@
       "meters": "Metr",
       "kg": "Kg",
       "price": "1 metr narxi",
-      "recommended": "Tavsiya narx: {{price}}",
       "no_recommended": "Tavsiya narx yo'q — narxni o'zingiz yozing",
       "no_coefficient": "Bu partiya uchun kg ↔ metr belgilanmagan, metrda kiriting",
       "over_stock": "Tizimda {{available}} m qolgan. Haqiqatda mato bo'lsa — qo'shing, savatda izoh yozasiz.",
       "line_total": "Qator jami",
       "add": "Qo'shish",
-      "not_found": "Partiya topilmadi — tovarni qo'lda tanlang",
+      "not_found": "Partiya yoki tovar topilmadi — tovarni qo'lda tanlang",
       "not_here": "Bu partiya shu do'konda yo'q",
       "errors": {
         "item": "Tovarni tanlang",
         "meters": "Metrni kiriting, masalan 2.5",
         "price": "1 metr narxini kiriting"
-      }
+      },
+      "add_more": "Yana qo'shish",
+      "sell": "Sotish",
+      "sell_credit": "Mijozni tanlash",
+      "at_recommended": "Tavsiya narx bo'yicha",
+      "recommended_restore": "Tavsiya narxni qaytarish: {{price}}",
+      "items": "Tovarlar"
     },
     "cart": {
       "title": "Savat",
@@ -983,7 +1041,11 @@
       "empty": "Hali sotuv yo'q. Birinchi sotuvni sotuvchi do'kon qurilmasida yozadi.",
       "empty_today": "Bugun hali sotuv qilmadingiz.",
       "empty_filtered": "Bu shartlarga mos sotuv yo'q.",
-      "returned": "{{amount}} so'm qaytarilgan"
+      "returned": "{{amount}} so'm qaytarilgan",
+      "col_number": "Raqam",
+      "col_time": "Vaqt",
+      "col_customer": "Mijoz",
+      "col_amount": "Summa"
     },
     "status": {
       "completed": "Yakunlangan",
@@ -1095,7 +1157,8 @@
       "payments": "To'lovlar tarixi",
       "payments_empty": "Hali to'lov yo'q.",
       "writeoffs": "Hisobdan chiqarishlar",
-      "allocated": "{{number}}: {{amount}}"
+      "allocated": "{{number}}: {{amount}}",
+      "col_sales": "Sotuvlar"
     },
     "pay": {
       "open": "To'lov qabul qilish",
@@ -1122,7 +1185,8 @@
       "reason_required": "Sababni yozing",
       "submit": "Ha, hisobdan chiqarish",
       "done": "{{amount}} so'm hisobdan chiqarildi"
-    }
+    },
+    "col_debt": "Qarz"
   },
   "dashboard": {
     "period": {
@@ -1237,7 +1301,11 @@
     "deviation_intro": "Sotuv narxi tavsiya narxdan qancha farq qilgan. Tavsiya narxi bo'lmagan sotuvlar bu yerga kirmaydi.",
     "expected": "Tavsiya narxda",
     "actual": "Haqiqatda",
-    "diff": "Farq"
+    "diff": "Farq",
+    "short": {
+      "million": "mln",
+      "thousand": "ming"
+    }
   },
   "telegram": {
     "not_configured": "Telegram boti hali sozlanmagan. Xabarlar hozircha faqat tizim ichida keladi.",
@@ -1268,7 +1336,7 @@
     "account_inactive": "Hisobingiz faolsizlantirilgan. Biznes egasiga murojaat qiling.",
     "too_many_attempts": "Juda ko'p xato urinish. {{minutes}} daqiqadan keyin qayta urinib ko'ring.",
     "invalid_pin": "PIN noto'g'ri",
-    "pin_locked": "5 marta xato PIN kiritildi. Qurilma {{minutes}} daqiqaga qulflandi.",
+    "pin_locked": "PIN juda ko'p marta xato kiritildi. Qurilma {{minutes}} daqiqaga qulflandi.",
     "device_not_bound": "Bu qurilma do'konga bog'lanmagan. Biznes egasi uni qaytadan bog'lashi kerak.",
     "store_not_found": "Do'kon topilmadi",
     "device_not_found": "Qurilma topilmadi",
@@ -1281,6 +1349,11 @@
     "password_change_required": "Avval vaqtinchalik parolni almashtiring",
     "forbidden": "Bu amal uchun ruxsatingiz yo'q",
     "unknown": "Kutilmagan xatolik. Qayta urinib ko'ring.",
+    "sale_basket_changed": "Bu savat avval {{number}} raqami bilan yozilgan, lekin tarkibi boshqacha edi. Sotuvlar ro'yxatidan {{number}} ni tekshiring; yozilmagan tovarni savatda qoldirib, qayta yuboring.",
+    "request_changed": "Bu amal avval saqlangan, lekin mazmuni boshqacha edi. Ro'yxatni tekshiring: avvalgisi yozilgan, hozirgi o'zgarishlar esa yozilmadi.",
+    "validation_error": "Kiritilgan ma'lumotda xato bor. Maydonlarni tekshirib, qayta urinib ko'ring.",
+    "not_found": "So'ralgan narsa topilmadi",
+    "invalid_cursor": "Ro'yxat eskirgan. Sahifani yangilab, qayta urinib ko'ring.",
     "invalid_code": "Kod noto'g'ri",
     "challenge_expired": "Vaqt tugadi. Parolni qaytadan kiriting.",
     "setup_expired": "Ulash vaqti tugadi. Qaytadan kirib, QR kodni yana skanerlang.",
@@ -1341,7 +1414,13 @@
     "payment_too_large": "To'lov qarzdan ko'p — sahifani yangilab, qayta urinib ko'ring",
     "writeoff_too_large": "Summa qolgan qarzdan ko'p — sahifani yangilab, qayta urinib ko'ring",
     "customer_has_debt": "Qarzi bor mijozni faolsizlantirib bo'lmaydi",
-    "telegram_not_configured": "Telegram boti hali sozlanmagan"
+    "telegram_not_configured": "Telegram boti hali sozlanmagan",
+    "two_factor_not_set": "Ikki bosqichli kirish yoqilmagan.",
+    "two_factor_required": "Ikki bosqichli kirish serverda majburiy — o'chirib bo'lmaydi.",
+    "invalid_store_credentials": "Do'kon logini yoki paroli noto'g'ri",
+    "store_inactive": "Bu do'kon faolsizlantirilgan",
+    "login_taken": "Bu login band — boshqasini tanlang",
+    "store_only": "Login faqat do'konga beriladi"
   },
   "feedback": {
     "title": "Tovush va tebranish",
@@ -1351,5 +1430,82 @@
     "haptics_hint": "Android qurilmalarda bosishga qisqa tebranish. iPhone/iPad brauzeri tebranishni qo'llamaydi.",
     "mute": "Tovushni o'chirish",
     "unmute": "Tovushni yoqish"
+  },
+  "security": {
+    "title": "Xavfsizlik",
+    "twofactor_title": "Ikki bosqichli kirish",
+    "on": "Yoqilgan",
+    "off": "O'chiq",
+    "off_text": "Hozir panelga faqat parol bilan kiriladi. Yoqsangiz, har kirishda telefoningizdagi ilova ko'rsatadigan 6 xonali kod ham so'raladi.",
+    "on_text": "Panelga kirishda parol va tasdiqlash ilovasidagi kod so'raladi.",
+    "recovery_left": "Ishlatilmagan zaxira kodlar: {{count}} ta",
+    "recovery_left_one": "Ishlatilmagan zaxira kodlar: {{count}} ta",
+    "recovery_left_other": "Ishlatilmagan zaxira kodlar: {{count}} ta",
+    "required_text": "Server sozlamasida majburiy qilingan — o'chirib bo'lmaydi.",
+    "enable": "Yoqish",
+    "disable": "O'chirish",
+    "disable_text": "O'chirish uchun tasdiqlash ilovasidagi kodni yoki zaxira kodni kiriting. Shundan keyin panelga faqat parol bilan kiriladi.",
+    "disable_yes": "Ha, o'chirish",
+    "code_or_recovery": "Ilovadagi kod yoki zaxira kod",
+    "enabled_done": "Ikki bosqichli kirish yoqildi.",
+    "disabled_done": "Ikki bosqichli kirish o'chirildi.",
+    "done": "Tayyor"
+  },
+  "store_login": {
+    "who": "Kim kiryapti",
+    "staff": "Xodim",
+    "store": "Do'kon",
+    "subtitle": "Do'kon logini va paroli bilan planshetni oching — keyin sotuvchilar PIN bilan kiradi.",
+    "login": "Do'kon logini",
+    "login_required": "Do'kon loginini kiriting",
+    "submit": "Do'konni ochish",
+    "forgot_text": "Do'kon logini va parolini biznes egasi beradi: Tuzilma → Do'konlar → do'kon kartochkasi."
+  },
+  "store_access": {
+    "title": "Do'kon logini",
+    "none": "berilmagan",
+    "hint": "Login bersangiz, do'kon planshetini o'zingiz ochishingiz shart emas: kirish sahifasidagi «Do'kon» varag'idan shu login bilan ochiladi, keyin sotuvchilar PIN bilan kiradi.",
+    "set": "Login berish",
+    "change": "O'zgartirish",
+    "show_password": "Parolni ko'rish",
+    "hide_password": "Parolni yashirish",
+    "not_saved": "Parol saqlanmagan — yangisini bering.",
+    "new_password": "Yangi parol",
+    "keep_password": "Bo'sh qoldirsangiz, hozirgi parol qoladi.",
+    "login_rule": "3–32 belgi: lotin harflari, raqam, nuqta, chiziqcha. Masalan: chorsu",
+    "clear": "Loginni o'chirish",
+    "clear_confirm": "Login o'chirilsinmi? U bilan endi kirib bo'lmaydi. Ochilgan planshetlar ishlayveradi — kerak bo'lsa «Qurilmalar»da uzing.",
+    "clear_yes": "Ha, o'chirish"
+  },
+  "scanner": {
+    "open": "Kamera bilan skanerlash",
+    "title": "Shtrix-kodni skanerlash",
+    "close": "Yopish",
+    "hint": "Etiketkadagi shtrix-kodni ramka ichiga to'g'rilang — kod o'qilishi bilan oyna o'zi yopiladi.",
+    "starting": "Kamera yoqilmoqda…",
+    "insecure": "Kamera faqat xavfsiz (https) ulanishda ishlaydi. Sahifani https:// manzil bilan oching.",
+    "denied": "Kameraga ruxsat berilmadi. Brauzer sozlamalarida shu sayt uchun kamerani yoqing va qayta urinib ko'ring.",
+    "no_camera": "Bu qurilmada kamera topilmadi.",
+    "failed": "Kamerani yoqib bo'lmadi. Boshqa ilova kamerani band qilmaganini tekshiring va qayta urinib ko'ring.",
+    "auto_enable": "Doim yoqiq tursin",
+    "auto_ready": "Kamera skaner yoqiq — etiketkani kameraga ko'rsating",
+    "auto_off": "O'chirish",
+    "use_front": "Old kamera",
+    "use_back": "Orqa kamera"
+  },
+  "pwa": {
+    "install": "Ilovani o'rnatish",
+    "why": "Kompyuter yoki telefonga ilova sifatida o'rnating: bitta bosishda ochiladi, alohida oynada, brauzer satrlarisiz.",
+    "close": "Yopish",
+    "ios_title": "iPhone / iPad'ga o'rnatish",
+    "ios_step_share": "Safari'da pastdagi «Ulashish» tugmasini bosing",
+    "ios_step_add": "«Bosh ekranga qo'shish» ni tanlang — belgi bosh ekranda paydo bo'ladi",
+    "manual_title": "Ilovani o'rnatish",
+    "chromium_step_icon": "Manzil satrining o'ng chetidagi «O'rnatish» belgisini bosing",
+    "chromium_step_menu": "Yoki menyu (⋮) → «Saqlash va ulashish» → «Sahifani ilova sifatida o'rnatish»",
+    "android_step_menu": "Brauzer menyusi (⋮) → «Ilovani o'rnatish» yoki «Bosh ekranga qo'shish»",
+    "safari_step_dock": "Safari menyusi: Fayl → «Dock'ka qo'shish»",
+    "firefox_title": "Firefox o'rnatishni qo'llamaydi",
+    "firefox_step": "Ilova qilib o'rnatish uchun saytni Chrome yoki Edge'da oching"
   }
 }

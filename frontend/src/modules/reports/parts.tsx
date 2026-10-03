@@ -1,8 +1,9 @@
 /** Hisobot sahifalarining umumiy qismlari: o'zgarish belgisi, ustunli grafik, Excel tugmasi, jadval. */
-import { useEffect, useRef, useState, type ReactNode, type ThHTMLAttributes } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import { downloadFile } from "@/shared/api/client";
+import { formatNumber, trimDecimal } from "@/shared/format";
 import { useErrorText } from "@/shared/api/errors";
 import { Button } from "@/shared/ui/Button";
 import { focusRing } from "@/shared/ui/tones";
@@ -67,17 +68,46 @@ export function Bars({
   axis?: string[];
   height?: number;
 }) {
+  const { t } = useTranslation();
   const [active, setActive] = useState<string | null>(null);
-  const top = Math.max(1, ...bars.map((bar) => Math.abs(bar.value)));
+  const peak = Math.max(0, ...bars.map((bar) => Math.abs(bar.value)));
+  const top = Math.max(1, peak);
   const shown = bars.find((bar) => bar.key === active);
+  // Y o'qidagi qisqa yozuv: 1 250 000 → "1.3 mln", 45 000 → "45 ming"
+  const short = (value: number) =>
+    value >= 1_000_000
+      ? `${trimDecimal((value / 1_000_000).toFixed(1))} ${t("reports.short.million")}`
+      : value >= 10_000
+        ? `${Math.round(value / 1000)} ${t("reports.short.thousand")}`
+        : formatNumber(value);
   return (
     <figure>
       <figcaption className="mb-3 min-h-5 text-sm text-muted">{shown ? shown.label : summary}</figcaption>
+      <div className="flex gap-2">
+      {/* Y o'qi: eng katta qiymat, yarmi va nol — ustun balandligi nimani anglatishi ko'rinib turadi */}
+      {peak > 0 && (
+        <div
+          aria-hidden="true"
+          className="flex shrink-0 flex-col justify-between text-right text-[11px] leading-none tabular-nums text-muted"
+          style={{ height }}
+        >
+          <span>{short(peak)}</span>
+          <span>{short(peak / 2)}</span>
+          <span>0</span>
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+      <div className="relative" style={{ height }}>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col justify-between">
+          <span className="border-t border-dashed border-line" />
+          <span className="border-t border-dashed border-line" />
+          <span className="border-t border-line" />
+        </div>
+      {/* Ustunlar davr bo'yicha tekis taqsimlanadi: oz bo'lsa ham chapga yig'ilib qolmaydi; eni ko'pi bilan 48px */}
       <div
         role="group"
         aria-label={summary}
-        className="flex items-end gap-[3px]"
-        style={{ height }}
+        className="relative flex h-full items-end justify-around gap-[3px]"
         onMouseLeave={() => setActive(null)}
       >
         {bars.map((bar, index) => (
@@ -107,6 +137,7 @@ export function Bars({
           </button>
         ))}
       </div>
+      </div>
       {/* Ekran o'quvchi uchun o'qish tartibi: barcha ustunlar qiymati bilan ro'yxat sifatida */}
       <ul className="sr-only">
         {bars.map((bar) => (
@@ -121,7 +152,7 @@ export function Bars({
         </div>
       )}
       {bars.some((bar) => bar.tick) && (
-        <div className="mt-1.5 flex gap-[3px] text-[12px] text-muted" aria-hidden="true">
+        <div className="mt-1.5 flex justify-around gap-[3px] text-[12px] text-muted" aria-hidden="true">
           {bars.map((bar) => (
             <span key={bar.key} className="min-w-0 max-w-12 flex-1 overflow-visible whitespace-nowrap text-center">
               {bar.tick}
@@ -129,6 +160,8 @@ export function Bars({
           ))}
         </div>
       )}
+      </div>
+      </div>
     </figure>
   );
 }
@@ -169,41 +202,5 @@ export function ExportButton({ path }: { path: string }) {
 
 export { Stat } from "@/shared/ui/Stat";
 
-/** Jadval qobig'i: tor ekranda yon tomonga suriladi */
-export function Table({ head, children }: { head: ReactNode; children: ReactNode }) {
-  const ref = useRef<HTMLTableElement>(null);
-  // Telefonda sarlavha qatori yashiriladi — har katakka o'z ustun nomi yozib qo'yiladi (index.css: .rtable)
-  useEffect(() => {
-    const table = ref.current;
-    if (!table) return;
-    const labels = [...table.querySelectorAll("thead th")].map((cell) => cell.textContent ?? "");
-    for (const row of table.querySelectorAll("tbody tr")) {
-      [...row.children].forEach((cell, index) => cell.setAttribute("data-label", labels[index] ?? ""));
-    }
-    // Telefonda CSS jadvalni kartochkaga aylantiradi (display o'zgaradi) — ARIA rollari jadval ma'nosini saqlab qoladi
-    table.setAttribute("role", "table");
-    table.querySelectorAll("thead, tbody").forEach((group) => group.setAttribute("role", "rowgroup"));
-    table.querySelectorAll("tr").forEach((row) => row.setAttribute("role", "row"));
-    table.querySelectorAll("th").forEach((cell) => {
-      cell.setAttribute("role", "columnheader");
-      if (!cell.hasAttribute("scope")) cell.setAttribute("scope", "col");
-    });
-    table.querySelectorAll("td").forEach((cell) => cell.setAttribute("role", "cell"));
-  });
-  return (
-    <div className="overflow-x-auto rounded-card border border-line bg-panel shadow-card">
-      <table ref={ref} className="rtable w-full text-left tabular-nums md:min-w-[640px]">
-        <thead className="border-b border-line bg-page/60 text-[13px] text-muted">{head}</thead>
-        <tbody className="divide-y divide-line">{children}</tbody>
-      </table>
-    </div>
-  );
-}
-
-export const th = "px-2.5 py-2.5 font-medium first:pl-5 last:pr-5 lg:px-4";
-export const td = "px-2.5 py-3 first:pl-5 last:pr-5 lg:px-4";
-
-/** Ustun sarlavhasi: `scope="col"` — ekran o'quvchi har katakka ustun nomini qo'shib o'qiydi */
-export function Th({ className = "", ...rest }: ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th scope="col" className={`${th} ${className}`} {...rest} />;
-}
+// Jadval — umumiy (`shared/ui/table.tsx`): ro'yxat sahifalari ham shuni ishlatadi
+export { Table, Th, td, th } from "@/shared/ui/table";

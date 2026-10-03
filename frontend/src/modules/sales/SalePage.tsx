@@ -10,9 +10,11 @@ import { creditKeys } from "@/modules/credit/types";
 import { inventoryKeys } from "@/modules/inventory/types";
 import { ApiError, api, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
+import { isRejected } from "@/shared/api/requestId";
+import { fromUnits, toUnits } from "@/shared/decimal";
 import { feedback } from "@/shared/feedback";
 import { formatDecimal, formatNumber, formatPrice } from "@/shared/format";
-import { Button } from "@/shared/ui/Button";
+import { Button, iconButtonSmall as iconButton } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { MoneyInput, Segmented } from "@/shared/ui/controls";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
@@ -20,7 +22,18 @@ import { fieldLabel, SelectField } from "@/shared/ui/fields";
 import { BackLink, sectionStrip } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { focusRing } from "@/shared/ui/tones";
-import { emptyCart, lineAmount, loadCart, overdrawn, saveCart, type Cart, type CartLine } from "./cart";
+import {
+  cartKey as cartKeyOf,
+  emptyCart,
+  lineAmount,
+  loadCart,
+  newId,
+  overdrawn,
+  pendingElsewhere,
+  saveCart,
+  type Cart,
+  type CartLine,
+} from "./cart";
 import { EntryForm } from "./EntryForm";
 import {
   salesKeys,
@@ -32,10 +45,6 @@ import {
 } from "./types";
 
 const STORE_KEY = "mato.sale.store";
-
-// Savat qatoridagi belgi tugmalari (tahrirlash, o'chirish): sensorli ekranda 44px
-const iconButton =
-  "pressable grid size-9 place-items-center rounded-control text-muted transition-colors [@media(pointer:coarse)]:size-11";
 
 /**
  * Sotuv ekrani. Sotuvchi — qurilma bog'langan do'konda (pastki menyuning birinchi bo'limi);
@@ -126,7 +135,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   const seller = user.role === "seller";
   const sum = t("settings.units.sum");
   // Savat xodim va do'kon bo'yicha alohida: qurilma qulflansa, uni faqat shu sotuvchi davom ettiradi
-  const cartKey = `mato.cart.${user.id}.${storeId ?? store?.id ?? 0}`;
+  const cartStore = storeId ?? store?.id ?? 0;
+  const cartKey = cartKeyOf(user.id, cartStore);
 
   const context = useQuery({
     queryKey: salesKeys.context(storeId),
@@ -142,9 +152,24 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<SaleCreated | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false); // tez sotish yuborilmoqda — savat ko'rsatilmaydi
   const clearRef = useRef<HTMLButtonElement>(null);
+  const sending = useRef(false); // so'rov yo'lda — `finish` ikkinchi marta boshlanmaydi
+  // Boshqa sotuvchining shu qurilmada javobi kelmay qolgan sotuvlari
+  const [others] = useState(() => pendingElsewhere(user.id, cartStore));
 
   useEffect(() => saveCart(cartKey, cart), [cartKey, cart]);
+
+  // Shu savat boshqa oynada ham ochiq bo'lsa — ikkalasi bitta savatni ko'rsatadi: biri yuborsa, ikkinchisi ham
+  // qulflanadi. Aks holda ikki oyna bitta identifikator ostida har xil mazmun yuborishi mumkin edi.
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key !== cartKey || sending.current) return;
+      setCart((current) => (JSON.stringify(current) === event.newValue ? current : loadCart(cartKey)));
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [cartKey]);
 
   const stock: Record<number, string> = {};
   for (const item of data?.items ?? []) for (const batch of item.batches) stock[batch.id] = batch.qty_m;
@@ -156,11 +181,14 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   const payment: PaymentType = cart.payment === "credit" && data && !data.credit_enabled ? "cash" : cart.payment;
   const initial = payment === "credit" ? Number(cart.initial || 0) : 0;
   const locked = cart.pending || saving;
+  // Yuborilgan, lekin natijasi noma'lum (javob kelmadi, server xatosi yoki sahifa javobni kutmay yangilandi)
+  const uncertain = cart.pending && !saving;
 
   const inCart: Record<number, number> = {};
   for (const line of cart.lines) {
-    if (line.id !== editing) inCart[line.batch_id] = (inCart[line.batch_id] ?? 0) + Number(line.meters);
+    if (line.id !== editing) inCart[line.batch_id] = (inCart[line.batch_id] ?? 0) + (toUnits(line.meters, 2) ?? 0);
   }
+  for (const id in inCart) inCart[id] /= 100; // yig'indi yuzdan bir metrda (aniq), forma metrda oladi
 
   const change = (changes: Partial<Cart>) => setCart((current) => ({ ...current, ...changes }));
   const changeLine = (id: string, changes: Partial<CartLine>) =>
@@ -189,26 +217,41 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
     setConfirmClear(false);
   }
 
-  async function finish() {
+  /**
+   * Sotuvni yuboradi. `override` — tez sotish: qator savatga hali tushmagan (holat keyingi chizishda yangilanadi),
+   * shuning uchun qatorlar to'g'ridan-to'g'ri beriladi. Savatga ham shu qator yozib qo'yilgan: internet uzilsa
+   * yoki server rad etsa, sotuvchi uni savatda ko'radi va qayta yuboradi.
+   */
+  async function finish(override?: CartLine[]) {
+    if (sending.current) return; // "online" hodisasi va "Qayta yuborish" bir vaqtda kelsa — bitta so'rov
+    const lines = override ?? cart.lines;
+    const overNow = override ? overdrawn(lines, stock) : over;
     setError(null);
     setDone(null);
     setChecked(true);
-    if (cart.lines.length === 0) return setError(t("sales.errors.empty"));
-    if (cart.lines.some((line) => needsNote(line) && !line.note.trim())) return setError(t("sales.errors.note"));
+    if (lines.length === 0) return setError(t("sales.errors.empty"));
+    if (lines.some((line) => (line.id in overNow || forced.includes(line.id)) && !line.note.trim())) {
+      return setError(t("sales.errors.note"));
+    }
     if (payment === "credit") {
       if (!cart.customer) return setError(t("sales.errors.customer"));
       if (initial > total) return setError(t("sales.errors.initial"));
     }
+    sending.current = true;
     setSaving(true);
+    // Qulf so'rovdan OLDIN qurilmaga yoziladi: javobni kutayotganda sahifa yangilansa ham savat o'zgartirilmaydi
+    const sent: Cart = { ...cart, lines, pending: true, seller: user.full_name };
+    saveCart(cartKey, sent);
+    setCart(sent);
     try {
       const created = await post<SaleCreated>("/sales", {
-        client_uuid: cart.uuid,
+        client_uuid: sent.uuid,
         store_id: storeId,
         payment_type: payment,
         customer_id: payment === "credit" ? (cart.customer?.id ?? null) : null,
         initial_payment: initial,
         initial_payment_method: initial > 0 ? cart.initialMethod : null,
-        lines: cart.lines.map((line) => ({
+        lines: lines.map((line) => ({
           batch_id: line.batch_id,
           meters: line.meters,
           kg: line.kg,
@@ -217,15 +260,20 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
         })),
       });
       // Qoldiq joyida yangilanadi — butun katalog (/sales/context) qayta yuklanmaydi
+      // Yuzdan bir metrda — float bilan "9.899999999999999" kabi qoldiq chiqmasin
       const sold = new Map<number, number>();
-      for (const line of cart.lines) sold.set(line.batch_id, (sold.get(line.batch_id) ?? 0) + Number(line.meters));
+      for (const line of lines) {
+        sold.set(line.batch_id, (sold.get(line.batch_id) ?? 0) + (toUnits(line.meters, 2) ?? 0));
+      }
       queryClient.setQueryData<SaleContext>(salesKeys.context(storeId), (old) =>
         old && {
           ...old,
           items: old.items.map((it) => ({
             ...it,
             batches: it.batches.map((b) =>
-              sold.has(b.id) ? { ...b, qty_m: String(Number(b.qty_m) - (sold.get(b.id) ?? 0)) } : b,
+              sold.has(b.id)
+                ? { ...b, qty_m: fromUnits((toUnits(b.qty_m, 2) ?? 0) - (sold.get(b.id) ?? 0), 2, true) }
+                : b,
             ),
           })),
         },
@@ -241,20 +289,21 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
       void queryClient.invalidateQueries({ queryKey: inventoryKeys.all });
       void queryClient.invalidateQueries({ queryKey: creditKeys.all });
     } catch (failure) {
-      if (failure instanceof ApiError && failure.code === "network_error") {
-        // Javob kelmadi — sotuv yozilgan bo'lishi ham mumkin. Savat o'zgarmaydi, shu identifikator bilan qayta yuboriladi
-        setCart((current) => ({ ...current, pending: true }));
-      } else {
-        // Server rad etdi — sotuv yozilmagan; savatni tuzatsa bo'ladi
-        setCart((current) => ({ ...current, pending: false }));
-        if (failure instanceof ApiError && failure.code === "negative_stock_note_required") {
-          const line = cart.lines[Number(failure.details.line)];
+      if (failure instanceof ApiError && isRejected(failure)) {
+        // Server aniq rad etdi — bu identifikator bilan sotuv yozilmagan; savatni tuzatsa bo'ladi.
+        // Keyingi urinish yangi identifikator bilan ketadi.
+        setCart((current) => ({ ...current, pending: false, uuid: newId() }));
+        if (failure.code === "negative_stock_note_required") {
+          const line = lines[Number(failure.details.line)];
           if (line) setForced((ids) => [...ids, line.id]);
         }
         setError(errorText(failure));
         void queryClient.invalidateQueries({ queryKey: salesKeys.context(storeId) });
       }
+      // Aks holda (javob kelmadi, vaqt tugadi, 5xx) natija noaniq: sotuv yozilgan bo'lishi ham mumkin.
+      // Savat qulf holda qoladi va shu identifikator bilan qayta yuboriladi.
     } finally {
+      sending.current = false;
       setSaving(false);
     }
   }
@@ -280,10 +329,31 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
     { value: "card", label: t("sales.payment.card") },
     ...(data.credit_enabled ? [{ value: "credit" as const, label: t("sales.payment.credit") }] : []),
   ];
+  const paymentControl = (
+    <Segmented<PaymentType>
+      label={t("sales.payment.label")}
+      value={payment}
+      onChange={(next) => change({ payment: next })}
+      options={payments}
+      disabled={locked}
+    />
+  );
+
+  // Oddiy holat — savat bo'sh: savat va jami ko'rinmaydi, tovar formaning o'zidan sotiladi
+  const simple = (cart.lines.length === 0 || quickSaving) && !uncertain && editing === null;
+
+  /** Tez sotish: bitta tovar savatsiz. Nasiyada mijoz kerak — qator savatga tushadi va mijoz tanlash ochiladi */
+  async function quickSell(line: CartLine) {
+    if (payment === "credit") return put(line);
+    setCart((current) => ({ ...current, lines: [line] }));
+    setQuickSaving(true);
+    await finish([line]);
+    setQuickSaving(false);
+  }
 
   // Yakunlash tugmasi: naqd/kartada — jami qatorida; nasiyada — mijoz va boshlang'ich to'lovdan keyin,
   // sotuvchi telefonda yuqoriga qaytib yurmaydi
-  const finishButton = !cart.pending && (
+  const finishButton = !uncertain && (
     <Button variant="success" size="lg" loading={saving} onClick={() => void finish()}>
       {!saving && <Check className="size-5" aria-hidden="true" />}
       {t("sales.finish")}
@@ -291,11 +361,22 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   );
 
   return (
-    <div className="space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-5 xl:space-y-0">
+    <div
+      className={
+        simple
+          ? "mx-auto max-w-2xl space-y-4"
+          : "space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-5 xl:space-y-0"
+      }
+    >
       {seller && <h1 className="sr-only">{t("store.nav.sale")}</h1>}
 
-      <div className="space-y-4 xl:sticky xl:top-20">
-        {cart.pending && (
+      <div className={`space-y-4 ${simple ? "" : "xl:sticky xl:top-20"}`}>
+        {others.map((other, index) => (
+          <Alert key={index} tone="info">
+            {t("sales.pending_other", { seller: other.seller, amount: formatNumber(other.total) })}
+          </Alert>
+        ))}
+        {uncertain && (
           <div className="flex flex-wrap items-center gap-3 rounded-control bg-saffron-soft px-3.5 py-3">
             <WifiOff className="size-5 shrink-0 text-saffron" aria-hidden="true" />
             <p role="status" className="min-w-0 flex-1 basis-56 text-sm">
@@ -307,7 +388,7 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
           </div>
         )}
 
-        {!locked &&
+        {(!locked || quickSaving) &&
           (data.items.length === 0 ? (
             <Alert tone="info">{t("sales.nothing_to_sell")}</Alert>
           ) : (
@@ -319,11 +400,22 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
               initial={editingLine}
               onAdd={put}
               onCancel={() => setEditing(null)}
+              quick={
+                simple
+                  ? {
+                      payment: paymentControl,
+                      credit: payment === "credit",
+                      busy: saving,
+                      onSell: (line) => void quickSell(line),
+                    }
+                  : undefined
+              }
             />
           ))}
       </div>
 
       <div className="space-y-4">
+        {!simple && (
         <section className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
           <div className={`${sectionStrip} flex items-center justify-between gap-3`}>
             <h2>{t("sales.cart.title")}</h2>
@@ -451,6 +543,7 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
             </ol>
           )}
         </section>
+        )}
 
         {/* Xato va natija — "Yakunlash" tugmasining yonida: telefonda ham ko'rinadi */}
         {done && (
@@ -463,7 +556,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
         )}
         {error && <Alert focus>{error}</Alert>}
 
-        {/* Jami doim ko'z oldida (keng ekranda yopishib turadi) */}
+        {/* Jami doim ko'z oldida (keng ekranda yopishib turadi); oddiy holatda — formaning o'zida */}
+        {!simple && (
         <section
           className={`z-10 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-card border border-line bg-panel p-4 shadow-pop ${
             seller ? "sm:sticky sm:bottom-[calc(72px+env(safe-area-inset-bottom,0px))]" : "sm:sticky sm:bottom-3"
@@ -480,19 +574,12 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
             </p>
           </div>
           {/* Telefonda: jami va "Yakunlash" bir qatorda, to'lov turi — ostida */}
-          <div className="order-3 w-full sm:order-2 sm:w-auto">
-            <Segmented<PaymentType>
-              label={t("sales.payment.label")}
-              value={payment}
-              onChange={(next) => change({ payment: next })}
-              options={payments}
-              disabled={locked}
-            />
-          </div>
+          <div className="order-3 w-full sm:order-2 sm:w-auto">{paymentControl}</div>
           {payment !== "credit" && <div className="order-2 sm:order-3">{finishButton}</div>}
         </section>
+        )}
 
-        {payment === "credit" && (
+        {payment === "credit" && !simple && (
           <Card title={t("sales.credit.title")} icon={HandCoins} tone="saffron">
             <CustomerPicker value={cart.customer} onChange={(customer) => change({ customer })} disabled={locked} />
             <div className="mt-4 flex flex-wrap items-end gap-x-4 gap-y-3">

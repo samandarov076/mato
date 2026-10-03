@@ -16,7 +16,19 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, Select, bindparam, case, cast, distinct, extract, func, select
+from sqlalchemy import (
+    Date,
+    Select,
+    bindparam,
+    case,
+    cast,
+    distinct,
+    extract,
+    func,
+    literal,
+    select,
+    union_all,
+)
 
 from app.core.deps import AuthContext
 from app.modules.auth.models import User
@@ -201,56 +213,45 @@ async def _revenue(ctx: AuthContext, scope: Scope) -> list[tuple[date, str, int]
     paid_day = _day(ctx, DebtPayment.created_at)
     return_day = _day(ctx, SaleReturn.created_at)
     refund = SaleReturn.amount - SaleReturn.debt_amount
-    queries = [
+    # To'rt manba bitta so'rovda (UNION ALL): pul bilan qaytarilgani — manfiy
+    parts = [
         # Naqd va karta sotuvlar
-        (
-            scoped(
-                select(sale_day, Sale.payment_type, func.sum(Sale.total))
-                .where(*in_period, Sale.payment_type.in_(("cash", "card")))
-                .group_by(sale_day, Sale.payment_type),
-                Sale.store_id,
-                Sale.seller_id,
-            ),
-            1,
+        scoped(
+            select(sale_day, Sale.payment_type, func.sum(Sale.total), literal(1))
+            .where(*in_period, Sale.payment_type.in_(("cash", "card")))
+            .group_by(sale_day, Sale.payment_type),
+            Sale.store_id,
+            Sale.seller_id,
         ),
         # Nasiya sotuvlarning boshlang'ich to'lovi
-        (
-            scoped(
-                select(sale_day, Sale.initial_payment_method, func.sum(Sale.initial_payment))
-                .where(*in_period, Sale.payment_type == "credit", Sale.initial_payment > 0)
-                .group_by(sale_day, Sale.initial_payment_method),
-                Sale.store_id,
-                Sale.seller_id,
-            ),
-            1,
+        scoped(
+            select(sale_day, Sale.initial_payment_method, func.sum(Sale.initial_payment), literal(1))
+            .where(*in_period, Sale.payment_type == "credit", Sale.initial_payment > 0)
+            .group_by(sale_day, Sale.initial_payment_method),
+            Sale.store_id,
+            Sale.seller_id,
         ),
         # Qarz to'lovlari — qabul qilingan kun va do'konga
-        (
-            scoped(
-                select(paid_day, DebtPayment.method, func.sum(DebtPayment.amount))
-                .where(*_period(ctx, scope, DebtPayment.created_at))
-                .group_by(paid_day, DebtPayment.method),
-                DebtPayment.store_id,
-                DebtPayment.user_id,
-            ),
-            1,
+        scoped(
+            select(paid_day, DebtPayment.method, func.sum(DebtPayment.amount), literal(1))
+            .where(*_period(ctx, scope, DebtPayment.created_at))
+            .group_by(paid_day, DebtPayment.method),
+            DebtPayment.store_id,
+            DebtPayment.user_id,
         ),
         # Pul bilan qaytarilgani ayriladi (qarzdan ayirilgan qismi pul emas)
-        (
-            scoped(
-                select(return_day, SaleReturn.method, func.sum(refund))
-                .where(*_period(ctx, scope, SaleReturn.created_at), SaleReturn.method.is_not(None))
-                .group_by(return_day, SaleReturn.method),
-                SaleReturn.store_id,
-                SaleReturn.user_id,
-            ),
-            -1,
+        scoped(
+            select(return_day, SaleReturn.method, func.sum(refund), literal(-1))
+            .where(*_period(ctx, scope, SaleReturn.created_at), SaleReturn.method.is_not(None))
+            .group_by(return_day, SaleReturn.method),
+            SaleReturn.store_id,
+            SaleReturn.user_id,
         ),
     ]
-    rows = []
-    for query, sign in queries:
-        rows.extend((key, method, sign * int(amount)) for key, method, amount in await ctx.db.execute(query))
-    return rows
+    return [
+        (key, method, sign * int(amount))
+        for key, method, amount, sign in await ctx.db.execute(union_all(*parts))
+    ]
 
 
 def _sum(rows: list[_Day]) -> _Day:
@@ -304,23 +305,35 @@ async def _debt_totals(ctx: AuthContext, store_id: int | None) -> tuple[int, int
 
 async def dashboard(ctx: AuthContext, period: str = "day", store_id: int | None = None) -> Dashboard:
     scope = period_scope(ctx, period, store_id)
+    previous = scope.previous()
     debt_total, debt_overdue, _ = await _debt_totals(ctx, store_id)
-    low = await inventory.list_stock(ctx, only="low", location_id=store_id, limit=1)
-    diff = await inventory.differences(
+    low_by_place, low_anywhere = await inventory.low_stock_counts(ctx)
+    diff = await inventory.difference_totals(
         ctx, date_from=scope.date_from, date_to=scope.date_to, location_id=store_id
     )
-    chart = await _days(ctx, Scope(scope.date_to - timedelta(days=CHART_DAYS - 1), scope.date_to, store_id))
+    # Joriy davr, oldingi davr va grafik (oxirgi 30 kun) — kunlar bo'yicha bitta o'tishda olinadi
+    chart_from = scope.date_to - timedelta(days=CHART_DAYS - 1)
+    days = await _days(ctx, Scope(min(previous.date_from, chart_from), scope.date_to, store_id))
+
+    def money(part: Scope) -> Money:
+        rows = [row for key, row in days.items() if part.date_from <= key <= part.date_to]
+        return Money(**_sum(rows).money(True))
+
     return Dashboard(
         date_from=scope.date_from,
         date_to=scope.date_to,
-        current=await totals(ctx, scope),
-        previous=await totals(ctx, scope.previous()),
+        current=money(scope),
+        previous=money(previous),
         debt_total=debt_total,
         debt_overdue=debt_overdue,
-        low_stock=low.total,
+        low_stock=low_anywhere if store_id is None else low_by_place.get(store_id, 0),
         diff_amount=diff.shortage_amount + diff.transfer_amount,
         diff_m=diff.shortage_m + diff.transfer_m,
-        chart=[ChartDay(day=key, sales=row.sold - row.returned) for key, row in chart.items()],
+        chart=[
+            ChartDay(day=key, sales=row.sold - row.returned)
+            for key, row in days.items()
+            if key >= chart_from
+        ],
     )
 
 
@@ -441,10 +454,10 @@ async def stock_report(ctx: AuthContext) -> StockReport:
             .order_by(Location.type.desc(), Location.name)
         )
     ).all()
+    low, _ = await inventory.low_stock_counts(ctx)  # barcha joylar uchun bitta so'rov
     result = []
     for location in locations:
         place = places.get(location.id, {"meters": ZERO, "rolls": 0, "value": 0, "skus": set()})
-        low = await inventory.list_stock(ctx, only="low", location_id=location.id, limit=1)
         result.append(
             StockPlace(
                 location_id=location.id,
@@ -454,7 +467,7 @@ async def stock_report(ctx: AuthContext) -> StockReport:
                 rolls=place["rolls"],
                 value=place["value"],
                 skus=len(place["skus"]),
-                low=low.total,
+                low=low.get(location.id, 0),
             )
         )
     return StockReport(

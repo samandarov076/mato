@@ -63,14 +63,61 @@ cd backend && python scripts/seed_dev.py
 |-----|---------|-------|
 | Biznes egasi | +998 90 111 22 33 | `demo1234` |
 | Omborchi | +998 90 111 22 44 | `vaqtincha1` (vaqtinchalik — birinchi kirishda almashtirish so'raladi) |
+| Do'kon (planshet) | login `chorsu` | `dokon1234` — kirish sahifasining **Do'kon** varag'i, keyin PIN ekrani |
 | Sotuvchi | — | do'kon qurilmasida PIN `1234` |
-| Platforma egasi | +998 90 000 00 00 | `platforma1` + tasdiqlash ilovasi (birinchi kirishda QR kod bilan ulanadi) |
+| Platforma egasi | +998 90 000 00 00 | `platforma1` (ikki bosqichli kirish ixtiyoriy — **Xavfsizlik** sahifasida yoqiladi) |
 
 Namuna biznesda tayyor katalog ham bor: 3 mato, 6 rang, 2 gul, 11 SKU (ikkitasi narxsiz) — **Katalog** bo'limida ko'rinadi. Asosiy skladga bitta namuna kirim ham qilingan (3 partiya) — **Ombor** bo'limida. Sotish uchun tovarni do'konga ko'chiring (**Ombor → Ko'chirishlar**) va qabul qiling.
 
 Yuklangan rasmlar (mato, rang, gul) loyiha ildizidagi `media/` papkasiga tushadi (`.env` dagi `MEDIA_DIR` bilan o'zgartiriladi; git'ga kirmaydi).
 
 PIN ekranini ko'rish: biznes egasi bo'lib kiring → **Tuzilma → Qurilmalar** → do'konni tanlab **Bog'lash**. Shundan keyin shu brauzerda PIN ekrani ochiladi; PIN `1234` bilan kirsangiz — sotuv ekrani. Skaner o'rniga partiya raqamini (masalan `P-000001`) yozib Enter bosing. Biznes egasi qurilmasiz ham sota oladi: **Sotuv → Yangi sotuv**. Asliga qaytarish: PIN ekranida "Biznes egasi sifatida kirish" → tepada chiqadigan bannerdagi **Qurilmani uzish** (yoki **Tuzilma → Qurilmalar** → **Uzish**); shu bannerdagi **PIN ekraniga qaytish** — uzmasdan ortga qaytaradi.
+
+### Hammasini bitta buyruq bilan (`dev.sh`)
+
+```bash
+./dev.sh start            # backend, fon ishchisi, frontend — faqat shu kompyuterda (http://localhost:5190)
+./dev.sh start --phone    # + telefon uchun https (shu Wi-Fi'dan, port 5191)
+./dev.sh start --tunnel   # + Cloudflare tunnel (telefon istalgan internetdan; manzil internetga ochiq)
+./dev.sh status           # nima ishlayapti va manzillar
+./dev.sh logs backend     # jurnal: backend | worker | frontend | phone | tunnel
+./dev.sh stop             # hammasini to'xtatish
+```
+
+Serverlar terminal yopilsa ham ishlayveradi (pid va jurnallar `.dev/` da); ishlab turganda Mac uxlab qolmaydi.
+Kompyuter qayta yoqilsa — `./dev.sh start` ni qayta bering. Baza va Redis (Postgres.app / Docker) yoqilgan bo'lishi kerak.
+
+### Ilova sifatida o'rnatish (PWA)
+
+Kirish sahifasidagi **Ilovani o'rnatish** tugmasi (kompyuterda — yuqori paneldagi ↓ belgisi ham):
+Chrome / Edge / Android — brauzerning o'z oynasi ochiladi; iPhone / iPad — "Ulashish → Bosh ekranga qo'shish"
+yo'riqnomasi; brauzer taklif bermasa — shu brauzer uchun qisqa yo'riqnoma. O'rnatilgach tugma yashiriladi.
+Ilova o'z oynasida, bosh ekran / Dock / ish stoli belgisidan ochiladi. O'rnatish uchun sahifa `localhost`
+yoki `https` da ochilgan bo'lishi kerak.
+
+### Telefonda sinash (kamera skaneri bilan)
+
+Brauzer kamerani faqat `https` da beradi, shuning uchun telefon uchun alohida rejim bor:
+
+```bash
+./dev.sh start --phone      # yoki: cd frontend && npm run dev:phone
+```
+
+1. Telefon va kompyuter bitta Wi-Fi'da (yoki kompyuter telefonning hotspot'iga ulangan) bo'lsin.
+2. Terminalda chiqqan `Network: https://<kompyuter-manzili>:5191` ni telefonda oching — **https** va port **5191** (kompyuterdagi oddiy `npm run dev` — `http://localhost:5190` — bilan bir vaqtda ishlaydi).
+3. "Ulanish xavfsiz emas" ogohlantirishi chiqadi (sertifikat lokal, o'z-o'zidan imzolangan): Chrome — **Qo'shimcha → Davom etish**; Safari — **Tafsilotlar → Saytga kirish**.
+4. Kirish → **Do'kon** varag'i (`chorsu` / `dokon1234`) → PIN `1234` → skaner maydonidagi **kamera** belgisi → kameraga ruxsat bering.
+5. Etiketkani skanerlash: kompyuterda Ombor → Kirimlar → kirim → **Etiketkalar** sahifasini ochib, ekrandagi shtrix-kodga telefonni tuting (yoki chop eting).
+
+**Tarmoq orqali ochilmasa — Cloudflare tunnel** (haqiqiy https, ogohlantirishsiz, mobil internetdan ham):
+
+```bash
+brew install cloudflared                                  # bir marta
+cd frontend && npm run dev:tunnel                         # http://localhost:5190, tunnel domeniga ruxsat bilan
+cloudflared tunnel --no-autoupdate --url http://localhost:5190   # chiqqan https://....trycloudflare.com ni telefonda oching
+```
+
+Diqqat: tunnel ishlab turganda manzil internetga ochiq (manzilni bilgan kishi kirish sahifasini ko'radi, namuna parollar bilan kira oladi). Sinov tugagach `cloudflared` ni to'xtating (Ctrl+C). Har ishga tushirishda manzil yangi bo'ladi.
 
 ## Testlar va tekshiruvlar
 

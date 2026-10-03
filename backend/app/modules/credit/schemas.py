@@ -1,4 +1,5 @@
 """Nasiya API'sining shakllari: mijozlar, qarzlar, to'lovlar, hisobdan chiqarish."""
+import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
@@ -115,6 +116,7 @@ class CustomerCard(CustomerRow):
 
 
 class PaymentIn(BaseModel):
+    client_uuid: uuid.UUID  # forma beradi — tugma qayta bosilsa ham to'lov bir marta yoziladi
     amount: int = Field(gt=0)
     method: MoneyMethod
     debt_id: int | None = None  # berilmasa — eng eski qarzdan boshlab

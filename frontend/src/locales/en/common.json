@@ -34,7 +34,9 @@
     "settings": "Settings",
     "logout": "Log out",
     "businesses": "Businesses",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "security": "Security",
+    "home_link": "Home"
   },
   "login": {
     "title": "Log in",
@@ -72,7 +74,7 @@
     "phone": "Phone",
     "role": "Role",
     "business": "Business",
-    "readonly_note": "Name and phone cannot be changed here.",
+    "readonly_note": "The phone number can’t be changed here — you sign in with it.",
     "language_title": "Interface language",
     "language_hint": "The chosen language applies on all your devices.",
     "language_saved": "Language saved",
@@ -95,7 +97,15 @@
     "active": "active",
     "keep": "No, keep it",
     "draft_restored": "Your unsaved draft was restored.",
-    "clear_draft": "Clear draft"
+    "clear_draft": "Clear draft",
+    "rename": "Change",
+    "retry": "Try again",
+    "filters": "Filters",
+    "filters_active": "Active filters",
+    "hide_hint": "Hide this hint",
+    "more": "More actions",
+    "total": "Total",
+    "number": "No."
   },
   "pin": {
     "prompt": "Enter your PIN",
@@ -116,11 +126,19 @@
       "stock": "Stock",
       "transfers": "Transfers",
       "close_batch": "Close a batch"
+    },
+    "nav_short": {
+      "my_sales": "My sales",
+      "close_batch": "Close",
+      "sale": "Sale",
+      "customers": "Customers",
+      "stock": "Stock",
+      "transfers": "Transfers"
     }
   },
   "devices": {
     "title": "Store devices",
-    "intro": "Each store has one shared device. You link it once — after that sellers log in on it with just a 4-digit PIN.",
+    "intro": "On a store device sellers sign in with just a 4-digit PIN. A device can be opened two ways: with the store login (Stores → “Store login” on the card; the “Store” tab on the sign-in page) or by linking it yourself here.",
     "bind_title": "Link this device to a store",
     "store": "Store",
     "store_placeholder": "Choose a store",
@@ -186,7 +204,9 @@
       "credit_days": "Enter a whole number from 1 to 365",
       "low_stock_default": "Enter a positive number or leave it empty",
       "autolock_minutes": "Enter a whole number from 1 to 480"
-    }
+    },
+    "business_name": "Business name",
+    "business_name_hint": "This name appears in the top bar, notifications and the platform panel."
   },
   "audit": {
     "empty": "No entries match these filters.",
@@ -230,13 +250,16 @@
       },
       "device": {
         "bound": "Linked a device to a store",
-        "revoked": "Unlinked a device"
+        "revoked": "Unlinked a device",
+        "bound_by_login": "Opened a device with the store login"
       },
       "settings": {
         "changed": "Changed the settings"
       },
       "business": {
-        "created": "Business added to the system"
+        "created": "Business added to the system",
+        "renamed": "Renamed the business",
+        "renamed_by_platform": "Platform administrator renamed the business"
       },
       "owner": {
         "primary_changed": "Primary owner changed",
@@ -246,7 +269,10 @@
         "created": "Added a location",
         "updated": "Edited a location",
         "deactivated": "Deactivated a location",
-        "activated": "Reactivated a location"
+        "activated": "Reactivated a location",
+        "login_set": "Set the store login",
+        "login_cleared": "Removed the store login",
+        "password_viewed": "Viewed the store password"
       },
       "user": {
         "created": "Added a staff member",
@@ -255,7 +281,8 @@
         "activated": "Reactivated a staff member",
         "password_reset": "Reset a staff member's password",
         "pin_changed": "Changed a seller's PIN",
-        "secret_viewed": "Viewed a staff member's password or PIN"
+        "secret_viewed": "Viewed a staff member's password or PIN",
+        "name_changed": "Changed own name"
       },
       "fabric": {
         "created": "Added a fabric",
@@ -312,7 +339,8 @@
         "paid": "Took a debt payment",
         "written_off": "Wrote off a debt"
       }
-    }
+    },
+    "without_login": "Without sign-ins"
   },
   "twofactor": {
     "title": "Verification code",
@@ -416,7 +444,8 @@
       "hide_password": "Hide",
       "password_now": "Current password:",
       "password_missing": "The password is not stored yet: it was set before this feature existed. It will appear after the owner's next login — or reset the password.",
-      "password_logged": "This view was recorded in the business journal — the owner can see it."
+      "password_logged": "This view was recorded in the business journal — the owner can see it.",
+      "business_name": "Business name"
     }
   },
   "structure": {
@@ -482,7 +511,8 @@
       "secret_pin": "Current PIN:",
       "secret_missing": "Not stored yet: it was set before this feature existed. It will appear after the staff member's next login — or set a new one now.",
       "secret_logged": "This view was recorded in the activity journal.",
-      "created_login": "{{name}} added. They can sign in with their phone number and password."
+      "created_login": "{{name}} added. They can sign in with their phone number and password.",
+      "more": "{{name}}: more actions"
     },
     "discard_draft": "The form you started will be discarded — edit {{name}} instead?"
   },
@@ -603,7 +633,8 @@
       "saved": "Saved",
       "history": "Price history",
       "history_empty": "The price has not been changed yet.",
-      "inactive_note": "An inactive SKU cannot be chosen at receiving, but its remaining stock can still be sold."
+      "inactive_note": "An inactive SKU cannot be chosen at receiving, but its remaining stock can still be sold.",
+      "threshold_standard_hint": "Business default"
     }
   },
   "receiving": {
@@ -693,7 +724,12 @@
       "cost_per_m": "Cost"
     },
     "remove_confirm": "Remove batch {{n}}? What you typed will be lost.",
-    "remove_yes": "Yes, remove"
+    "remove_yes": "Yes, remove",
+    "col_rolls": "Rolls",
+    "col_meters": "Metres",
+    "col_kg": "Kg",
+    "col_coefficient": "1 kg = m",
+    "col_cost": "Cost"
   },
   "inventory": {
     "tab_stock": "Stock",
@@ -715,7 +751,14 @@
       "only_in_transit": "In transit",
       "empty": "No stock yet — it appears here once goods are received.",
       "empty_filtered": "No stock matches these filters.",
-      "low": "low"
+      "legend_warehouse": "Warehouse",
+      "legend_store": "Store",
+      "legend_low": "Below the minimum",
+      "low_hint": "Running low — minimum {{threshold}} m",
+      "batches_count": "{{count}} batches",
+      "batches_count_one": "{{count}} batch",
+      "batches_count_other": "{{count}} batches",
+      "col_item": "Item"
     },
     "batch": {
       "title": "Batch",
@@ -806,7 +849,10 @@
       "cancel_yes": "Yes, cancel it",
       "sent_by": "Sent by",
       "received_by": "Received by",
-      "cancelled_by": "Cancelled by"
+      "cancelled_by": "Cancelled by",
+      "col_route": "From → to",
+      "col_by": "By",
+      "col_when": "When"
     },
     "receive": {
       "short": "{{meters}} m short",
@@ -873,6 +919,9 @@
       },
       "telegram": {
         "disconnected": "Telegram disconnected"
+      },
+      "pin": {
+        "store_locked": "PIN lockout"
       }
     },
     "text": {
@@ -899,6 +948,9 @@
       },
       "telegram": {
         "disconnected": "Telegram was disconnected — the bot is blocked. Reconnect it in your profile to keep receiving messages."
+      },
+      "pin": {
+        "store_locked": "The wrong PIN was entered too many times at “{{store}}” — the store's devices are locked for {{minutes}} min. Ask your sellers; if in doubt, change the PINs."
       }
     }
   },
@@ -913,7 +965,8 @@
     "finish": "Complete sale",
     "done": "{{number}} recorded — {{amount}} soʻm.",
     "open_sale": "Open the sale",
-    "pending": "The sale was not sent — no internet. The basket is saved and will be sent once the connection is back.",
+    "pending": "The sale was not confirmed — the server did not answer. The basket is saved and locked; it will be sent again once the connection is back.",
+    "pending_other": "{{seller}} has an unconfirmed sale of {{amount}} sum. It will be sent again once they sign in with their PIN.",
     "retry": "Send again",
     "entry": {
       "scan": "Batch number or item (scan here too)",
@@ -924,19 +977,24 @@
       "meters": "Metres",
       "kg": "Kg",
       "price": "Price per metre",
-      "recommended": "Recommended price: {{price}}",
       "no_recommended": "No recommended price — enter the price yourself",
       "no_coefficient": "No kg ↔ metre ratio for this batch — enter metres",
       "over_stock": "The system shows {{available}} m left. If the fabric is really there, add it — you will write a note in the basket.",
       "line_total": "Line total",
       "add": "Add",
-      "not_found": "Batch not found — choose the item by hand",
+      "not_found": "Batch or item not found — choose the item by hand",
       "not_here": "This batch is not in this store",
       "errors": {
         "item": "Choose an item",
         "meters": "Enter metres, for example 2.5",
         "price": "Enter the price per metre"
-      }
+      },
+      "add_more": "Add another",
+      "sell": "Sell",
+      "sell_credit": "Choose customer",
+      "at_recommended": "At the recommended price",
+      "recommended_restore": "Back to recommended: {{price}}",
+      "items": "Items"
     },
     "cart": {
       "title": "Basket",
@@ -983,7 +1041,11 @@
       "empty": "No sales yet. The first sale is recorded by a seller on the store device.",
       "empty_today": "You have not made a sale today yet.",
       "empty_filtered": "No sales match these filters.",
-      "returned": "{{amount}} soʻm returned"
+      "returned": "{{amount}} soʻm returned",
+      "col_number": "No.",
+      "col_time": "Time",
+      "col_customer": "Customer",
+      "col_amount": "Amount"
     },
     "status": {
       "completed": "Completed",
@@ -1095,7 +1157,8 @@
       "payments": "Payment history",
       "payments_empty": "No payments yet.",
       "writeoffs": "Write-offs",
-      "allocated": "{{number}}: {{amount}}"
+      "allocated": "{{number}}: {{amount}}",
+      "col_sales": "Sales"
     },
     "pay": {
       "open": "Take a payment",
@@ -1122,7 +1185,8 @@
       "reason_required": "Write the reason",
       "submit": "Yes, write it off",
       "done": "{{amount}} soʻm written off"
-    }
+    },
+    "col_debt": "Debt"
   },
   "dashboard": {
     "period": {
@@ -1237,7 +1301,11 @@
     "deviation_intro": "How far selling prices were from the recommended price. Sales without a recommended price are not included.",
     "expected": "At recommended price",
     "actual": "Actual",
-    "diff": "Difference"
+    "diff": "Difference",
+    "short": {
+      "million": "M",
+      "thousand": "K"
+    }
   },
   "telegram": {
     "not_configured": "The Telegram bot is not set up yet. For now notifications arrive only inside the system.",
@@ -1268,7 +1336,7 @@
     "account_inactive": "Your account has been deactivated. Contact the business owner.",
     "too_many_attempts": "Too many failed attempts. Try again in {{minutes}} min.",
     "invalid_pin": "Wrong PIN",
-    "pin_locked": "The wrong PIN was entered 5 times. The device is locked for {{minutes}} min.",
+    "pin_locked": "The wrong PIN was entered too many times. The device is locked for {{minutes}} min.",
     "device_not_bound": "This device is not linked to a store. The business owner needs to link it again.",
     "store_not_found": "Store not found",
     "device_not_found": "Device not found",
@@ -1281,6 +1349,11 @@
     "password_change_required": "Change your temporary password first",
     "forbidden": "You do not have permission for this action",
     "unknown": "Unexpected error. Try again.",
+    "sale_basket_changed": "This basket was already recorded as {{number}}, but with different contents. Check {{number}} in the sales list, keep only the unrecorded goods in the basket and send it again.",
+    "request_changed": "This was already saved, but with different contents. Check the list: the earlier one is recorded, the current changes are not.",
+    "validation_error": "Some of the details are not valid. Check the fields and try again.",
+    "not_found": "The requested item was not found",
+    "invalid_cursor": "The list is out of date. Refresh the page and try again.",
     "invalid_code": "Wrong code",
     "challenge_expired": "Time is up. Enter your password again.",
     "setup_expired": "The setup time is up. Log in again and scan the QR code once more.",
@@ -1341,7 +1414,13 @@
     "payment_too_large": "The payment exceeds the debt — refresh the page and try again",
     "writeoff_too_large": "The amount exceeds the remaining debt — refresh the page and try again",
     "customer_has_debt": "A customer with debt cannot be deactivated",
-    "telegram_not_configured": "The Telegram bot is not set up yet"
+    "telegram_not_configured": "The Telegram bot is not set up yet",
+    "two_factor_not_set": "Two-step sign-in is not turned on.",
+    "two_factor_required": "Two-step sign-in is required by the server and cannot be turned off.",
+    "invalid_store_credentials": "Wrong store login or password",
+    "store_inactive": "This store is deactivated",
+    "login_taken": "This login is taken — choose another one",
+    "store_only": "Only a store can have a login"
   },
   "feedback": {
     "title": "Sound and vibration",
@@ -1351,5 +1430,82 @@
     "haptics_hint": "A short vibration on taps on Android devices. iPhone/iPad browsers do not support vibration.",
     "mute": "Mute sounds",
     "unmute": "Unmute sounds"
+  },
+  "security": {
+    "title": "Security",
+    "twofactor_title": "Two-step sign-in",
+    "on": "On",
+    "off": "Off",
+    "off_text": "Right now the panel opens with your password only. Turn this on and every sign-in will also ask for the 6-digit code from the app on your phone.",
+    "on_text": "Signing in to the panel asks for your password and the code from the authenticator app.",
+    "recovery_left": "Unused backup codes: {{count}}",
+    "recovery_left_one": "{{count}} unused backup code",
+    "recovery_left_other": "{{count}} unused backup codes",
+    "required_text": "It is required by the server settings and cannot be turned off.",
+    "enable": "Turn on",
+    "disable": "Turn off",
+    "disable_text": "To turn it off, enter the code from the authenticator app or a backup code. After that the panel opens with your password only.",
+    "disable_yes": "Yes, turn off",
+    "code_or_recovery": "App code or backup code",
+    "enabled_done": "Two-step sign-in is on.",
+    "disabled_done": "Two-step sign-in is off.",
+    "done": "Done"
+  },
+  "store_login": {
+    "who": "Who is signing in",
+    "staff": "Staff",
+    "store": "Store",
+    "subtitle": "Open the tablet with the store login and password — then sellers sign in with their PIN.",
+    "login": "Store login",
+    "login_required": "Enter the store login",
+    "submit": "Open the store",
+    "forgot_text": "The business owner gives out the store login and password: Structure → Stores → store card."
+  },
+  "store_access": {
+    "title": "Store login",
+    "none": "not set",
+    "hint": "With a store login you don't have to open the store tablet yourself: it opens from the “Store” tab on the sign-in page, then sellers sign in with their PIN.",
+    "set": "Set login",
+    "change": "Change",
+    "show_password": "Show password",
+    "hide_password": "Hide password",
+    "not_saved": "The password isn't stored — set a new one.",
+    "new_password": "New password",
+    "keep_password": "Leave it empty to keep the current password.",
+    "login_rule": "3–32 characters: Latin letters, digits, dot, dash. For example: chorsu",
+    "clear": "Remove login",
+    "clear_confirm": "Remove the login? It will no longer open the store. Tablets already opened keep working — disconnect them in “Devices” if needed.",
+    "clear_yes": "Yes, remove"
+  },
+  "scanner": {
+    "open": "Scan with camera",
+    "title": "Scan a barcode",
+    "close": "Close",
+    "hint": "Line the label's barcode up inside the frame — the window closes as soon as the code is read.",
+    "starting": "Starting the camera…",
+    "insecure": "The camera only works over a secure (https) connection. Open the page with an https:// address.",
+    "denied": "Camera access was denied. Allow the camera for this site in the browser settings and try again.",
+    "no_camera": "No camera found on this device.",
+    "failed": "Couldn't start the camera. Make sure no other app is using it and try again.",
+    "auto_enable": "Keep the camera on",
+    "auto_ready": "Camera scanner is on — show a label to the camera",
+    "auto_off": "Turn off",
+    "use_front": "Front camera",
+    "use_back": "Back camera"
+  },
+  "pwa": {
+    "install": "Install the app",
+    "why": "Install it on your computer or phone: it opens in one tap, in its own window, without browser bars.",
+    "close": "Close",
+    "ios_title": "Install on iPhone / iPad",
+    "ios_step_share": "In Safari, tap the “Share” button at the bottom",
+    "ios_step_add": "Choose “Add to Home Screen” — the icon appears on your home screen",
+    "manual_title": "Install the app",
+    "chromium_step_icon": "Click the “Install” icon at the right end of the address bar",
+    "chromium_step_menu": "Or menu (⋮) → “Cast, save and share” → “Install page as app”",
+    "android_step_menu": "Browser menu (⋮) → “Install app” or “Add to Home screen”",
+    "safari_step_dock": "Safari menu: File → “Add to Dock”",
+    "firefox_title": "Firefox can’t install apps",
+    "firefox_step": "To install the app, open the site in Chrome or Edge"
   }
 }

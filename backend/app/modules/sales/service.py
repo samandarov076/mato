@@ -183,12 +183,47 @@ async def _device_id(ctx: AuthContext) -> int | None:
     )
 
 
+def _payment(body: SaleCreate, total: int) -> tuple[str, int | None, int, str | None]:
+    """Sotuv qanday yoziladi: (to'lov turi, mijoz, boshlang'ich to'lov, uning turi).
+    Boshlang'ich to'lov jamiga teng bo'lsa — bu nasiya emas, shu to'lov turidagi oddiy sotuv."""
+    if body.payment_type != "credit":
+        return body.payment_type, None, 0, None
+    initial, method = body.initial_payment, body.initial_payment_method
+    if initial == total and method is not None:
+        return method, None, 0, None
+    return "credit", body.customer_id, initial, method if initial > 0 else None
+
+
+async def _same_basket(ctx: AuthContext, sale: Sale, body: SaleCreate) -> Sale:
+    """Shu identifikator bilan avval yozilgan sotuv. Qayta kelgan savat mazmuni undan farq qilsa — rad etiladi:
+    aks holda interfeys "yozildi" deb ko'rsatadi, qo'shilgan tovar esa hech qayerga yozilmaydi."""
+    store_id = ctx.store.id if ctx.user.role == "seller" and ctx.store else body.store_id
+    saved = (
+        await ctx.db.execute(
+            select(SaleLine.batch_id, SaleLine.meters, SaleLine.price_per_m)
+            .where(SaleLine.sale_id == sale.id)
+            .order_by(SaleLine.id)
+        )
+    ).all()
+    sent = [(line.batch_id, line.meters, line.price_per_m) for line in body.lines]
+    total = sum(line_amount(meters, price) for _, meters, price in sent)
+    recorded = (sale.payment_type, sale.customer_id, sale.initial_payment, sale.initial_payment_method)
+    if (
+        store_id != sale.store_id
+        or [tuple(row) for row in saved] != sent
+        or _payment(body, total) != recorded
+    ):
+        raise AppError(409, "sale_basket_changed", number=sale.number)
+    return sale
+
+
 async def create_sale(ctx: AuthContext, body: SaleCreate) -> tuple[Sale, bool]:
-    """Sotuvni yozadi. (sotuv, takrormi) qaytaradi: shu savat avval yozilgan bo'lsa — o'sha sotuv."""
+    """Sotuvni yozadi. (sotuv, takrormi) qaytaradi: shu savat avval yozilgan bo'lsa — o'sha sotuv
+    (mazmuni ham bir xil bo'lsa; o'zgargan savat — 409)."""
     by_uuid = select(Sale).where(Sale.client_uuid == body.client_uuid)
     existing = await ctx.db.scalar(by_uuid)
     if existing is not None:
-        return existing, True
+        return await _same_basket(ctx, existing, body), True
     store = await _store(ctx, body.store_id)
 
     customer: Customer | None = None
@@ -301,7 +336,7 @@ async def create_sale(ctx: AuthContext, body: SaleCreate) -> tuple[Sale, bool]:
         existing = await ctx.db.scalar(by_uuid)
         if existing is None:
             raise
-        return existing, True
+        return await _same_basket(ctx, existing, body), True
 
     for item in prepared:
         ctx.db.add(SaleLine(business_id=ctx.business.id, sale_id=sale.id, **item))

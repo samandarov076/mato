@@ -20,6 +20,65 @@ const heading = "text-[28px] font-semibold leading-tight tracking-tight";
 const textLink = `inline-flex min-h-9 items-center gap-1.5 rounded text-sm text-indigo hover:underline ${focusRing}`;
 
 /**
+ * Bir marta ko'rsatiladigan zaxira kodlar: ro'yxat, nusxa olish va "saqlab qo'ydim" belgisidan keyingina
+ * davom etish tugmasi ochiladi. Kirishda (ilovani ulash) va Xavfsizlik sahifasida bir xil.
+ */
+export function RecoveryCodes({
+  codes,
+  doneLabel,
+  onDone,
+}: {
+  codes: string[];
+  doneLabel: string;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copyCodes() {
+    try {
+      await navigator.clipboard.writeText(codes.join("\n"));
+      setCopied(true);
+      feedback("success");
+    } catch {
+      /* nusxa olinmadi — kodlar ekranda, qo'lda yozib olish mumkin */
+    }
+  }
+
+  return (
+    <>
+      <ul className="mt-5 grid grid-cols-2 gap-2 rounded-control border border-line bg-page p-4 font-mono text-[15px]">
+        {codes.map((item) => (
+          <li key={item} className="tracking-wider">
+            {item}
+          </li>
+        ))}
+      </ul>
+      <Button variant="secondary" size="sm" className="mt-3" silent onClick={() => void copyCodes()}>
+        {t(copied ? "twofactor.copied" : "twofactor.copy")}
+      </Button>
+      {/* Ekran o'quvchi ham "nusxa olindi"ni eshitadi — tugma matni o'zgargani e'lon qilinmaydi */}
+      <span role="status" className="sr-only">
+        {copied ? t("twofactor.copied") : ""}
+      </span>
+      <label className="mt-6 flex cursor-pointer items-start gap-3">
+        <input
+          type="checkbox"
+          checked={saved}
+          onChange={(e) => setSaved(e.target.checked)}
+          className="mt-1 size-4 accent-[rgb(var(--indigo))]"
+        />
+        <span>{t("twofactor.codes_saved")}</span>
+      </label>
+      <Button block className="mt-5" disabled={!saved} onClick={onDone}>
+        {doneLabel}
+      </Button>
+    </>
+  );
+}
+
+/**
  * Platforma egasi kirishining ikkinchi bosqichi.
  * - Ilova ulangan: 6 xonali kod (yoki telefon yo'qolgan bo'lsa — zaxira kod).
  * - Ilova hali ulanmagan: QR kod → birinchi kod → zaxira kodlar ko'rsatiladi → panel.
@@ -43,8 +102,6 @@ export function TwoFactorStep({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Vaqt tugagan yoki yo'llanma yaroqsiz — parolni qaytadan kiritish kerak
   const fail = (failure: unknown) => {
@@ -92,49 +149,17 @@ export function TwoFactorStep({
     }
   }
 
-  async function copyCodes() {
-    if (!confirmed) return;
-    try {
-      await navigator.clipboard.writeText(confirmed.recovery_codes.join("\n"));
-      setCopied(true);
-      feedback("success");
-    } catch {
-      /* nusxa olinmadi — kodlar ekranda, qo'lda yozib olish mumkin */
-    }
-  }
-
   // ---------- 3-qadam: zaxira kodlar ----------
   if (confirmed) {
     return (
       <div>
         <h1 className={heading}>{t("twofactor.codes_title")}</h1>
         <p className="mt-2 text-muted">{t("twofactor.codes_text")}</p>
-        <ul className="mt-5 grid grid-cols-2 gap-2 rounded-control border border-line bg-page p-4 font-mono text-[15px]">
-          {confirmed.recovery_codes.map((item) => (
-            <li key={item} className="tracking-wider">
-              {item}
-            </li>
-          ))}
-        </ul>
-        <Button variant="secondary" size="sm" className="mt-3" silent onClick={() => void copyCodes()}>
-          {t(copied ? "twofactor.copied" : "twofactor.copy")}
-        </Button>
-        {/* Ekran o'quvchi ham "nusxa olindi"ni eshitadi — tugma matni o'zgargani e'lon qilinmaydi */}
-        <span role="status" className="sr-only">
-          {copied ? t("twofactor.copied") : ""}
-        </span>
-        <label className="mt-6 flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            checked={saved}
-            onChange={(e) => setSaved(e.target.checked)}
-            className="mt-1 size-4 accent-[rgb(var(--indigo))]"
-          />
-          <span>{t("twofactor.codes_saved")}</span>
-        </label>
-        <Button block className="mt-5" disabled={!saved} onClick={() => acceptSession(confirmed)}>
-          {t("twofactor.continue")}
-        </Button>
+        <RecoveryCodes
+          codes={confirmed.recovery_codes}
+          doneLabel={t("twofactor.continue")}
+          onDone={() => acceptSession(confirmed)}
+        />
       </div>
     );
   }

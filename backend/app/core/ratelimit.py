@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from app.core.redis import get_redis
 
+DAY = 24 * 3600
+
 
 @dataclass(frozen=True)
 class Limit:
@@ -14,12 +16,26 @@ class Limit:
     max_failures: int
     window_seconds: int
     block_seconds: int
+    # Takroriy bloklar muddati: ikkinchi blok, uchinchi va keyingilari ... (bo'sh — muddat o'smaydi).
+    # Oxirgi blok tugaganidan keyin `strike_seconds` tinch o'tsa, hisob qaytadan boshlanadi.
+    escalation: tuple[int, ...] = ()
+    strike_seconds: int = DAY
 
 
 # Telefon + parol: bitta raqamga 15 daqiqada 10 ta xato urinish → 15 daqiqa to'xtatiladi
 LOGIN = Limit("login", max_failures=10, window_seconds=15 * 60, block_seconds=15 * 60)
 # PIN: bitta qurilmada 5 ta xato → 5 daqiqa (docs/03-details/00-umumiy.md, "Chekka holatlar")
 PIN = Limit("pin", max_failures=5, window_seconds=15 * 60, block_seconds=5 * 60)
+# PIN: bitta do'konning barcha qurilmalari bo'yicha 20 ta xato → do'kon bloki. Do'kon logini bilan yangi
+# qurilma ochib, har birida 5 tadan PIN sinash yo'li shu bilan yopiladi. Blok takrorlansa muddat o'sadi:
+# 15 daqiqa → 1 soat → 24 soat (docs/03-details/02-tuzilma.md) — sutkasiga ~1900 emas, ko'pi bilan 60 urinish
+PIN_STORE = Limit(
+    "pin-store",
+    max_failures=20,
+    window_seconds=15 * 60,
+    block_seconds=15 * 60,
+    escalation=(60 * 60, DAY),
+)
 # Ikki bosqichli tasdiqlash kodi (platforma egasi): 5 ta xato → 15 daqiqa
 TWO_FACTOR = Limit("2fa", max_failures=5, window_seconds=15 * 60, block_seconds=15 * 60)
 
@@ -38,18 +54,26 @@ async def blocked_for(limit: Limit, subject: str) -> int:
     return max(ttl, 0)
 
 
-async def record_failure(limit: Limit, subject: str) -> bool:
-    """Xato urinishni qayd etadi. Shu urinish bilan blok boshlangan bo'lsa True."""
+async def record_failure(limit: Limit, subject: str) -> int:
+    """Xato urinishni qayd etadi. Shu urinish bilan blok boshlangan bo'lsa — blok muddati (soniya), aks holda 0."""
     redis = get_redis()
     key = _fails_key(limit, subject)
     count = await redis.incr(key)
     if count == 1:
         await redis.expire(key, limit.window_seconds)
     if count < limit.max_failures:
-        return False
-    await redis.set(_block_key(limit, subject), 1, ex=limit.block_seconds)
+        return 0
+    seconds = limit.block_seconds
+    if limit.escalation:
+        # Nechanchi blok ekani eslab qolinadi; muvaffaqiyatli kirish buni nolga tushirmaydi
+        strikes_key = f"rl:{limit.name}:strikes:{subject}"
+        strikes = await redis.incr(strikes_key)
+        steps = (limit.block_seconds, *limit.escalation)
+        seconds = steps[min(strikes, len(steps)) - 1]
+        await redis.expire(strikes_key, seconds + limit.strike_seconds)
+    await redis.set(_block_key(limit, subject), 1, ex=seconds)
     await redis.delete(key)
-    return True
+    return seconds
 
 
 async def clear(limit: Limit, subject: str) -> None:

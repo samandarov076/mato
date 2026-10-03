@@ -1,11 +1,13 @@
 """08-hisobotlar: savdo, tushum, foyda, top tovarlar, qoldiq qiymati, nasiya, narx og'ishi, Excel."""
+import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
 import pytest
 from openpyxl import load_workbook
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 
 from app.core.db import system_session
 from app.modules.credit.models import Debt
@@ -60,7 +62,7 @@ async def trade(shop, seller):
         f"/api/sales/{first}/returns", json={"lines": [{"sale_line_id": line, "meters": "2"}]}, headers=s.headers
     )
     await s.client.post(
-        f"/api/customers/{customer}/payments", json={"amount": 40_000, "method": "cash"}, headers=s.headers
+        f"/api/customers/{customer}/payments", json={"client_uuid": str(uuid.uuid4()), "amount": 40_000, "method": "cash"}, headers=s.headers
     )
     async with system_session() as db:
         debt = await db.scalar(select(Debt.id).where(Debt.sale_id == credit.json()["id"]))
@@ -259,6 +261,42 @@ async def test_stock_value_by_location(trade):
 
 
 # ====================== Nasiya ======================
+
+
+@contextmanager
+def _selects():
+    """Biznes ulanishida bajarilgan SELECT so'rovlarini sanaydi (sessiyani sozlash so'rovlarisiz)."""
+    from app.core.db import engine
+
+    seen: list[str] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT") and "set_config" not in statement:
+            seen.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        yield seen
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+
+
+async def test_dashboard_and_stock_report_use_few_queries(trade, new_location):
+    """Tezlik: bosh sahifa ~25 so'rov qilardi; qoldiq hisoboti har joy uchun alohida so'rov (N+1)."""
+    s = trade
+    with _selects() as board:
+        assert (await _get(s, "dashboard", period="month")).status_code == 200
+    assert len(board) <= 10, len(board)
+
+    with _selects() as few:
+        before = (await _get(s, "stock")).json()
+    for index in range(5):
+        await new_location(s.business_id, "store", name=f"Yangi do'kon {index}")
+    with _selects() as many:
+        after = (await _get(s, "stock")).json()
+    assert len(after["places"]) == len(before["places"]) + 5
+    assert len(many) == len(few), (len(few), len(many))  # joylar soniga bog'liq emas
+    assert len(many) <= 6
 
 
 async def test_credit_report(trade, new_location):

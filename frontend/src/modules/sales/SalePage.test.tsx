@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import { kgFromMeters, lineAmount, metersFromKg, overdrawn, type CartLine } from "./cart";
+import { searchItems } from "./EntryForm";
 import { SalePage } from "./SalePage";
 import type { SaleContext } from "./types";
 
@@ -74,13 +75,29 @@ function renderPage() {
 const scanner = () => screen.findByLabelText("Partiya raqami yoki tovar (skaner ham shu yerga)");
 const finish = () => userEvent.click(screen.getByRole("button", { name: "Yakunlash" }));
 
+// Savat bo'sh bo'lsa tugma "Yana qo'shish" (tez sotish yonida), savatda qator bo'lsa — "Qo'shish"
+const addButton = () => screen.getByRole("button", { name: /^(Yana )?qo'shish$/i });
+const cartHeading = () => screen.queryByRole("heading", { name: "Savat" });
+
 /** Skaner bilan P-000012 dan `meters` m, tavsiya narxda savatga qo'shadi */
 async function addLine(meters = "10") {
   await userEvent.type(await scanner(), "P-000012{Enter}");
   await userEvent.type(screen.getByLabelText("Metr"), meters);
-  await userEvent.click(screen.getByRole("button", { name: /Tavsiya narx/ }));
-  await userEvent.click(screen.getByRole("button", { name: "Qo'shish" }));
+  await userEvent.click(addButton());
 }
+
+const pendingBanner = () => screen.findByText(/Sotuv tasdiqlanmadi — serverdan javob kelmadi/);
+const CART_KEY = "mato.cart.9.2"; // sotuvchi 9, do'kon 2
+const savedCart = () => JSON.parse(localStorage.getItem(CART_KEY) ?? "null");
+const storedLine = {
+  id: "l1", batch_id: 12, batch_number: "P-000012", sku_code: "M101-01", sku_name: "Atlas · Qizil",
+  hex: null, image_url: null, meters: "10", kg: "2.5", price: 45000, recommended: 45000, note: "",
+};
+const storedCart = (changes: object = {}) =>
+  JSON.stringify({
+    uuid: "11111111-1111-4111-8111-111111111111", lines: [storedLine], payment: "cash", customer: null,
+    initial: "", initialMethod: "cash", pending: false, ...changes,
+  });
 
 describe("Sotuv ekrani", () => {
   beforeEach(() => {
@@ -95,20 +112,19 @@ describe("Sotuv ekrani", () => {
     post.mockResolvedValue({ id: 5, number: "S-000001", total: 105_750, payment_type: "cash", duplicate: false });
   });
 
-  it("skaner partiyani topadi, kg o'zi hisoblanadi, tavsiya narx bir bosishda qo'yiladi", async () => {
+  it("tez sotish: skaner partiyani topadi, kg o'zi hisoblanadi, savatsiz bir bosishda sotiladi", async () => {
     renderPage();
     await userEvent.type(await scanner(), "p-000012{Enter}");
+    expect(cartHeading()).toBeNull(); // savat bo'sh — ko'rinmaydi
 
     expect(screen.getByText("M101-01")).toBeInTheDocument();
     expect(screen.getByLabelText("Partiya")).toHaveValue("12");
     await userEvent.type(screen.getByLabelText("Metr"), "2,35");
     expect(screen.getByLabelText("Kg")).toHaveValue("0.588"); // 2.35 m ÷ 4
-    await userEvent.click(screen.getByRole("button", { name: /Tavsiya narx/ }));
+    expect(screen.getByText("Tavsiya narx bo'yicha")).toBeInTheDocument(); // narx o'zi qo'yildi
     expect(screen.getByLabelText("1 metr narxi")).toHaveValue("45 000");
-    await userEvent.click(screen.getByRole("button", { name: "Qo'shish" }));
-
-    expect(screen.getAllByText("105 750")).toHaveLength(2); // qator summasi va jami
-    await finish();
+    expect(screen.getByLabelText("Metr")).toHaveValue("2,35");
+    await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
 
     expect(post).toHaveBeenCalledWith("/sales", {
       client_uuid: expect.any(String),
@@ -119,10 +135,114 @@ describe("Sotuv ekrani", () => {
       initial_payment_method: null,
       lines: [{ batch_id: 12, meters: "2.35", kg: "0.588", price_per_m: 45000, negative_stock_note: null }],
     });
-    // Ekran yangi sotuvga tayyor
+    // Ekran yangi sotuvga tayyor: savat yana yashirin, skaner maydoni kutib turibdi
     expect(await screen.findByText(/S-000001 yozildi/)).toBeInTheDocument();
-    expect(screen.getByText(/Savat bo'sh/)).toBeInTheDocument();
+    expect(cartHeading()).toBeNull();
+    expect(await scanner()).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sotuvni ochish" })).toHaveAttribute("href", "/sales/5");
+  });
+
+  it("sotuvdan keyin qoldiq joyida aniq kamayadi (10.03 − 0.13 = 9.9, float xatosiz)", async () => {
+    api.mockImplementation((path: string) =>
+      path.startsWith("/sales/context")
+        ? Promise.resolve({
+            ...context,
+            items: [
+              {
+                ...context.items[0],
+                batches: [{ ...context.items[0].batches[0], qty_m: "10.03" }, context.items[0].batches[1]],
+              },
+            ],
+          })
+        : Promise.resolve(customers),
+    );
+    renderPage();
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    await userEvent.type(screen.getByLabelText("Metr"), "0,13");
+    await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
+    expect(await screen.findByText(/S-000001 yozildi/)).toBeInTheDocument();
+
+    // Qidiruvda shu tovar chiqadi: qolgan metr — 9.9 + ikkinchi partiyadagi 100 (float bilan 109.899999… chiqardi)
+    await userEvent.type(await scanner(), "atlas qizil");
+    expect((await screen.findAllByText("109.9 m")).length).toBeGreaterThan(0);
+    // Tovar tanlansa — partiyalar ro'yxatida ham aniq qoldiq
+    await userEvent.click(screen.getByRole("button", { name: /M101-01/ }));
+    expect(await screen.findByRole("option", { name: /P-000012 .* 9\.9 m$/ })).toBeInTheDocument();
+  });
+
+  it("qidiruv ostida tovarlar to'ri: rasm/belgi, kod va qoldiq; bosilsa tovar tanlanadi", async () => {
+    renderPage();
+    await scanner();
+    const grid = screen.getByRole("group", { name: "Tovarlar" });
+    const tiles = within(grid).getAllByRole("button");
+    expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual([
+      "M101-01 · Atlas · Qizil", "M101-02 · Atlas · Ko'k",
+    ]);
+    expect(tiles[0]).toHaveTextContent("300 m"); // ikki partiya: 200 + 100
+    expect(tiles[1]).toHaveTextContent("50 m");
+
+    await userEvent.click(tiles[0]);
+
+    expect(screen.getByLabelText("Partiya")).toHaveValue("12"); // eng eski partiya — hozirgi tanlash oqimi
+    expect(screen.getByText("Tavsiya narx bo'yicha")).toBeInTheDocument(); // narx o'zi qo'yildi
+    await waitFor(() => expect(screen.getByLabelText("Metr")).toHaveFocus());
+    expect(screen.queryByRole("group", { name: "Tovarlar" })).toBeNull();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("mato tanlansa to'r shu matoga torayadi; rang tugmalarida qoldiq, tugagani xira lekin bosiladi", async () => {
+    api.mockImplementation((path: string) =>
+      path.startsWith("/sales/context")
+        ? Promise.resolve({
+            ...context,
+            items: [
+              context.items[0],
+              { ...context.items[1], batches: [{ ...context.items[1].batches[0], qty_m: "0.00" }] },
+            ],
+          })
+        : Promise.resolve(customers),
+    );
+    renderPage();
+    await scanner();
+    await userEvent.click(screen.getByRole("button", { name: "M101 · Atlas" }));
+
+    const red = screen.getByRole("button", { name: "01 · Qizil" });
+    const blue = screen.getByRole("button", { name: "02 · Ko'k" });
+    expect(red).toHaveTextContent("300 m");
+    expect(blue).toHaveTextContent("0 m");
+    expect(red).not.toHaveClass("opacity-60");
+    expect(blue).toHaveClass("opacity-60"); // qoldiq yo'q — xira
+    expect(blue).toBeEnabled(); // lekin bosiladi: tizimda tugagan, haqiqatda bor bo'lishi mumkin
+
+    await userEvent.click(blue);
+    expect(screen.getByText("M101-02")).toBeInTheDocument();
+    expect(screen.getByLabelText("Metr")).toBeInTheDocument();
+  });
+
+  it("Enter sotib yubormaydi — qatorni savatga qo'yadi; savat ochilgach oddiy 'Yakunlash'", async () => {
+    renderPage();
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    await userEvent.type(screen.getByLabelText("Metr"), "10");
+    await userEvent.type(screen.getByLabelText("Metr"), "{Enter}");
+
+    expect(post).not.toHaveBeenCalled();
+    expect(cartHeading()).toBeInTheDocument();
+    expect(screen.getAllByText("450 000")).toHaveLength(2); // qator va jami
+    expect(screen.queryByRole("button", { name: "Sotish" })).toBeNull();
+    await finish();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  });
+
+  it("tez sotish nasiyada — qator savatga tushadi va mijoz tanlash ochiladi", async () => {
+    renderPage();
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    await userEvent.type(screen.getByLabelText("Metr"), "10");
+    await userEvent.click(screen.getByRole("radio", { name: "Nasiya" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mijozni tanlash" }));
+
+    expect(post).not.toHaveBeenCalled();
+    expect(cartHeading()).toBeInTheDocument();
+    expect(screen.getByText(/Qarzga yoziladi: 450 000 so'm/)).toBeInTheDocument();
   });
 
   it("qo'lda tanlashda eng eski partiya olinadi; kg kiritilsa metr hisoblanadi", async () => {
@@ -135,10 +255,22 @@ describe("Sotuv ekrani", () => {
     await userEvent.type(screen.getByLabelText("Kg"), "1,5");
     expect(screen.getByLabelText("Metr")).toHaveValue("6"); // 1.5 kg × 4
 
-    // Narxsiz qo'shilmaydi — sababi qizil matnda
-    await userEvent.click(screen.getByRole("button", { name: "Qo'shish" }));
+    // Narx o'zi qo'yilgan; sotuvchi o'zgartirsa — tavsiyaga bir bosishda qaytadi
+    const price = screen.getByLabelText("1 metr narxi");
+    expect(price).toHaveValue("45 000");
+    await userEvent.clear(price);
+    await userEvent.type(price, "50000");
+    await userEvent.click(screen.getByRole("button", { name: /Tavsiya narxni qaytarish/ }));
+    expect(price).toHaveValue("45 000");
+
+    // Narxsiz na qo'shiladi, na sotiladi — sababi qizil matnda
+    await userEvent.clear(price);
+    await userEvent.click(addButton());
     expect(screen.getByRole("alert")).toHaveTextContent("1 metr narxini kiriting");
-    expect(screen.getByText(/Savat bo'sh/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("1 metr narxini kiriting");
+    expect(cartHeading()).toBeNull();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("qoldiqdan ko'p sotishda izoh majburiy", async () => {
@@ -155,13 +287,18 @@ describe("Sotuv ekrani", () => {
     await userEvent.type(screen.getByLabelText("Metr"), "52"); // do'konda 50 m
     expect(screen.getByText(/Tizimda 50 m qolgan/)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("1 metr narxi"), "30000");
-    await userEvent.click(screen.getByRole("button", { name: "Qo'shish" }));
+    // Tez sotishda ham izohsiz o'tmaydi: qator savatga tushadi va izoh so'raladi
+    await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
+    expect(cartHeading()).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Qoldiqdan ko'p sotilayotgan qatorga izoh yozing");
+    // Xabar "Yakunlash" yonida paydo bo'lib fokus oladi — keyin izoh yoziladi
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
 
+    // Izohsiz "Yakunlash" ham o'tmaydi
     await finish();
     expect(screen.getByRole("alert")).toHaveTextContent("Qoldiqdan ko'p sotilayotgan qatorga izoh yozing");
     expect(post).not.toHaveBeenCalled();
-    // Xabar "Yakunlash" yonida paydo bo'lib fokus oladi — keyin izoh yoziladi
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
 
     await userEvent.type(screen.getByLabelText("1-qator: izoh"), "Rulon 52 m chiqdi");
     await finish();
@@ -170,10 +307,36 @@ describe("Sotuv ekrani", () => {
     ]);
   });
 
+  it("SKU kodi skanerlansa — aynan shu tovar (gulli varianti kodining boshi bo'lsa ham)", async () => {
+    // Gulsiz M101-01 va gulli M101-01-G1: "M101-01" ikkalasiga qism bo'yicha mos keladi
+    const patterned = {
+      sku: {
+        ...sku(103, { id: 11, code: "01", name: "Qizil" }),
+        code: "M101-01-G1",
+        pattern: { id: 22, code: "G1", name: "Gul", image_url: null, is_plain: false, is_active: true },
+      },
+      batches: [
+        { id: 16, number: "P-000016", receipt_date: "2026-09-10", qty_m: "80.00", m_per_kg: null, recommended_price_per_m: null },
+      ],
+    };
+    api.mockImplementation((path: string) =>
+      path.startsWith("/sales/context")
+        ? Promise.resolve({ ...context, items: [...context.items, patterned] })
+        : Promise.reject(new ApiError(404, "batch_not_found", "batch_not_found")),
+    );
+    renderPage();
+
+    await userEvent.type(await scanner(), "m101-01{Enter}");
+
+    expect(screen.getByText("M101-01")).toBeInTheDocument();
+    expect(screen.getByLabelText("Partiya")).toHaveValue("12"); // gulsizning eng eski partiyasi
+    expect(screen.getByLabelText("Metr")).toHaveFocus();
+  });
+
   it("skaner kodi topilmasa — qo'lda tanlashga yo'naltiradi", async () => {
     renderPage();
     await userEvent.type(await scanner(), "P-999999{Enter}");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Partiya topilmadi — tovarni qo'lda tanlang");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Partiya yoki tovar topilmadi — tovarni qo'lda tanlang");
 
     // Partiya bor, lekin boshqa joyda
     api.mockImplementation((path: string) =>
@@ -200,7 +363,7 @@ describe("Sotuv ekrani", () => {
     expect(await screen.findAllByText("900 000")).toHaveLength(2);
 
     await userEvent.click(screen.getByRole("button", { name: "1-qatorni o'chirish" }));
-    expect(screen.getByText(/Savat bo'sh/)).toBeInTheDocument();
+    expect(cartHeading()).toBeNull(); // savat bo'shadi — yana oddiy (tez sotish) holat
   });
 
   it("internet uzilsa savat saqlanadi va ulanish tiklangach o'sha savat qayta yuboriladi", async () => {
@@ -209,7 +372,7 @@ describe("Sotuv ekrani", () => {
     await addLine();
     await finish();
 
-    expect(await screen.findByText(/Sotuv yuborilmadi — internet yo'q/)).toBeInTheDocument();
+    expect(await pendingBanner()).toBeInTheDocument();
     // Javob noma'lum — savatni o'zgartirib bo'lmaydi
     expect(screen.queryByRole("button", { name: "Yakunlash" })).toBeNull();
     expect(screen.queryByRole("button", { name: "1-qatorni o'chirish" })).toBeNull();
@@ -220,6 +383,115 @@ describe("Sotuv ekrani", () => {
     expect(post).toHaveBeenCalledTimes(2);
     // Ikkala urinishda bir xil identifikator — server sotuvni bir marta yozadi
     expect(post.mock.calls[1][1].client_uuid).toBe(post.mock.calls[0][1].client_uuid);
+  });
+
+  it("server 5xx qaytarsa ham savat qulflanadi va o'sha savat o'sha identifikator bilan qayta yuboriladi", async () => {
+    post.mockRejectedValueOnce(new ApiError(504, "server_error", "Gateway Timeout"));
+    renderPage();
+    await addLine();
+    await finish();
+
+    expect(await pendingBanner()).toBeInTheDocument();
+    // Sotuv yozilgan bo'lishi mumkin — savatga tovar qo'shib ham, o'zgartirib ham bo'lmaydi
+    expect(screen.queryByRole("button", { name: "Yakunlash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "1-qatorni o'chirish" })).toBeNull();
+    expect(screen.queryByLabelText("Partiya raqami yoki tovar (skaner ham shu yerga)")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Qayta yuborish" }));
+
+    expect(await screen.findByText(/S-000001 yozildi/)).toBeInTheDocument();
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post.mock.calls[1][1]).toEqual(post.mock.calls[0][1]);
+  });
+
+  it("savat so'rovdan OLDIN qulflanadi: javob kutilayotganda sahifa yangilansa ham qulf turadi", async () => {
+    post.mockReturnValueOnce(new Promise(() => {})); // javob hech qachon kelmaydi
+    const first = renderPage();
+    await addLine();
+    await finish();
+    await waitFor(() => expect(savedCart().pending).toBe(true));
+    const sent = post.mock.calls[0][1].client_uuid;
+
+    first.unmount(); // sahifa yangilandi
+    renderPage();
+
+    expect(await pendingBanner()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "1-qatorni o'chirish" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Qayta yuborish" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(post.mock.calls[1][1].client_uuid).toBe(sent);
+  });
+
+  it("server aniq rad etsa (4xx) — savat ochiladi va keyingi urinish yangi identifikator bilan ketadi", async () => {
+    post.mockRejectedValueOnce(
+      new ApiError(409, "batch_closed", "", undefined, undefined, { batch: "P-000012" }),
+    );
+    renderPage();
+    await addLine();
+    await finish();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("P-000012: partiya shu do'konda yopilgan");
+    expect(screen.getByRole("button", { name: "1-qatorni o'chirish" })).toBeInTheDocument();
+    expect(savedCart().pending).toBe(false);
+    await finish();
+
+    expect(await screen.findByText(/S-000001 yozildi/)).toBeInTheDocument();
+    expect(post.mock.calls[1][1].client_uuid).not.toBe(post.mock.calls[0][1].client_uuid);
+  });
+
+  it("o'zgargan savat avval yozilgan sotuv ustiga kelsa — sotuv raqami bilan tushuntiriladi", async () => {
+    post.mockRejectedValueOnce(
+      new ApiError(409, "sale_basket_changed", "", undefined, undefined, { number: "S-000007" }),
+    );
+    renderPage();
+    await addLine();
+    await finish();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/S-000007/);
+  });
+
+  it("qayta yuborish bir vaqtda ikki marta ketmaydi ('online' hodisasi ustma-ust kelsa)", async () => {
+    post.mockRejectedValueOnce(new ApiError(0, "network_error", "network_error"));
+    renderPage();
+    await addLine();
+    await finish();
+    await pendingBanner();
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(await screen.findByText(/S-000001 yozildi/)).toBeInTheDocument();
+    expect(post).toHaveBeenCalledTimes(2); // birinchi urinish + bitta qayta yuborish
+  });
+
+  it("boshqa oynada savat o'zgarsa — bu oyna ham o'sha savatni (va qulfni) oladi", async () => {
+    renderPage();
+    await scanner();
+    expect(cartHeading()).toBeNull();
+
+    const newValue = storedCart({ pending: true });
+    localStorage.setItem(CART_KEY, newValue); // ikkinchi oyna sotuvni yubordi
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: CART_KEY, newValue }));
+    });
+
+    expect(await pendingBanner()).toBeInTheDocument();
+    expect(screen.getAllByText("450 000")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "1-qatorni o'chirish" })).toBeNull();
+  });
+
+  it("boshqa sotuvchining javobi kelmagan sotuvi shu qurilmada ko'rinib turadi", async () => {
+    localStorage.setItem("mato.cart.5.2", storedCart({ pending: true, seller: "Aziz Sotuvchi" }));
+    localStorage.setItem("mato.cart.6.2", storedCart({ seller: "Bekzod" })); // oddiy to'lmagan savat — xabar yo'q
+    localStorage.setItem("mato.cart.7.3", storedCart({ pending: true, seller: "Boshqa do'kon" }));
+    renderPage();
+    await scanner();
+
+    expect(screen.getByText(/Aziz Sotuvchi.*450 000/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bekzod/)).toBeNull();
+    expect(screen.queryByText(/Boshqa do'kon/)).toBeNull();
   });
 
   it("server izoh so'rasa (qoldiq o'zgargan) — o'sha qatorda izoh maydoni ochiladi", async () => {
@@ -267,7 +539,7 @@ describe("Sotuv ekrani", () => {
   it("nasiya sozlamada o'chirilgan bo'lsa — to'lov turlarida ko'rinmaydi", async () => {
     api.mockResolvedValue({ ...context, credit_enabled: false });
     renderPage();
-    await scanner();
+    await userEvent.type(await scanner(), "P-000012{Enter}"); // to'lov turi tovar tanlangach ko'rinadi
     expect(screen.getByRole("radio", { name: "Naqd" })).toBeChecked();
     expect(screen.queryByRole("radio", { name: "Nasiya" })).toBeNull();
   });
@@ -283,6 +555,7 @@ describe("savat hisob-kitobi", () => {
     expect(lineAmount("2.35", 44000)).toBe(103_400);
     expect(lineAmount("1.5", 3333)).toBe(5000); // 4 999.5
     expect(lineAmount("0.5", 3333)).toBe(1667); // 1 666.5
+    expect(lineAmount("269.59", 49550)).toBe(13_358_185); // 13 358 184.5
   });
 
   it("metr ↔ kg partiya koeffitsienti bo'yicha", () => {
@@ -291,11 +564,39 @@ describe("savat hisob-kitobi", () => {
     expect(metersFromKg("1.5", "4.0000")).toBe("6");
     expect(metersFromKg("1.3", "2.8011")).toBe("3.64");
     expect(kgFromMeters("0.001", "4.0000")).toBe("");
+    // Yarim holatlar serverdagi ROUND_HALF_UP bilan bir xil (float bilan 24.657 va 135.38 chiqardi)
+    expect(kgFromMeters("197.26", "8.0000")).toBe("24.658");
+    expect(metersFromKg("25.000", "5.4154")).toBe("135.39");
+    expect(kgFromMeters("10", "0")).toBe("");
   });
 
   it("bir partiyadan bir necha qator — qoldiq ketma-ket kamayadi", () => {
     const lines = [line("a", 1, "30"), line("b", 1, "30"), line("c", 2, "5"), line("d", 9, "1")];
     // 1-partiyada 50 m: ikkinchi qator uchun 20 m qolgan; 9-partiya ro'yxatda yo'q — tekshirilmaydi
     expect(overdrawn(lines, { 1: "50.00", 2: "5.00" })).toEqual({ b: 20 });
+    // Kasrli metrlar ham aniq: 0.3 m dan 0.1 + 0.2 sotilsa — qoldiqdan oshmagan
+    expect(overdrawn([line("a", 1, "0.1"), line("b", 1, "0.2")], { 1: "0.30" })).toEqual({});
+  });
+});
+
+describe("moslashuvchan qidiruv", () => {
+  const ids = (query: string) => searchItems(context.items, query).map((item) => item.sku.id);
+
+  it("so'zlar istalgan tartibda, kod va nomlar aralash", () => {
+    expect(ids("qizil atlas")).toEqual([101]);
+    expect(ids("ATLAS  m101-01")).toEqual([101]);
+    expect(ids("m101 p-000013")).toEqual([102]); // mato kodi + partiya raqami
+    expect(ids("atlas")).toEqual([101, 102]);
+  });
+
+  it("apostrof turlari bir xil: ko'k = koʻk = kok", () => {
+    expect(ids("ko'k")).toEqual([102]);
+    expect(ids("koʻk")).toEqual([102]);
+    expect(ids("kok")).toEqual([102]);
+  });
+
+  it("bo'sh qidiruv hech narsa qaytarmaydi, topilmasa — bo'sh", () => {
+    expect(ids("   ")).toEqual([]);
+    expect(ids("shoyi qizil")).toEqual([]);
   });
 });

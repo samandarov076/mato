@@ -9,6 +9,7 @@ import { statGrid } from "@/shared/ui/Stat";
 import { ExportButton, Stat, Table, td, Th } from "./parts";
 import { reportsKeys, type StockReport } from "./types";
 import { Banknote, Ruler } from "lucide-react";
+import { Hint } from "@/shared/ui/Hint";
 
 /** Qoldiq qiymati: har joyda qancha metr, taxminan necha rulon va tannarx bo'yicha qancha pul turibdi. */
 export function StockReportPage() {
@@ -25,7 +26,7 @@ export function StockReportPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{t("reports.stock_intro")}</p>
+        <Hint id="report-stock">{t("reports.stock_intro")}</Hint>
         <ExportButton path="/reports/stock/export" />
       </div>
 

@@ -6,6 +6,7 @@ import { ArrowLeftRight, ArrowRight, Ban, StickyNote, Store, UserCheck, UserRoun
 import { Thumb } from "@/modules/catalog/parts";
 import { ApiError, api, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
+import { parseDecimal, toUnits } from "@/shared/decimal";
 import { formatDateTime, formatDecimal, trimDecimal } from "@/shared/format";
 import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
@@ -34,10 +35,7 @@ const cellBad = `border-madder ${focusRing} focus-visible:ring-madder`;
 const columns = "md:grid-cols-[minmax(0,1.6fr)_80px_100px_100px_120px_110px]";
 
 /** Kelgan metr: 0 va undan katta, ko'pi bilan 2 kasr xona ("188", "187,5"). Yaroqsiz bo'lsa — null. */
-function parseMeters(text: string): number | null {
-  const value = text.trim().replace(",", ".");
-  return /^\d{1,7}(\.\d{1,2})?$/.test(value) ? Number(value) : null;
-}
+const parseMeters = (text: string) => parseDecimal(text, 2, { zero: true, digits: 7 });
 
 /** Farq: jo'natilgan − kelgan. Kam kelgan — qizil, ortiq kelgan — sariq, farq yo'q — chiziqcha. */
 function Difference({ sent, got }: { sent: number; got: number | null }) {
@@ -142,7 +140,8 @@ function TransferView({ id }: { id: number }) {
   );
   const differs = transfer.lines.some(
     (line) =>
-      parseMeters(got(line).meters) !== Number(line.sent_m) || got(line).rolls !== String(line.sent_rolls),
+      toUnits(parseMeters(got(line).meters) ?? "", 2) !== toUnits(line.sent_m, 2) ||
+      got(line).rolls !== String(line.sent_rolls),
   );
 
   async function receive(event: FormEvent) {
@@ -168,7 +167,7 @@ function TransferView({ id }: { id: number }) {
         lines: transfer.lines.map((line) => ({
           line_id: line.id,
           rolls: Number(got(line).rolls),
-          meters: String(parseMeters(got(line).meters)),
+          meters: parseMeters(got(line).meters),
         })),
       }),
     );
@@ -284,8 +283,11 @@ function TransferView({ id }: { id: number }) {
               <ul className="divide-y divide-line">
                 {transfer.lines.map((line) => {
                   const value = got(line);
+                  const typed = parseMeters(value.meters);
                   const meters = receiving
-                    ? parseMeters(value.meters)
+                    ? typed === null
+                      ? null
+                      : Number(typed)
                     : line.received_m === null
                       ? null
                       : Number(line.received_m);

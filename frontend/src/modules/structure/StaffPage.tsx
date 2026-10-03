@@ -12,10 +12,12 @@ import { Segmented, Toggle } from "@/shared/ui/controls";
 import { Avatar } from "@/shared/ui/Avatar";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { fieldLabel, formatPhone, PasswordField, PhoneField, TextField } from "@/shared/ui/fields";
-import { actionClass, Chip, Empty, RowAction, rowClass } from "@/shared/ui/list";
+import { Chip, Empty, RowAction, rowClass } from "@/shared/ui/list";
+import { ActionMenu, MenuItem } from "@/shared/ui/Menu";
 import type { Tone } from "@/shared/ui/tones";
 import type { LocationRow } from "./LocationsPage";
 import { SecretBox } from "@/shared/ui/SecretBox";
+import { Hint } from "@/shared/ui/Hint";
 
 type Role = "owner" | "warehouse" | "seller";
 
@@ -287,7 +289,7 @@ export function StaffPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{t("structure.staff.intro")}</p>
+        <Hint id="staff">{t("structure.staff.intro")}</Hint>
         {form === null && (
           <Button onClick={() => showForm(EMPTY)}>
             <Plus className="size-[18px]" aria-hidden="true" />
@@ -518,49 +520,39 @@ export function StaffPage() {
                       <RowAction icon={Pencil} onClick={() => openEdit(row)}>
                         {t("structure.edit")}
                       </RowAction>
-                      <RowAction
-                        icon={shown?.id === row.id ? EyeOff : Eye}
-                        disabled={revealing === row.id}
-                        aria-expanded={shown?.id === row.id}
-                        onClick={() => void reveal(row)}
-                      >
-                        {shown?.id === row.id
-                          ? t("structure.staff.hide")
-                          : t(row.role === "seller" ? "structure.staff.show_pin" : "structure.staff.show_password")}
-                      </RowAction>
-                      {row.role === "seller" ? (
-                        <RowAction
-                          icon={KeyRound}
-                          aria-expanded={open === "pin"}
-                          onClick={() => openAction({ kind: "pin", id: row.id })}
-                        >
-                          {t("structure.staff.change_pin")}
-                        </RowAction>
-                      ) : (
-                        <RowAction
-                          icon={LockKeyhole}
-                          aria-expanded={open === "password"}
-                          onClick={() => openAction({ kind: "password", id: row.id })}
-                        >
-                          {t("structure.staff.reset_password")}
-                        </RowAction>
-                      )}
+                      {/* Kam ishlatiladigan amallar — "⋯" menyusida: qator bitta tugma bilan toza turadi */}
                       {row.is_active ? (
-                        // RowAction ref bermaydi; tasdiq yopilganda fokus shu tugmaga qaytishi uchun oddiy tugma
-                        <button
-                          ref={triggerFor(row.id)}
-                          type="button"
-                          className={actionClass("danger")}
-                          disabled={open === "deactivate"}
-                          aria-expanded={open === "deactivate"}
-                          onClick={(event) => {
-                            feedback("warning", event);
-                            openAction({ kind: "deactivate", id: row.id });
-                          }}
+                        <ActionMenu
+                          label={t("structure.staff.more", { name: row.full_name })}
+                          triggerRef={triggerFor(row.id)}
                         >
-                          <Power className="size-3.5 shrink-0" aria-hidden="true" />
-                          {t("structure.deactivate")}
-                        </button>
+                          <MenuItem
+                            icon={shown?.id === row.id ? EyeOff : Eye}
+                            disabled={revealing === row.id}
+                            onSelect={() => void reveal(row)}
+                          >
+                            {shown?.id === row.id
+                              ? t("structure.staff.hide")
+                              : t(row.role === "seller" ? "structure.staff.show_pin" : "structure.staff.show_password")}
+                          </MenuItem>
+                          {row.role === "seller" ? (
+                            <MenuItem icon={KeyRound} onSelect={() => openAction({ kind: "pin", id: row.id })}>
+                              {t("structure.staff.change_pin")}
+                            </MenuItem>
+                          ) : (
+                            <MenuItem icon={LockKeyhole} onSelect={() => openAction({ kind: "password", id: row.id })}>
+                              {t("structure.staff.reset_password")}
+                            </MenuItem>
+                          )}
+                          <MenuItem
+                            icon={Power}
+                            tone="danger"
+                            disabled={open === "deactivate"}
+                            onSelect={() => openAction({ kind: "deactivate", id: row.id })}
+                          >
+                            {t("structure.deactivate")}
+                          </MenuItem>
+                        </ActionMenu>
                       ) : (
                         <RowAction
                           icon={RotateCcw}

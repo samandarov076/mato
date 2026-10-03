@@ -18,7 +18,7 @@ function webglAvailable(): boolean {
 }
 
 function wants3D(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || !window.matchMedia) return false;
   // Panel faqat keng ekranda ko'rinadi (lg); telefonda Three.js umuman yuklanmasin
   if (!window.matchMedia("(min-width: 1024px)").matches) return false;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;

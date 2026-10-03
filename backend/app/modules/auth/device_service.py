@@ -4,21 +4,33 @@ Har do'konda bitta umumiy qurilma. Biznes egasi uni bir marta o'z paroli bilan o
 bog'laydi — brauzerga uzoq muddatli qurilma tokeni (httpOnly cookie) yoziladi. Shundan keyin
 sotuvchilar shu qurilmada faqat 4 xonali PIN bilan kiradi; har amal o'sha sotuvchi nomidan yoziladi.
 """
+import asyncio
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import exists, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
 
 from app.core import ratelimit
 from app.core.audit import log_event
+from app.core.config import get_settings
 from app.core.db import system_session
 from app.core.deps import AuthContext
 from app.core.errors import AppError
-from app.core.security import create_access_token, hash_token, new_token, pin_lookup
+from app.core.security import (
+    create_access_token,
+    hash_token,
+    new_token,
+    pin_lookup,
+    verify_password,
+)
 from app.core.vault import seal
 from app.modules.auth.models import Device, User, UserSession
 from app.modules.auth.service import Issued, device_idle_limit
+from app.modules.notifications import service as notifications
 from app.modules.platform.models import Business
 from app.modules.structure.models import Location, UserLocation
+
+settings = get_settings()
 
 
 def _now() -> datetime:
@@ -113,6 +125,73 @@ async def revoke_device(ctx: AuthContext, device_id: int) -> None:
     )
 
 
+async def store_login(
+    login: str, password: str, previous_token: str | None
+) -> tuple[Device, Location, Business, str]:
+    """Do'konning o'z logini va paroli bilan SHU brauzerni do'kon qurilmasiga aylantiradi.
+
+    Biznes egasi planshetga kirmaydi: login/parolni do'konga beradi, qurilma shu bilan ochiladi va PIN
+    ekraniga o'tadi. Login faqat PIN ekranini ochadi — ma'lumotlar PIN'siz ko'rinmaydi. Har shunday
+    qurilma "Qurilmalar" ro'yxatida turadi, ega uni uzishi mumkin. (qurilma, do'kon, biznes, token) qaytaradi.
+    """
+    login = login.strip().lower()
+    subject = f"store:{login}"
+    wait = await ratelimit.blocked_for(ratelimit.LOGIN, subject)
+    if wait:
+        raise AppError(429, "too_many_attempts", retry_after=wait)
+
+    error: AppError | None = None
+    async with system_session() as db:  # kirishda qidiruv: biznes hali noma'lum
+        row = (
+            await db.execute(
+                select(Location, Business)
+                .join(Business, Business.id == Location.business_id)
+                .where(func.lower(Location.login) == login, Location.type == "store")
+            )
+        ).first()
+        store, business = row if row else (None, None)
+        password_ok = await asyncio.to_thread(
+            verify_password, password, store.password_hash if store else None
+        )
+        if store is None or not password_ok:
+            if await ratelimit.record_failure(ratelimit.LOGIN, subject):
+                error = AppError(429, "too_many_attempts", retry_after=ratelimit.LOGIN.block_seconds)
+            else:
+                error = AppError(401, "invalid_store_credentials")
+        elif not store.is_active:
+            error = AppError(403, "store_inactive")
+        elif business.status != "active":
+            error = AppError(403, "business_blocked")
+        else:
+            await ratelimit.clear(ratelimit.LOGIN, subject)
+            if previous_token:  # shu brauzer avval boshqa do'konga bog'langan bo'lsa — eskisi uziladi
+                previous = await db.scalar(
+                    select(Device).where(
+                        Device.token_hash == hash_token(previous_token), Device.revoked_at.is_(None)
+                    )
+                )
+                if previous is not None:
+                    await _revoke_device(db, previous)
+            token, token_hash = new_token()
+            name = f"{store.login} · {_now().astimezone(ZoneInfo(settings.app_timezone)):%d.%m.%Y %H:%M}"
+            device = Device(
+                business_id=business.id, store_id=store.id, name=name, token_hash=token_hash
+            )
+            db.add(device)
+            await db.flush()
+            log_event(
+                db,
+                business_id=business.id,
+                location_id=store.id,
+                category="staff",
+                event_code="device.bound_by_login",
+                data={"device_id": device.id, "name": name},
+            )
+    if error is not None:
+        raise error
+    return device, store, business, token
+
+
 # ---------- Qurilmaning o'zi: holat va PIN bilan kirish ----------
 
 
@@ -151,7 +230,10 @@ async def pin_login(token: str | None, pin: str) -> Issued:
         else:
             device, store, business = found
             subject = str(device.id)
-            wait = await ratelimit.blocked_for(ratelimit.PIN, subject)
+            wait = max(
+                await ratelimit.blocked_for(ratelimit.PIN, subject),
+                await ratelimit.blocked_for(ratelimit.PIN_STORE, str(store.id)),
+            )
             if business.status != "active":
                 error = AppError(403, "business_blocked")
             elif wait:
@@ -174,7 +256,9 @@ async def pin_login(token: str | None, pin: str) -> Issued:
                     )
                 )
                 if seller is None:
-                    if await ratelimit.record_failure(ratelimit.PIN, subject):
+                    store_block = await ratelimit.record_failure(ratelimit.PIN_STORE, str(store.id))
+                    device_block = await ratelimit.record_failure(ratelimit.PIN, subject)
+                    if store_block or device_block:
                         log_event(
                             db,
                             business_id=device.business_id,
@@ -183,8 +267,16 @@ async def pin_login(token: str | None, pin: str) -> Issued:
                             event_code="pin.locked",
                             data={"device_id": device.id},
                         )
+                        if store_block:
+                            # Do'kon bo'yicha blok — kimdir PIN'ni tanlab topmoqchi: egalar bilishi kerak
+                            await notifications.notify_owners(
+                                db,
+                                device.business_id,
+                                "pin.store_locked",
+                                {"store": store.name, "store_id": store.id, "minutes": store_block // 60},
+                            )
                         error = AppError(
-                            429, "pin_locked", retry_after=ratelimit.PIN.block_seconds
+                            429, "pin_locked", retry_after=max(store_block, device_block)
                         )
                     else:
                         error = AppError(401, "invalid_pin")

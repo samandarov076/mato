@@ -18,13 +18,18 @@ import { SearchInput } from "@/modules/catalog/parts";
 import { api } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { formatDateTime, formatNumber, todayISO } from "@/shared/format";
+import { periodOf, type Period } from "@/shared/period";
+import { useWide } from "@/shared/useWide";
 import { ButtonLink } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
-import { SelectField, TextField } from "@/shared/ui/fields";
+import { SelectField } from "@/shared/ui/fields";
+import { FilterPanel } from "@/shared/ui/FilterPanel";
 import { Chip, Empty, IconChip, LoadMore, RowAction, rowClass } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
+import { PeriodFilter } from "@/shared/ui/PeriodFilter";
+import { LinkRow, num, Table, td, Th } from "@/shared/ui/table";
 import type { Tone } from "@/shared/ui/tones";
 import { salesKeys, type PaymentType, type Ref, type SalePage, type SaleRow, type SaleStatus } from "./types";
 
@@ -33,8 +38,6 @@ const STATUSES: SaleStatus[] = ["completed", "partially_returned", "returned", "
 const PAYMENTS: PaymentType[] = ["cash", "card", "credit"];
 
 type Filters = {
-  date_from: string;
-  date_to: string;
   store_id: string;
   seller_id: string;
   payment_type: string;
@@ -42,7 +45,7 @@ type Filters = {
 };
 type Scope = "mine" | "all";
 
-const NO_FILTERS: Filters = { date_from: "", date_to: "", store_id: "", seller_id: "", payment_type: "", status: "" };
+const NO_FILTERS: Filters = { store_id: "", seller_id: "", payment_type: "", status: "" };
 
 const PAYMENT_STYLE: Record<PaymentType, { icon: LucideIcon; tone: Tone }> = {
   cash: { icon: Banknote, tone: "leaf" },
@@ -91,17 +94,28 @@ export function SalesPage() {
   const sum = t("settings.units.sum");
 
   const [scope, setScope] = useState<Scope>("mine");
+  const wide = useWide();
+  // Standart davr — bugun: kundalik ish shu; boshqa davr bir bosishda
+  const [period, setPeriod] = useState<Period>(() => periodOf("today"));
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   // Qidiruv matni SearchInput ichida kechiktiriladi (300 ms) — bu yerga tayyor qiymat keladi
   const [search, setSearch] = useState("");
   const set = (key: keyof Filters) => (value: string) => setFilters({ ...filters, [key]: value });
   const mineToday = !owner && scope === "mine";
   const wanted = search.trim();
-  const filtered = Object.values(filters).some(Boolean) || wanted !== "";
+  const hidden = Object.values(filters).filter(Boolean).length; // "Filtr" tugmasi ortidagi faol filtrlar
+  const filtered = hidden > 0 || wanted !== "" || period.preset !== "today";
+  const dates = Object.fromEntries(
+    Object.entries({ date_from: period.date_from, date_to: period.date_to }).filter(([, value]) => value),
+  );
 
   const params: Record<string, string> = mineToday
     ? { mine: "true", date_from: todayISO(), date_to: todayISO() }
-    : { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)), ...(wanted ? { search: wanted } : {}) };
+    : {
+        ...dates,
+        ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+        ...(wanted ? { search: wanted } : {}),
+      };
 
   const sales = useInfiniteQuery({
     queryKey: salesKeys.list(JSON.stringify(params)),
@@ -130,24 +144,12 @@ export function SalesPage() {
     queryFn: () => api<{ id: number; full_name: string; role: string }[]>("/users"),
   });
 
-  const dates = (
-    <>
-      <TextField
-        type="date"
-        label={t("audit.filters.from")}
-        value={filters.date_from}
-        onChange={set("date_from")}
-        max={filters.date_to || undefined}
-      />
-      <TextField
-        type="date"
-        label={t("audit.filters.to")}
-        value={filters.date_to}
-        onChange={set("date_to")}
-        min={filters.date_from || undefined}
-      />
-    </>
+  const clear = filtered && (
+    <RowAction icon={X} onClick={() => (setFilters(NO_FILTERS), setSearch(""), setPeriod(periodOf("today")))}>
+      {t("common.clear")}
+    </RowAction>
   );
+  const searchBox = <SearchInput value={search} onChange={setSearch} label={t("sales.list.search")} />;
 
   return (
     <div>
@@ -182,57 +184,56 @@ export function SalesPage() {
 
       {!mineToday && (
         <Card className={owner ? "mt-5" : "mt-4"}>
-          <div className={`grid gap-4 sm:grid-cols-2 ${owner ? "lg:grid-cols-3" : ""}`}>
-            {dates}
-            {owner && (
-              <>
-                <SelectField label={t("sales.store")} value={filters.store_id} onChange={set("store_id")}>
-                  <option value="">{t("common.all")}</option>
-                  {stores.data?.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField label={t("sales.list.seller")} value={filters.seller_id} onChange={set("seller_id")}>
-                  <option value="">{t("common.all")}</option>
-                  {staff.data
-                    ?.filter((person) => person.role !== "warehouse")
-                    .map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.full_name}
+          <PeriodFilter value={period} onChange={setPeriod} />
+          <div className="mt-4">
+            {owner ? (
+              <FilterPanel main={searchBox} count={hidden} after={clear}>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <SelectField label={t("sales.store")} value={filters.store_id} onChange={set("store_id")}>
+                    <option value="">{t("common.all")}</option>
+                    {stores.data?.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.name}
                       </option>
                     ))}
-                </SelectField>
-                <SelectField
-                  label={t("sales.payment.label")}
-                  value={filters.payment_type}
-                  onChange={set("payment_type")}
-                >
-                  <option value="">{t("common.all")}</option>
-                  {PAYMENTS.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`sales.payment.${type}`)}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField label={t("sales.list.status_filter")} value={filters.status} onChange={set("status")}>
-                  <option value="">{t("common.all")}</option>
-                  {STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {t(`sales.status.${status}`)}
-                    </option>
-                  ))}
-                </SelectField>
-              </>
-            )}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <SearchInput value={search} onChange={setSearch} label={t("sales.list.search")} />
-            {filtered && (
-              <RowAction icon={X} onClick={() => (setFilters(NO_FILTERS), setSearch(""))}>
-                {t("common.clear")}
-              </RowAction>
+                  </SelectField>
+                  <SelectField label={t("sales.list.seller")} value={filters.seller_id} onChange={set("seller_id")}>
+                    <option value="">{t("common.all")}</option>
+                    {staff.data
+                      ?.filter((person) => person.role !== "warehouse")
+                      .map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.full_name}
+                        </option>
+                      ))}
+                  </SelectField>
+                  <SelectField
+                    label={t("sales.payment.label")}
+                    value={filters.payment_type}
+                    onChange={set("payment_type")}
+                  >
+                    <option value="">{t("common.all")}</option>
+                    {PAYMENTS.map((type) => (
+                      <option key={type} value={type}>
+                        {t(`sales.payment.${type}`)}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <SelectField label={t("sales.list.status_filter")} value={filters.status} onChange={set("status")}>
+                    <option value="">{t("common.all")}</option>
+                    {STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {t(`sales.status.${status}`)}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+              </FilterPanel>
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+                {searchBox}
+                {clear}
+              </div>
             )}
           </div>
         </Card>
@@ -256,17 +257,76 @@ export function SalesPage() {
             {t(mineToday ? "sales.list.empty_today" : filtered ? "sales.list.empty_filtered" : "sales.list.empty")}
           </Empty>
         )}
-        <ul className="divide-y divide-line">
-          {rows.map((row) => (
-            <SaleLine key={row.id} row={row} sum={sum} showStore={owner} />
-          ))}
-        </ul>
+        {/* Planshet va kompyuterda — jadval (bir ekranda ko'proq sotuv); telefonda — kartochkalar */}
+        {wide && rows.length > 0 && (
+          <Table
+            flush
+            dense
+            label={owner ? t("nav.sales") : t("store.nav.my_sales")}
+            head={
+              <tr>
+                <Th>{t("sales.list.col_number")}</Th>
+                <Th>{t("sales.list.col_time")}</Th>
+                {owner && <Th>{t("sales.store")}</Th>}
+                <Th>{t("sales.list.seller")}</Th>
+                <Th>{t("sales.list.col_customer")}</Th>
+                <Th>{t("sales.payment.label")}</Th>
+                <Th className="text-right">{t("sales.list.col_amount")}</Th>
+                <Th>{t("sales.list.status_filter")}</Th>
+              </tr>
+            }
+          >
+            {rows.map((row) => (
+              <SaleTableRow key={row.id} row={row} showStore={owner} />
+            ))}
+          </Table>
+        )}
+        {!wide && (
+          <ul className="divide-y divide-line">
+            {rows.map((row) => (
+              <SaleLine key={row.id} row={row} sum={sum} showStore={owner} />
+            ))}
+          </ul>
+        )}
       </section>
 
       {sales.hasNextPage && <LoadMore loading={sales.isFetchingNextPage} onClick={() => void sales.fetchNextPage()} />}
     </div>
   );
 }
+
+/** Jadval qatori (≥768px): butun qator bosiladi; raqam — havola (klaviatura va "yangi oynada ochish" uchun). */
+const SaleTableRow = memo(function SaleTableRow({ row, showStore }: { row: SaleRow; showStore: boolean }) {
+  const { t } = useTranslation();
+  const cancelled = row.status === "cancelled";
+  return (
+    <LinkRow to={`/sales/${row.id}`} className={cancelled ? "bg-page/60 text-muted" : ""}>
+      <td className={`${td} whitespace-nowrap`}>
+        <Link to={`/sales/${row.id}`} className="font-medium text-indigo hover:underline">
+          {row.number}
+        </Link>
+      </td>
+      <td className={`${td} text-muted lg:whitespace-nowrap`}>{formatDateTime(row.created_at)}</td>
+      {showStore && <td className={`${td} 2xl:whitespace-nowrap`}>{row.store.name}</td>}
+      <td className={`${td} 2xl:whitespace-nowrap`}>{row.seller.name}</td>
+      <td className={`${td} break-words`}>{row.customer?.name ?? "—"}</td>
+      <td className={td}>
+        <PaymentChip type={row.payment_type} />
+      </td>
+      <td className={`${td} ${num}`}>
+        <span className={`font-medium ${cancelled ? "line-through" : ""}`}>{formatNumber(row.total)}</span>
+        {row.returned_total > 0 && (
+          <span className="block text-[13px] text-saffron">
+            {t("sales.list.returned", { amount: formatNumber(row.returned_total) })}
+          </span>
+        )}
+      </td>
+      <td className={td}>
+        <SaleStatusChip status={row.status} />
+      </td>
+    </LinkRow>
+  );
+});
 
 /**
  * Ro'yxat qatori. `showStore` — biznes egasiga; sotuvchi faqat o'z do'konini ko'radi, do'kon nomi ortiqcha.

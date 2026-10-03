@@ -130,10 +130,62 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
+// ---------- Qulf belgisi ----------
+// Chiqish (qulflash) so'rovi serverga yetib bormagan bo'lishi mumkin (internet yo'q) — unda cookie tirik qoladi.
+// Belgi qurilmada turgan ekan, tirik cookie bilan sessiya tiklanmaydi; chiqish ulanish tiklangach qayta yuboriladi.
+const LOCK_KEY = "mato.locked";
+let lockedInMemory = false; // xotira yopiq bo'lsa ham shu sahifada ishlaydi
+
+export function markLocked(): void {
+  lockedInMemory = true;
+  try {
+    localStorage.setItem(LOCK_KEY, "1");
+  } catch {
+    /* xotira yopiq — belgi faqat shu sahifada */
+  }
+}
+
+export function clearLocked(): void {
+  lockedInMemory = false;
+  try {
+    localStorage.removeItem(LOCK_KEY);
+  } catch {
+    /* xotira yopiq */
+  }
+}
+
+export function isLocked(): boolean {
+  try {
+    return lockedInMemory || localStorage.getItem(LOCK_KEY) === "1";
+  } catch {
+    return lockedInMemory;
+  }
+}
+
+let leaving: Promise<void> | null = null;
+
+/**
+ * Serverdagi sessiyani tugatadi (cookie bo'yicha). Yetib borsa — qulf belgisi olinadi; bormasa belgi qoladi va
+ * keyinroq (ulanish tiklanganda, ilova qayta ochilganda) yana chaqiriladi. Bir vaqtda bitta so'rov.
+ */
+export function endSession(): Promise<void> {
+  leaving ??= request<void>("/auth/logout", { method: "POST" })
+    .then(clearLocked, () => {})
+    .finally(() => {
+      leaving = null;
+    });
+  return leaving;
+}
+
+/** Yo'ldagi chiqish so'rovi tugashini kutadi — yangi kirish undan keyin (kechikkan javob yangi cookie'ni o'chirmasin) */
+export const pendingLogout = (): Promise<void> => leaving ?? Promise.resolve();
+
 let refreshing: Promise<Session | null> | null = null;
 
 /** Cookie'dagi uzoq muddatli token bilan sessiyani yangilaydi. Bir vaqtda faqat bitta so'rov ketadi. */
 export function refreshSession(): Promise<Session | null> {
+  // Qulflangan qurilmada cookie tirik qolgan bo'lishi mumkin — u bilan sessiya PIN'siz qayta ochilmasin
+  if (isLocked()) return Promise.resolve(null);
   refreshing ??= request<Session>("/auth/refresh", { method: "POST" })
     .catch((error) => {
       if (error instanceof ApiError && error.status === 401) return null;

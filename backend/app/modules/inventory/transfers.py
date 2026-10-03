@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import log_event
 from app.core.counters import next_numbers
@@ -138,7 +139,30 @@ async def sendable(ctx: AuthContext, location_id: int, search: str | None = None
 # ====================== Jo'natish ======================
 
 
-async def create_transfer(ctx: AuthContext, body: TransferCreate) -> Transfer:
+async def _same_transfer(ctx: AuthContext, transfer: Transfer, body: TransferCreate) -> Transfer:
+    """Shu identifikator bilan avval yozilgan ko'chirish. Qayta kelgan mazmun undan farq qilsa — rad etiladi."""
+    saved = (
+        await ctx.db.execute(
+            select(TransferLine.batch_id, TransferLine.sent_rolls, TransferLine.sent_m)
+            .where(TransferLine.transfer_id == transfer.id)
+            .order_by(TransferLine.batch_id)
+        )
+    ).all()
+    sent = sorted((line.batch_id, line.rolls, line.meters) for line in body.lines)
+    places = (body.from_location_id, body.to_location_id)
+    if (transfer.from_location_id, transfer.to_location_id) != places or [
+        tuple(row) for row in saved
+    ] != sent:
+        raise AppError(409, "request_changed", number=transfer.number)
+    return transfer
+
+
+async def create_transfer(ctx: AuthContext, body: TransferCreate) -> tuple[Transfer, bool]:
+    """Ko'chirishni yozadi. (ko'chirish, takrormi) qaytaradi: shu identifikator bilan avval yozilgan bo'lsa — o'sha."""
+    by_uuid = select(Transfer).where(Transfer.client_uuid == body.client_uuid)
+    existing = await ctx.db.scalar(by_uuid)
+    if existing is not None:
+        return await _same_transfer(ctx, existing, body), True
     source = await ctx.db.get(Location, body.from_location_id)
     target = await ctx.db.get(Location, body.to_location_id)
     if source is None or not source.is_active:
@@ -153,17 +177,26 @@ async def create_transfer(ctx: AuthContext, body: TransferCreate) -> Transfer:
     if len(set(batch_ids)) != len(batch_ids):
         raise _field_error("lines", "duplicate")
 
-    number = (await next_numbers(ctx.db, ctx.business.id, "transfer"))[0]
-    transfer = Transfer(
-        business_id=ctx.business.id,
-        number=f"K-{number:05d}",
-        from_location_id=source.id,
-        to_location_id=target.id,
-        note=body.note or None,
-        sent_by=ctx.user.id,
-    )
-    ctx.db.add(transfer)
-    await ctx.db.flush()
+    try:
+        async with ctx.db.begin_nested():  # takror bo'lsa raqam ham qaytadi — bo'shliq qolmaydi
+            number = (await next_numbers(ctx.db, ctx.business.id, "transfer"))[0]
+            transfer = Transfer(
+                business_id=ctx.business.id,
+                client_uuid=body.client_uuid,
+                number=f"K-{number:05d}",
+                from_location_id=source.id,
+                to_location_id=target.id,
+                note=body.note or None,
+                sent_by=ctx.user.id,
+            )
+            ctx.db.add(transfer)
+            await ctx.db.flush()
+    except IntegrityError:
+        # Xuddi shu ko'chirish bir vaqtda ikki marta yuborilgan (javob kelmay, tugma qayta bosilgan)
+        existing = await ctx.db.scalar(by_uuid)
+        if existing is None:
+            raise
+        return await _same_transfer(ctx, existing, body), True
 
     total = Decimal(0)
     # Partiyalar doim bir xil tartibda qulflanadi — ikki ko'chirish bir-birini kutib qolmaydi
@@ -226,7 +259,7 @@ async def create_transfer(ctx: AuthContext, body: TransferCreate) -> Transfer:
         },
         dedup_key=_arrived_key(transfer.id),
     )
-    return transfer
+    return transfer, False
 
 
 # ====================== Ro'yxat va kartochka ======================

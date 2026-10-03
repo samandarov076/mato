@@ -1,5 +1,4 @@
 import { Suspense, useEffect, useRef } from "react";
-import { SoundToggle } from "./AppShell";
 import { feedback } from "@/shared/feedback";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -7,11 +6,9 @@ import {
   ArrowLeftRight,
   Layers,
   Lock,
-  Moon,
   PackageCheck,
   Receipt,
   ShoppingCart,
-  Sun,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -19,9 +16,8 @@ import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
 import { Bell } from "@/modules/notifications/Bell";
 import { Loading } from "@/shared/ui/feedback";
 import { Selvedge } from "@/shared/ui/brand";
-import { HeaderLanguage } from "@/shared/ui/HeaderLanguage";
+import { HeaderControls } from "@/shared/ui/HeaderControls";
 import { TONES, type Tone } from "@/shared/ui/tones";
-import { useTheme } from "@/shared/theme";
 
 /** Pastki menyu (docs/04-eskizlar.md, 1-eskiz). Har bo'limning o'z rangi — ko'z bilan tez topiladi. */
 const STORE_NAV: { key: string; icon: LucideIcon; tone: Tone; to: string }[] = [
@@ -34,14 +30,18 @@ const STORE_NAV: { key: string; icon: LucideIcon; tone: Tone; to: string }[] = [
 ];
 
 /** Qurilmaga `minutes` daqiqa tegilmasa — qulflaydi (PIN ekraniga qaytaradi). */
-function useAutoLock(minutes: number, lock: () => void) {
+export function useAutoLock(minutes: number, lock: () => void) {
   const lastActivity = useRef(Date.now());
+  const fired = useRef(false); // bir marta qulflaydi — har 10 soniyada qayta chaqirmaydi
   useEffect(() => {
     const touch = () => {
       lastActivity.current = Date.now();
+      fired.current = false;
     };
     const check = () => {
-      if (Date.now() - lastActivity.current >= minutes * 60_000) lock();
+      if (fired.current || Date.now() - lastActivity.current < minutes * 60_000) return;
+      fired.current = true;
+      lock();
     };
     const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
     events.forEach((name) => window.addEventListener(name, touch, { passive: true }));
@@ -61,7 +61,6 @@ export function StoreShell() {
   const { t } = useTranslation();
   const { logout } = useAuth();
   const { user, business, store } = useCurrentUser();
-  const { theme, toggle } = useTheme();
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
   const section = pathname.split("/")[1];
@@ -88,7 +87,7 @@ export function StoreShell() {
       </div>
 
       {/* Fon shaffof emas: planshetda har kadrda xiralashtirish qimmat */}
-      <header className="sticky top-1 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-panel px-4 sm:gap-3">
+      <header className="sticky top-1 z-20 flex h-14 shrink-0 items-center gap-1 border-b border-line bg-panel px-3 sm:gap-3 sm:px-4">
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium leading-5">{store?.name ?? business?.name}</p>
           {/* Sotuvchi ismi doim ko'rinadi — har amal kimning nomidan yozilayotgani aniq bo'lsin.
@@ -101,19 +100,7 @@ export function StoreShell() {
           <span className="font-medium">{user.full_name}</span>
         </p>
         <Bell />
-        <HeaderLanguage />
-        <SoundToggle />
-        <button
-          type="button"
-          onClick={(event) => {
-            feedback("toggle", event, { on: theme !== "dark" });
-            toggle();
-          }}
-          aria-label={t(theme === "dark" ? "theme.to_light" : "theme.to_dark")}
-          className="pressable hidden size-10 shrink-0 place-items-center rounded-control text-muted hover:bg-indigo-soft hover:text-ink sm:grid"
-        >
-          {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
-        </button>
+        <HeaderControls />
         <button
           type="button"
           onClick={(event) => {
@@ -132,7 +119,7 @@ export function StoreShell() {
         id="main"
         ref={main}
         tabIndex={-1}
-        className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 sm:pt-8 xl:max-w-6xl"
+        className="mx-auto w-full max-w-[1760px] flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 sm:pt-8 lg:px-8"
       >
         <div key={section} className="animate-fade">
           <Suspense fallback={<Loading className="mt-6" />}>
@@ -178,7 +165,9 @@ export function StoreShell() {
                         isActive ? `font-semibold ${TONES[tone].text}` : "text-muted"
                       }`}
                     >
-                      {t(`store.nav.${key}`)}
+                      {/* Telefonda (390px) uzun nomlar sig'maydi — qisqa nomi; planshetdan boshlab to'liq */}
+                      <span className="sm:hidden">{t(`store.nav_short.${key}`, { defaultValue: t(`store.nav.${key}`) })}</span>
+                      <span className="hidden sm:inline">{t(`store.nav.${key}`)}</span>
                     </span>
                   </>
                 )}

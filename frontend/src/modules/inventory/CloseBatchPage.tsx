@@ -15,6 +15,7 @@ import { TextField } from "@/shared/ui/fields";
 import { Empty, rowClass, SectionHeader } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { inventoryKeys, skuNames, type StockPage } from "./types";
+import { Hint } from "@/shared/ui/Hint";
 
 /**
  * Partiyani yopish (do'kon qurilmasi): etiketka skaner qilinadi yoki raqam yoziladi → partiya kartochkasi
@@ -65,7 +66,7 @@ export function CloseBatchPage() {
       <PageTitle icon={PackageCheck} tone="plum">
         {t("inventory.close.title")}
       </PageTitle>
-      <p className="mt-2 max-w-2xl text-muted">{t("inventory.close.intro")}</p>
+      <Hint id="close-batch" className="mt-2">{t("inventory.close.intro")}</Hint>
 
       <Card className="mt-5 max-w-xl">
         <form onSubmit={find} noValidate className="flex flex-wrap items-end gap-3">

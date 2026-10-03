@@ -248,6 +248,20 @@ async def change_primary_owner(
     )
 
 
+async def rename_business(ctx: PlatformContext, business_id: int, name: str) -> Business:
+    business = await _business(ctx.db, business_id)
+    if name != business.name:
+        log_event(
+            ctx.db,
+            business_id=business_id,
+            category="staff",
+            event_code="business.renamed_by_platform",
+            data={"old": business.name, "new": name},
+        )
+        business.name = name
+    return business
+
+
 async def update_owner_phone(
     ctx: PlatformContext, business_id: int, user_id: int, phone: str
 ) -> User:

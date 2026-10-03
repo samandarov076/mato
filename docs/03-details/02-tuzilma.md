@@ -42,13 +42,22 @@ Do'konlar va skladlar interfeysda **alohida bo'limlar**.
 | Do'konlar | sotuvchi | ha | "Barcha do'konlar" yoki tanlanganlari |
 | Skladlar | omborchi | ha | "Barcha skladlar" yoki tanlanganlari |
 
+### Do'kon logini (do'kon kartochkasida)
+- Login: 3–32 belgi (lotin harf, raqam, nuqta, chiziqcha), butun tizimda takrorlanmaydi, katta-kichik harf farqsiz
+- Parol: kamida 6 belgi; loginni o'zgartirganda bo'sh qolsa — eskisi qoladi
+- Amallar: login berish / o'zgartirish, parolni ko'rish (jurnalga yoziladi), loginni o'chirish (tasdiq bilan)
+- Login o'chirilsa yoki parol almashsa, avval ochilgan planshetlar ishlayveradi — kerak bo'lsa "Qurilmalar"da uziladi
+- Faqat biznes egasi boshqaradi
+
 ### Do'kon qurilmalari
-- Har do'kon bo'yicha bog'langan qurilmalar, bog'langan sana, oxirgi faollik
+- Har do'kon bo'yicha bog'langan qurilmalar, bog'langan sana, oxirgi faollik (do'kon logini bilan ochilganlari ham — nomi "login · sana")
 - Qurilmani uzish
 
 ## Biznes qoidalari
 - Sotuvchining do'konlarini biznes egasi belgilaydi: barcha do'konlar yoki tanlanganlari. Sotuvchi faqat shu do'konlar qurilmalarida kira oladi; sotuv qurilma bog'langan do'konga yoziladi.
 - Do'kon qurilmasida kirish faqat PIN bilan (ism tanlanmaydi). PIN'ni faqat biznes egasi o'rnatadi va o'zgartiradi; band bo'lsa, boshqasini qo'yadi.
+- PIN'ni tanlab topishdan himoya: bitta qurilmada 5 ta xato → 5 daqiqa; bitta do'konning barcha qurilmalari bo'yicha 15 daqiqada 20 ta xato → do'kon bloklanadi (do'kon logini bilan yangi qurilma ochib, PIN sinashni to'xtatadi).
+- **Do'kon bloki takrorlansa muddat o'sadi (2026-10-03, audit):** birinchi blok — 15 daqiqa; oldingi blokdan 24 soat o'tmay ikkinchisi — 1 soat; uchinchi va keyingilari — 24 soat. Oxirgi blokdan keyin 24 soat tinch o'tsa, hisob qaytadan (15 daqiqadan) boshlanadi. To'g'ri PIN bilan kirish do'kon hisobini nolga tushirmaydi (o'z PIN'ini bilgan odam hisobni tozalab, sinashda davom eta olmasin). Har do'kon bloki jurnalga yoziladi va egalarga tizim xabari boradi ("«Chorsu» do'konida PIN ko'p marta xato kiritildi"). Natija: 10 000 ta kombinatsiyadan birinchi sutkada ko'pi bilan 60 ta, keyin sutkasiga 20 ta sinab ko'rish mumkin (avval — ~1900 ta).
 - Omborchining skladlarini biznes egasi belgilaydi: barcha skladlar yoki tanlanganlari. Omborchi faqat shu skladlarni ko'radi va ular bilan ishlaydi.
 - Do'kon, sklad va xodim o'chirilmaydi — faqat faolsizlantiriladi.
 - Qoldig'i bor do'kon yoki skladni faolsizlantirib bo'lmaydi — avval tovar ko'chiriladi.

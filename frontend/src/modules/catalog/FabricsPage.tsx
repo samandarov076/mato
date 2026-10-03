@@ -15,6 +15,7 @@ import { ImageField } from "@/shared/ui/ImageField";
 import { InactiveChip, SearchInput, ShowInactive, Thumb } from "./parts";
 import { catalogKeys, parseDecimal, similarCodes, type Fabric } from "./types";
 import { Empty, RowAction, actionClass, rowClass } from "@/shared/ui/list";
+import { Hint } from "@/shared/ui/Hint";
 
 type Form = {
   id: number | null; // null — yangi mato
@@ -150,7 +151,7 @@ export function FabricsPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{t("catalog.fabric.intro")}</p>
+        <Hint id="fabrics">{t("catalog.fabric.intro")}</Hint>
         {form === null && (
           <Button onClick={() => open(null)}>
             <Plus className="size-[18px]" aria-hidden="true" />

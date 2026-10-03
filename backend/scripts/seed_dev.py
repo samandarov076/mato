@@ -5,6 +5,7 @@
 Haqiqiy tizimda biznesni platforma egasi yaratadi (01-modul) — bu skript faqat ishlab chiqish uchun.
 """
 import asyncio
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -17,6 +18,7 @@ from app.core.config import get_settings
 from app.core.db import dispose_engines, system_session, tenant_session
 from app.core.deps import AuthContext
 from app.core.security import hash_password, pin_lookup
+from app.core.vault import seal
 from app.modules.auth.models import User
 from app.modules.catalog.models import Color, Fabric, Pattern, Sku
 from app.modules.platform.models import Business
@@ -32,6 +34,8 @@ WAREHOUSE_TEMP_PASSWORD = "vaqtincha1"
 SELLER_PIN = "1234"
 PLATFORM_PHONE = "+998900000000"
 PLATFORM_PASSWORD = "platforma1"
+STORE_LOGIN = "chorsu"
+STORE_PASSWORD = "dokon1234"
 
 
 async def seed_platform_owner() -> None:
@@ -193,6 +197,7 @@ async def seed_receipt() -> None:
         await create_receipt(
             ctx,
             ReceiptCreate(
+                client_uuid=uuid.uuid4(),
                 warehouse_id=warehouse.id,
                 receipt_date=datetime.now(ZoneInfo(business.timezone)).date(),
                 note="Namuna kirim",
@@ -209,12 +214,32 @@ async def seed_receipt() -> None:
     print("Namuna kirim qo'shildi: 3 partiya asosiy skladda")
 
 
+async def seed_store_login() -> None:
+    """Namuna do'konga login: do'kon planshetini egasiz ochish uchun (kirish → "Do'kon" varag'i)."""
+    async with system_session() as db:
+        owner = await db.scalar(select(User).where(User.phone == OWNER_PHONE))
+        if owner is None:
+            return
+        store = await db.scalar(
+            select(Location).where(
+                Location.business_id == owner.business_id, Location.type == "store"
+            )
+        )
+        if store is None or store.login is not None:
+            return
+        store.login = STORE_LOGIN
+        store.password_hash = hash_password(STORE_PASSWORD)
+        store.password_enc = seal(STORE_PASSWORD)
+    print(f"Do'kon logini: {STORE_LOGIN}  parol: {STORE_PASSWORD}")
+
+
 async def main() -> None:
     if get_settings().app_env != "dev":
         raise SystemExit("Bu skript faqat APP_ENV=dev da ishlaydi.")
     try:
         await seed()
         await seed_receipt()
+        await seed_store_login()
     finally:
         await dispose_engines()
 

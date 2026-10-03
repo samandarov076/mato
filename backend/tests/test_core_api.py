@@ -247,3 +247,25 @@ async def test_location_and_user_lists_show_only_own_business(
         "seller",
         False,
     )
+
+
+async def test_journal_can_leave_out_a_category(client, new_account):
+    """Kirish-chiqish yozuvlari ko'p — jurnal standart holatda ularsiz ochiladi (`exclude_category=login`)."""
+    business_id, user_id, phone = await new_account()
+    headers = await _headers(client, phone)  # "login.success" yozildi
+    async with tenant_session(business_id) as s:
+        log_event(
+            s, business_id=business_id, user_id=user_id, category="sale", event_code="sale.created", data={}
+        )
+
+    everything = (await _journal(client, headers))["items"]
+    assert {entry["category"] for entry in everything} == {"login", "sale"}
+
+    quiet = (await _journal(client, headers, exclude_category="login"))["items"]
+    assert [entry["event_code"] for entry in quiet] == ["sale.created"]
+
+    # Sahifalashda ham istisno saqlanadi; noto'g'ri qiymat — 422
+    paged = await _journal(client, headers, exclude_category="login", limit=1)
+    assert [entry["category"] for entry in paged["items"]] == ["sale"] and paged["next_cursor"] is None
+    bad = await client.get("/api/audit-logs", params={"exclude_category": "boshqa"}, headers=headers)
+    assert bad.status_code == 422

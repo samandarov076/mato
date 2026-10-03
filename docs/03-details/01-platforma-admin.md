@@ -3,7 +3,8 @@
 Platforma egasining paneli: bizneslarni qo'shish, bloklash, kuzatish. 1-versiyada minimal.
 
 ## Kirish
-- Telefon + parol + ikki bosqichli tasdiqlash (Google Authenticator kabi ilova, 6 xonali kod)
+- Telefon + parol + ikki bosqichli tasdiqlash (Google Authenticator kabi ilova, 6 xonali kod). 2026-10-03 dan
+  ixtiyoriy: "Xavfsizlik" sahifasida yoqiladi/o'chiriladi; serverda `PLATFORM_2FA_REQUIRED=true` bo'lsa majburiy
 - Ikki bosqichli tasdiqlash yoqilganda 10 ta bir martalik zaxira kod beriladi (telefon yo'qolsa kirish uchun)
 - Hozircha platforma admini — faqat bitta (platforma egasi). Rollar tuzilmasi keyinchalik support xodimi qo'shishga tayyor qilib quriladi.
 

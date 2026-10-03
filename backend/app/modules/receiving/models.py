@@ -3,6 +3,7 @@
 Partiya = bitta SKU'ning shu yukdagi miqdori. Yozilgan metr (`meters_labeled`) — etiketka bo'yicha;
 metr farqi keyin shu raqamga nisbatan hisoblanadi. Tannarx 1 metr uchun, so'mda.
 """
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     UniqueConstraint,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,11 +30,14 @@ class Receipt(Base):
     __table_args__ = (
         CheckConstraint("status IN ('active', 'cancelled')", name="status"),
         UniqueConstraint("business_id", "number"),
+        # Bir kirim ikki marta yozilmaydi: forma har kirimga noyob identifikator beradi
+        UniqueConstraint("business_id", "client_uuid"),
         Index("ix_receipts_business_id_receipt_date", "business_id", "receipt_date"),
     )
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    client_uuid: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # 13-migratsiyagacha yozilganlarida yo'q
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))
     number: Mapped[str]  # KR-00045
     receipt_date: Mapped[date]

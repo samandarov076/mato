@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
+import { useContext, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, CircleCheck, Info, LoaderCircle } from "lucide-react";
+import { QueryClientContext, type Query } from "@tanstack/react-query";
+import { CircleAlert, CircleCheck, Info, LoaderCircle, RotateCw } from "lucide-react";
 import { feedback } from "@/shared/feedback";
 import { Button } from "./Button";
 
@@ -47,17 +48,40 @@ const tones = {
  * `focus` — paydo bo'lganda ko'rinadigan joyga suriladi va fokus oladi: tugma ekranning pastida,
  * xabar tepasida bo'lsa ham foydalanuvchi uni ko'radi.
  */
+/** Ekranda ishlatilayotgan va xato bergan so'rov (ro'yxat yuklanmadi, kartochka ochilmadi ...) */
+const failedOnScreen = (query: Query) => query.state.status === "error" && query.getObserversCount() > 0;
+
 export function Alert({
   tone = "error",
   focus = false,
+  onRetry,
   children,
 }: {
   tone?: keyof typeof tones;
   focus?: boolean;
+  /** "Qayta urinish" nima qilishi. Berilmasa — xato bergan so'rovlar o'zi qayta yuboriladi (hamma sahifada) */
+  onRetry?: () => void | Promise<unknown>;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const { box, Icon, sound } = tones[tone];
   const ref = useRef<HTMLDivElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  // Sahifalar xatoni shu banner bilan ko'rsatadi; ma'lumot yuklanmagan bo'lsa — shu yerning o'zidan qayta so'raladi.
+  // Forma xatosida (xato bergan so'rov yo'q) tugma chiqmaydi.
+  const client = useContext(QueryClientContext);
+  const canRetry =
+    tone === "error" &&
+    (onRetry !== undefined || (client?.getQueryCache().findAll({ predicate: failedOnScreen }).length ?? 0) > 0);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      await (onRetry ? onRetry() : client?.refetchQueries({ predicate: failedOnScreen }));
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   useEffect(() => {
     if (sound) feedback(sound);
@@ -79,7 +103,18 @@ export function Alert({
       className={`flex animate-rise items-start gap-2.5 rounded-control border px-3.5 py-2.5 text-sm outline-none ${box}`}
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <span>{children}</span>
+      <span className="min-w-0 flex-1">{children}</span>
+      {canRetry && (
+        <button
+          type="button"
+          disabled={retrying}
+          onClick={() => void retry()}
+          className="pressable -my-1 inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-madder/40 bg-panel px-2.5 text-[13px] font-medium text-madder hover:bg-madder-soft disabled:opacity-60 [@media(pointer:coarse)]:min-h-11"
+        >
+          <RotateCw className={`size-3.5 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+          {t("common.retry")}
+        </button>
+      )}
     </div>
   );
 }

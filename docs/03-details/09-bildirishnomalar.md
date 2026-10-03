@@ -17,6 +17,7 @@ Tizim ichidagi xabarlar (09) va Telegram bot (10).
 | 8 | Manfiy qoldiqdan sotildi (izoh bilan) | Egalar | ✅ | — |
 | 9 | Ko'chirish keldi — qabul qiling | Qabul qiluvchi (sotuvchi / omborchi) | ✅ | — |
 | 10 | Zaxira nusxa olinmadi | Platforma egasi | — | darhol |
+| 11 | Do'konda PIN ko'p marta xato kiritildi — do'kon qurilmalari bloklandi (02-tuzilma; 2026-10-03, audit) | Egalar | ✅ | — |
 
 ## Kunlik xulosa (Telegram) — 10-modul
 - Har kuni egalarga bitta xabar; standart vaqt **21:00** (biznes sozlamasida o'zgartiriladi)

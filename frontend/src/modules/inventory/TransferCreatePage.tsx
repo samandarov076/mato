@@ -5,9 +5,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Layers, PackagePlus, PackageSearch, Plus, Ruler, Trash2, X } from "lucide-react";
 import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { SearchInput, Thumb } from "@/modules/catalog/parts";
-import { parseDecimal } from "@/modules/catalog/types";
 import { api, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
+import { useRequestId } from "@/shared/api/requestId";
+import { minDecimal, parseDecimal, sumDecimals } from "@/shared/decimal";
 import { clearDraft, loadDraft, saveDraft } from "@/shared/draft";
 import { feedback } from "@/shared/feedback";
 import { formatDecimal } from "@/shared/format";
@@ -83,6 +84,8 @@ export function TransferCreatePage() {
   const [saving, setSaving] = useState(false);
 
   const sent = useRef(false); // jo'natildi — qoralama endi yozilmaydi
+  // Javob yo'qolib "Jo'natish" qayta bosilsa (yoki sahifa yangilansa) ko'chirish ikki marta yozilmasin
+  const request = useRequestId(`${draftKey}.request`);
   const searchBox = useRef<HTMLDivElement>(null); // qo'shilgandan keyin qidiruv maydoni yana fokus oladi (skaner ketma-ket o'qiydi)
 
   // Bitta joydan jo'nata oladigan xodimga tanlash shart emas
@@ -122,7 +125,7 @@ export function TransferCreatePage() {
     const meters = batch.rolls > 0 ? metersForRolls("1", batch.roll_m) : batch.qty_m;
     setLines((all) => [
       ...all,
-      { batch, rolls, meters: String(Math.min(Number(meters), Number(batch.qty_m))) },
+      { batch, rolls, meters: minDecimal(meters, batch.qty_m, 2) },
     ]);
     setSearch("");
     setError(null);
@@ -155,7 +158,7 @@ export function TransferCreatePage() {
     // Hisoblangan metr qoldiqdan oshmaydi (oxirgi rulon to'liq bo'lmasligi mumkin)
     update(line.batch.batch_id, {
       rolls,
-      meters: meters === "" ? line.meters : String(Math.min(Number(meters), Number(line.batch.qty_m))),
+      meters: meters === "" ? line.meters : minDecimal(meters, line.batch.qty_m, 2),
     });
   }
 
@@ -189,6 +192,7 @@ export function TransferCreatePage() {
     setSaving(true);
     try {
       const { id } = await post<{ id: number }>("/transfers", {
+        client_uuid: request.current(),
         from_location_id: Number(from),
         to_location_id: Number(to),
         note: note.trim() || null,
@@ -200,15 +204,17 @@ export function TransferCreatePage() {
       });
       await queryClient.invalidateQueries({ queryKey: inventoryKeys.all });
       sent.current = true;
+      request.settle();
       clearDraft(draftKey);
       navigate(`/transfers/${id}`, { replace: true, state: { sent: true } });
     } catch (failure) {
+      request.settle(failure);
       setError(errorText(failure));
       setSaving(false);
     }
   }
 
-  const totalMeters = lines.reduce((total, line) => total + (Number(line.meters.replace(",", ".")) || 0), 0);
+  const totalMeters = sumDecimals(lines.map((line) => line.meters), 2);
 
   return (
     <div>
@@ -396,7 +402,7 @@ export function TransferCreatePage() {
                   <span className="tabular-nums">{lines.length}</span>
                 </Fact>
                 <Fact icon={Ruler} tone="sky" label={t("receiving.total_m")}>
-                  <span className="tabular-nums">{formatDecimal(String(Math.round(totalMeters * 100) / 100))} m</span>
+                  <span className="tabular-nums">{formatDecimal(totalMeters)} m</span>
                 </Fact>
               </dl>
               <Button type="submit" loading={saving}>

@@ -442,8 +442,11 @@ async def set_customer_active(ctx: AuthContext, customer_id: int, is_active: boo
 # ====================== To'lov ======================
 
 
-async def receive_payment(ctx: AuthContext, customer_id: int, body: PaymentIn) -> PaymentCreated:
-    """Mijozdan to'lov qabul qiladi: eng eski qarzdan boshlab yopadi (yoki faqat tanlangan qarzni)."""
+async def receive_payment(
+    ctx: AuthContext, customer_id: int, body: PaymentIn
+) -> tuple[PaymentCreated, bool]:
+    """Mijozdan to'lov qabul qiladi: eng eski qarzdan boshlab yopadi (yoki faqat tanlangan qarzni).
+    (to'lov, takrormi) qaytaradi: shu identifikator bilan avval yozilgan bo'lsa — o'sha to'lov."""
     customer = await _customer(ctx, customer_id)
     # Qarzlar qulflanadi — bir vaqtdagi ikki to'lov yoki to'lov va qaytarish bir-birini kutadi
     debts = (
@@ -455,6 +458,17 @@ async def receive_payment(ctx: AuthContext, customer_id: int, body: PaymentIn) -
             .execution_options(populate_existing=True)
         )
     ).all()
+    # Takror shu yerda — qarzlar qulflangach tekshiriladi: bir vaqtda kelgan ikki bir xil so'rovning
+    # ikkinchisi qulfda kutadi va birinchisi yozgan to'lovni ko'radi
+    existing = await ctx.db.scalar(
+        select(DebtPayment).where(DebtPayment.client_uuid == body.client_uuid)
+    )
+    if existing is not None:
+        sent = (customer.id, body.amount, body.method)
+        if (existing.customer_id, existing.amount, existing.method) != sent:
+            raise AppError(409, "request_changed")
+        remaining = (await _debts(ctx, [customer.id])).get(customer.id, 0)
+        return PaymentCreated(id=existing.id, amount=existing.amount, debt=remaining), True
     if body.debt_id is not None:
         debts = [debt for debt in debts if debt.id == body.debt_id]
         if not debts:
@@ -467,6 +481,7 @@ async def receive_payment(ctx: AuthContext, customer_id: int, body: PaymentIn) -
     store_id = ctx.store.id if ctx.store else (await ctx.db.get(Sale, debts[0].sale_id)).store_id
     payment = DebtPayment(
         business_id=ctx.business.id,
+        client_uuid=body.client_uuid,
         customer_id=customer.id,
         store_id=store_id,
         user_id=ctx.user.id,
@@ -491,7 +506,7 @@ async def receive_payment(ctx: AuthContext, customer_id: int, body: PaymentIn) -
     await ctx.db.flush()
     _log(ctx, "debt.paid", store_id, name=customer.name, amount=body.amount, method=body.method)
     remaining = (await _debts(ctx, [customer.id])).get(customer.id, 0)
-    return PaymentCreated(id=payment.id, amount=body.amount, debt=remaining)
+    return PaymentCreated(id=payment.id, amount=body.amount, debt=remaining), False
 
 
 # ====================== Hisobdan chiqarish ======================

@@ -4,6 +4,7 @@ import pyotp
 import pytest
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.db import system_session
 from app.core.models import AuditLog
 from app.core.security import hash_password
@@ -38,6 +39,12 @@ def new_platform_owner(new_user):
 
 
 @pytest.fixture
+def required_2fa(monkeypatch):
+    """Serverda ikki bosqichli kirish majburiy (PLATFORM_2FA_REQUIRED=true)."""
+    monkeypatch.setattr(get_settings(), "platform_2fa_required", True)
+
+
+@pytest.fixture
 def platform(browser, new_platform_owner):
     """Platforma paneliga kirgan brauzer va tayyor sarlavhalar."""
 
@@ -67,7 +74,71 @@ async def _create(client, headers, **overrides) -> httpx.Response:
 # ---------- Ikki bosqichli kirish ----------
 
 
-async def test_first_login_requires_connecting_an_authenticator_app(client, new_platform_owner):
+async def test_without_an_app_the_password_is_enough(client, new_platform_owner):
+    """Standart: ikki bosqichli kirish ixtiyoriy — ilova ulanmagan bo'lsa, parol bilan panel ochiladi."""
+    phone, _ = await new_platform_owner(with_2fa=False)
+
+    login = await _login(client, phone)
+
+    assert login.status_code == 200
+    assert "two_factor" not in login.json()
+    assert login.json()["user"]["role"] == "platform_owner"
+    listed = await client.get("/api/platform/businesses", headers=_bearer(login))
+    assert listed.status_code == 200
+    status = await client.get("/api/platform/2fa", headers=_bearer(login))
+    assert status.json() == {"enabled": False, "recovery_left": 0, "required": False}
+
+
+async def test_owner_turns_two_factor_on_and_off_in_the_profile(client, new_platform_owner):
+    phone, _ = await new_platform_owner(with_2fa=False)
+    headers = _bearer(await _login(client, phone))
+
+    secret = (await client.post("/api/platform/2fa/setup", headers=headers)).json()["secret"]
+    wrong = await client.post("/api/platform/2fa/enable", json={"code": "000000"}, headers=headers)
+    assert (wrong.status_code, wrong.json()["code"]) == (401, "invalid_code")
+    enabled = await client.post(
+        "/api/platform/2fa/enable", json={"code": pyotp.TOTP(secret).now()}, headers=headers
+    )
+    assert enabled.status_code == 200
+    codes = enabled.json()["recovery_codes"]
+    assert len(codes) == 10
+
+    # Endi kirishda kod so'raladi
+    assert (await _login(client, phone)).json()["two_factor"] == "required"
+    status = await client.get("/api/platform/2fa", headers=headers)
+    assert status.json() == {"enabled": True, "recovery_left": 10, "required": False}
+
+    # O'chirish uchun kod kerak — sessiyaning o'zi yetmaydi
+    refused = await client.post("/api/platform/2fa/disable", json={"code": "000000"}, headers=headers)
+    assert refused.json()["code"] == "invalid_code"
+    disabled = await client.post("/api/platform/2fa/disable", json={"code": codes[0]}, headers=headers)
+    assert disabled.status_code == 204
+
+    assert "two_factor" not in (await _login(client, phone)).json()
+    status = await client.get("/api/platform/2fa", headers=headers)
+    assert status.json() == {"enabled": False, "recovery_left": 0, "required": False}
+
+
+async def test_required_two_factor_cannot_be_turned_off(client, new_platform_owner, required_2fa):
+    phone, secret = await new_platform_owner()
+    challenge = (await _login(client, phone)).json()["challenge_token"]
+    headers = _bearer(
+        await client.post(
+            "/api/auth/2fa/verify",
+            json={"challenge_token": challenge, "code": pyotp.TOTP(secret).now()},
+        )
+    )
+
+    response = await client.post(
+        "/api/platform/2fa/disable", json={"code": pyotp.TOTP(secret).now()}, headers=headers
+    )
+
+    assert (response.status_code, response.json()["code"]) == (403, "two_factor_required")
+
+
+async def test_first_login_requires_connecting_an_authenticator_app(
+    client, new_platform_owner, required_2fa
+):
     phone, _ = await new_platform_owner(with_2fa=False)
 
     login = await _login(client, phone)
@@ -121,7 +192,7 @@ async def test_login_with_authenticator_code_and_session_refresh(client, new_pla
     assert gone.status_code == 401
 
 
-async def test_recovery_code_works_exactly_once(client, new_platform_owner):
+async def test_recovery_code_works_exactly_once(client, new_platform_owner, required_2fa):
     phone, _ = await new_platform_owner(with_2fa=False)
     challenge = (await _login(client, phone)).json()["challenge_token"]
     secret = (
@@ -508,3 +579,37 @@ async def test_platform_owners_own_password_is_never_stored_readable(platform, n
     async with system_session() as s:
         stored = await s.scalar(select(User.password_enc).where(User.phone == phone))
     assert stored is None
+
+
+# ---------- Biznes nomini o'zgartirish ----------
+
+
+async def test_platform_owner_renames_a_business(platform, new_account):
+    business_id, _, _ = await new_account()
+    client, headers = await platform()
+
+    response = await client.patch(
+        f"/api/platform/businesses/{business_id}", json={"name": "Yangi nom"}, headers=headers
+    )
+
+    assert response.status_code == 204
+    detail = await client.get(f"/api/platform/businesses/{business_id}", headers=headers)
+    assert detail.json()["name"] == "Yangi nom"
+    async with system_session() as s:
+        codes = (await s.scalars(select(AuditLog.event_code).where(AuditLog.business_id == business_id))).all()
+    assert "business.renamed_by_platform" in codes
+    missing = await client.patch(
+        "/api/platform/businesses/999999999", json={"name": "Yangi nom"}, headers=headers
+    )
+    assert missing.status_code == 404
+
+
+async def test_business_owner_cannot_use_platform_rename(client, new_account):
+    business_id, _, phone = await new_account(is_primary_owner=True)
+    headers = _bearer(await _login(client, phone))
+
+    response = await client.patch(
+        f"/api/platform/businesses/{business_id}", json={"name": "Yangi nom"}, headers=headers
+    )
+
+    assert response.status_code == 403

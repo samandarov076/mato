@@ -39,12 +39,12 @@ Hujjatlarda yozilmagan narsani o'zingcha o'ylab topma — so'ra. Hujjatlar bilan
 - **Qoldiq faqat `inventory.service.move_stock` orqali o'zgaradi** — u `stock_movements` ga yozadi va `batch_stock` ni bitta tranzaksiyada yangilaydi; `batch_stock` boshqa joyda to'g'ridan-to'g'ri o'zgartirilmaydi. `daily_summary` ham faqat bitta funksiya orqali.
 - **Qoldiq — harakatlar jurnali (ledger):** har kirim, jo'natish, qabul, sotuv, qaytarish, bekor qilish, partiya yopish/qayta ochish alohida yozuv. Qoldiq shulardan kelib chiqadi; partiya kartochkasida har metrning tarixi ko'rinadi.
 - **Bir vaqtdagi amallar:** sotuv, ko'chirish, yopish — tranzaksiya ichida, qoldiq qulflanadi.
-- **Sotuvda takrorlanishdan himoya:** har sotuvga mijoz tomonda noyob identifikator (idempotency key); internet uzilsa savat qurilmada saqlanadi.
+- **Takrorlanishdan himoya:** pul yoki qoldiq yozadigan har "yaratish" amaliga — sotuv, qarz to'lovi, kirim, ko'chirish — mijoz tomonda noyob identifikator (`client_uuid`, idempotency key; biznes ichida noyob). Shu identifikator qayta kelsa server yangi yozuv yaratmaydi — avvalgisini qaytaradi; mazmuni avvalgisidan farq qilsa — 409 (jimgina eskisini qaytarmaydi). Javob kelmasa yoki server 5xx qaytarsa natija "noaniq": interfeys o'sha mazmunni o'sha identifikator bilan qayta yuboradi; identifikator faqat server aniq rad etganda (4xx) yoki amal tasdiqlanganda yangilanadi. Sotuvda savat qurilmada saqlanadi va natija noaniq bo'lsa qulflanadi.
 - **Hech narsa o'chirilmaydi** (biznes, xodim, joy, mato, SKU, mijoz, kirim) — faqat faolsizlantirish/bekor qilish.
 - **Jurnal (audit log):** hodisa kodi + ma'lumot sifatida (matn emas), kategoriyalar bilan; o'zgartirib bo'lmaydi.
 - **Til:** interfeys uz (lotin), en, ru — birinchi kundan barcha matnlar tarjima fayllarida. Xabarlar va jurnal kod sifatida saqlanadi.
 - **Vaqt:** barcha kun chegaralari va hisobotlar Asia/Tashkent bo'yicha.
-- **Kirish:** telefon + parol; do'kon qurilmasida sotuvchi faqat 4 xonali PIN (PIN'ni faqat biznes egasi o'rnatadi); platforma egasi uchun 2FA (TOTP) + zaxira kodlar.
+- **Kirish:** telefon + parol; do'kon qurilmasi do'konning o'z logini/paroli bilan (yoki egasi bog'laydi) ochiladi, unda sotuvchi faqat 4 xonali PIN bilan kiradi (PIN'ni faqat biznes egasi o'rnatadi); platforma egasi uchun 2FA (TOTP) + zaxira kodlar — hozircha ixtiyoriy (Xavfsizlik sahifasida o'zi yoqadi), `PLATFORM_2FA_REQUIRED=true` bilan majburiy.
 - **Xabarlar fonda** (navbat) yuboriladi — sotuv tezligiga ta'sir qilmaydi.
 - **Zaxira:** kunlik, serverdan tashqarida, shifrlangan.
 - **Tezlik (qotmaslik):** tranzaksiyalar qisqa va faqat kerakli qatorni qulflaydi (SELECT ... FOR UPDATE partiya-joy qatoriga, butun jadvalga emas); so'rovlarda N+1 yo'q; filtr va bog'lanish ustunlarida indekslar; hisobotlar kunlik yig'ma jadvallardan; sekin ishlar (Telegram, Excel, kunlik xulosa) faqat fonda; ulanishlar puli (connection pool).

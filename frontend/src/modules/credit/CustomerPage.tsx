@@ -7,6 +7,7 @@ import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { salesKeys } from "@/modules/sales/types";
 import { ApiError, api, patch, post } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
+import { useRequestId } from "@/shared/api/requestId";
 import { feedback } from "@/shared/feedback";
 import { formatDate, formatDateTime, formatNumber } from "@/shared/format";
 import { Avatar } from "@/shared/ui/Avatar";
@@ -18,6 +19,8 @@ import { fieldLabel, PhoneField, SelectField, TextAreaField, TextField } from "@
 import { BackLink, Chip, Empty, IconChip, RowAction, rowClass, SectionHeader } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { Stat, statGrid } from "@/shared/ui/Stat";
+import { num, Table, td, Th } from "@/shared/ui/table";
+import { useWide } from "@/shared/useWide";
 import {
   creditKeys,
   phoneText,
@@ -35,6 +38,7 @@ export function CustomerPage() {
 
 function CustomerView({ id }: { id: number }) {
   const { t } = useTranslation();
+  const wide = useWide();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const { user } = useCurrentUser();
@@ -259,41 +263,86 @@ function CustomerView({ id }: { id: number }) {
                   {t("credit.card.payments_empty")}
                 </Empty>
               )}
-              <ul className="divide-y divide-line">
-                {customer.payments.map((payment) => (
-                  <li key={payment.id} className={`${rowClass} flex items-start gap-3`}>
-                    <IconChip icon={Wallet} tone="leaf" />
-                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1.5">
-                      <div className="min-w-0 flex-1 basis-48">
-                        <p className="text-sm">
-                          {payment.allocations
-                            .map((part) =>
-                              t("credit.card.allocated", {
-                                number: part.sale_number,
-                                amount: formatNumber(part.amount),
-                              }),
-                            )
-                            .join(" · ")}
-                        </p>
-                        <p className="break-words text-[13px] text-muted">
-                          {payment.user}, {formatDateTime(payment.created_at)} · {payment.store}
-                        </p>
+              {/* Keng ekranda — ixcham jadval (bir qarashda: qachon, qancha, qanday); telefonda — kartochkalar */}
+              {wide && customer.payments.length > 0 && (
+                <Table
+                  flush
+                  compact
+                  label={t("credit.card.payments")}
+                  head={
+                    <tr>
+                      <Th>{t("sales.list.col_time")}</Th>
+                      <Th className="text-right">{t("sales.list.col_amount")}</Th>
+                      <Th>{t("sales.payment.label")}</Th>
+                      <Th>{t("credit.card.col_sales")}</Th>
+                    </tr>
+                  }
+                >
+                  {customer.payments.map((payment) => (
+                    <tr key={payment.id} className="align-top">
+                      <td className={td}>
+                        <span className="whitespace-nowrap">{formatDateTime(payment.created_at)}</span>
+                        <span className="block break-words text-[13px] text-muted">
+                          {payment.user} · {payment.store}
+                        </span>
+                      </td>
+                      <td className={`${td} ${num} font-medium`}>{formatNumber(payment.amount)}</td>
+                      <td className={td}>
+                        <Chip
+                          tone={payment.method === "cash" ? "leaf" : "sky"}
+                          icon={payment.method === "cash" ? Banknote : CreditCard}
+                        >
+                          {t(`sales.payment.${payment.method}`)}
+                        </Chip>
+                      </td>
+                      <td className={`${td} text-sm`}>
+                        {payment.allocations.map((part) => (
+                          <span key={part.sale_id} className="block whitespace-nowrap">
+                            {t("credit.card.allocated", { number: part.sale_number, amount: formatNumber(part.amount) })}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              )}
+              {!wide && (
+                <ul className="divide-y divide-line">
+                  {customer.payments.map((payment) => (
+                    <li key={payment.id} className={`${rowClass} flex items-start gap-3`}>
+                      <IconChip icon={Wallet} tone="leaf" />
+                      <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1.5">
+                        <div className="min-w-0 flex-1 basis-48">
+                          <p className="text-sm">
+                            {payment.allocations
+                              .map((part) =>
+                                t("credit.card.allocated", {
+                                  number: part.sale_number,
+                                  amount: formatNumber(part.amount),
+                                }),
+                              )
+                              .join(" · ")}
+                          </p>
+                          <p className="break-words text-[13px] text-muted">
+                            {payment.user}, {formatDateTime(payment.created_at)} · {payment.store}
+                          </p>
+                        </div>
+                        <div className="ml-auto flex flex-row-reverse flex-wrap items-center gap-x-2.5 gap-y-1 text-right sm:block">
+                          <p className="whitespace-nowrap font-medium tabular-nums">{money(payment.amount)}</p>
+                          <p className="sm:mt-0.5">
+                            <Chip
+                              tone={payment.method === "cash" ? "leaf" : "sky"}
+                              icon={payment.method === "cash" ? Banknote : CreditCard}
+                            >
+                              {t(`sales.payment.${payment.method}`)}
+                            </Chip>
+                          </p>
+                        </div>
                       </div>
-                      <div className="ml-auto flex flex-row-reverse flex-wrap items-center gap-x-2.5 gap-y-1 text-right sm:block">
-                        <p className="whitespace-nowrap font-medium tabular-nums">{money(payment.amount)}</p>
-                        <p className="sm:mt-0.5">
-                          <Chip
-                            tone={payment.method === "cash" ? "leaf" : "sky"}
-                            icon={payment.method === "cash" ? Banknote : CreditCard}
-                          >
-                            {t(`sales.payment.${payment.method}`)}
-                          </Chip>
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             {customer.writeoffs.length > 0 && (
@@ -346,6 +395,8 @@ function PaymentForm({
   const [target, setTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Javob yo'qolib tugma qayta bosilsa, to'lov ikki marta yozilmasin: o'sha identifikator bilan qayta ketadi
+  const request = useRequestId();
 
   // To'lov chegarasi: tanlangan qarz yoki mijozning umumiy qarzi
   const limit = target ? (debts.find((debt) => String(debt.id) === target)?.remaining ?? 0) : customer.debt;
@@ -360,13 +411,16 @@ function PaymentForm({
     setBusy(true);
     try {
       const result = await post<PaymentCreated>(`/customers/${customer.id}/payments`, {
+        client_uuid: request.current(),
         amount: value,
         method,
         debt_id: target ? Number(target) : null,
       });
+      request.settle();
       feedback("cash"); // pul kassaga tushdi
       await onDone(result);
     } catch (failure) {
+      request.settle(failure);
       const late = failure instanceof ApiError && failure.code === "payment_too_large";
       setError(late ? tooLarge(Number(failure.details.debt)) : errorText(failure));
       setBusy(false);

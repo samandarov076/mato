@@ -30,6 +30,7 @@ class LocationOut(BaseModel):
     phone: str | None
     is_active: bool
     devices_count: int  # do'konga bog'langan qurilmalar
+    login: str | None  # do'kon qurilmasini ochadigan login (faqat do'konda; parol qaytmaydi)
     staff: list[str]  # shu joyga biriktirilgan faol xodimlar: do'konda — sotuvchilar, skladda — omborchilar
 
 
@@ -57,6 +58,27 @@ class StaffUpdate(BaseModel):
 
 class PasswordIn(BaseModel):
     password: str = Field(min_length=6, max_length=128)
+
+
+# Do'kon logini: lotin harf, raqam, nuqta, chiziqcha, pastki chiziq; 3–32 belgi; harf yoki raqamdan
+# boshlanadi. Kichik harfda saqlanadi (naqsh kichik harfga o'tkazishdan oldin tekshiriladi)
+StoreLogin = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, to_lower=True, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$"
+    ),
+]
+
+
+class StoreAccessIn(BaseModel):
+    """Do'kon logini va paroli. Parol birinchi o'rnatishda majburiy; keyin bo'sh qolsa — eskisi qoladi."""
+
+    login: StoreLogin
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+
+
+class StoreSecretOut(BaseModel):
+    password: str | None  # saqlanmagan bo'lsa None
 
 
 class StaffSecretOut(BaseModel):

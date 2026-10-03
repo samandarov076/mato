@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -7,10 +7,15 @@ import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { api } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { formatDateTime, formatDecimal } from "@/shared/format";
+import { ALL_TIME, type Period } from "@/shared/period";
+import { useWide } from "@/shared/useWide";
 import { ButtonLink } from "@/shared/ui/Button";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
+import { Hint } from "@/shared/ui/Hint";
 import { Chip, Empty, IconChip, LoadMore, rowClass } from "@/shared/ui/list";
+import { PeriodFilter } from "@/shared/ui/PeriodFilter";
+import { LinkRow, num, Table, td, Th } from "@/shared/ui/table";
 import type { Tone } from "@/shared/ui/tones";
 import { InventoryHeader } from "./InventoryHeader";
 import { inventoryKeys, type TransferPage, type TransferRow, type TransferStatus } from "./types";
@@ -34,14 +39,18 @@ export function TransfersPage() {
   const { t } = useTranslation();
   const errorText = useErrorText();
   const { user } = useCurrentUser();
+  const wide = useWide();
   const [status, setStatus] = useState<TransferStatus | "">("");
+  const [period, setPeriod] = useState<Period>(ALL_TIME);
 
   const transfers = useInfiniteQuery({
-    queryKey: inventoryKeys.transfers(status),
+    queryKey: inventoryKeys.transfers(JSON.stringify([status, period.date_from, period.date_to])),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(pageParam) });
       if (status) query.set("status", status);
+      if (period.date_from) query.set("date_from", period.date_from);
+      if (period.date_to) query.set("date_to", period.date_to);
       return api<TransferPage>(`/transfers?${query}`);
     },
     getNextPageParam: (last, pages) => {
@@ -65,9 +74,14 @@ export function TransfersPage() {
           )
         }
       />
-      <p className="mt-6 max-w-2xl text-muted">{t("inventory.transfer.intro")}</p>
+      <Hint id="transfers" className="mt-6">
+        {t("inventory.transfer.intro")}
+      </Hint>
 
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-5">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+      <div className="mt-3 overflow-x-auto">
         <Segmented<TransferStatus | "">
           label={t("inventory.transfer.status_filter")}
           value={status}
@@ -90,14 +104,38 @@ export function TransfersPage() {
         )}
         {transfers.isSuccess && rows.length === 0 && (
           <Empty icon={ArrowLeftRight} tone="coral">
-            {t(status ? "inventory.transfer.empty_filtered" : "inventory.transfer.empty")}
+            {t(status || period.preset ? "inventory.transfer.empty_filtered" : "inventory.transfer.empty")}
           </Empty>
         )}
-        <ul className="divide-y divide-line">
-          {rows.map((row) => (
-            <TransferLine key={row.id} row={row} />
-          ))}
-        </ul>
+        {/* Planshet va kompyuterda — jadval; telefonda — kartochkalar */}
+        {wide && rows.length > 0 && (
+          <Table
+            flush
+            label={t("inventory.tab_transfers")}
+            head={
+              <tr>
+                <Th>{t("common.number")}</Th>
+                <Th>{t("inventory.transfer.col_route")}</Th>
+                <Th className="text-right">{t("receiving.batches")}</Th>
+                <Th className="text-right">{t("inventory.transfer.meters")}</Th>
+                <Th>{t("inventory.transfer.col_by")}</Th>
+                <Th>{t("inventory.transfer.col_when")}</Th>
+                <Th>{t("inventory.transfer.status_filter")}</Th>
+              </tr>
+            }
+          >
+            {rows.map((row) => (
+              <TransferTableRow key={row.id} row={row} />
+            ))}
+          </Table>
+        )}
+        {!wide && (
+          <ul className="divide-y divide-line">
+            {rows.map((row) => (
+              <TransferLine key={row.id} row={row} />
+            ))}
+          </ul>
+        )}
       </section>
 
       {transfers.hasNextPage && (
@@ -106,6 +144,33 @@ export function TransfersPage() {
     </div>
   );
 }
+
+/** Jadval qatori (≥768px): butun qator bosiladi; raqam — havola. */
+const TransferTableRow = memo(function TransferTableRow({ row }: { row: TransferRow }) {
+  return (
+    <LinkRow to={`/transfers/${row.id}`} className={row.status === "cancelled" ? "bg-page/60 text-muted" : ""}>
+      <td className={`${td} whitespace-nowrap`}>
+        <Link to={`/transfers/${row.id}`} className="font-medium text-indigo hover:underline">
+          {row.number}
+        </Link>
+      </td>
+      <td className={td}>
+        <span className="inline-flex flex-wrap items-center gap-x-2">
+          {row.source.name}
+          <ArrowRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
+          {row.target.name}
+        </span>
+      </td>
+      <td className={`${td} ${num}`}>{row.lines_count}</td>
+      <td className={`${td} ${num} font-medium`}>{formatDecimal(row.sent_m)}</td>
+      <td className={td}>{row.sent_by.name}</td>
+      <td className={`${td} text-muted lg:whitespace-nowrap`}>{formatDateTime(row.sent_at)}</td>
+      <td className={td}>
+        <TransferStatusChip status={row.status} hasDiff={row.has_diff} />
+      </td>
+    </LinkRow>
+  );
+});
 
 function TransferLine({ row }: { row: TransferRow }) {
   const { t } = useTranslation();

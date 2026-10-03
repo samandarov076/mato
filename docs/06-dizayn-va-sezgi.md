@@ -153,3 +153,10 @@ Standart: ikkalasi yoqilgan.
 Kirish bo'lagi 826 KB → 234 KB (gzip 235 → 60 KB); tillar, 2FA, hisobot/katalog/kirim/tuzilma/sozlamalar/
 platforma — alohida bo'laklar; shrift o'zimizda (Google Fonts yo'q), service worker shrift va belgilarni
 oldindan keshlaydi, tovar rasmlari `CacheFirst`; backend `GZip` (JSON 6–8 marta kichik) va 96 px rasm varianti.
+
+## Zichlik: jadval va filtrlar (2026-10-03)
+
+- Ko'p ustunli ro'yxat ≥768px da **jadval** (`shared/ui/table.tsx`), telefonda kartochka; ikkalasi birga chizilmaydi (`useWide`). Raqam ustunlari o'ngga tekis (`num`); holat va to'lov turi — avvalgi rangli yorliqlar; bo'sh holat xabarlari o'zgarmaydi. Butun qator bosiladi (`LinkRow`), birinchi katakdagi havola — klaviatura uchun. Ustunlari ko'p jadval planshetda biroz kichik matn bilan (`dense`).
+- Davr — tayyor tugmalar (`PeriodFilter`), sana maydonlari faqat "Ixtiyoriy oraliq"da. Qo'shimcha filtrlar — "Filtr" tugmasi ortida (`FilterPanel`), faol filtrlar soni tugmada.
+- Kam ishlatiladigan qator amallari — "⋯" menyuda (`Menu.tsx`): Enter/bo'shliq ochadi, strelkalar yuradi, Esc yopadi, fokus tugmaga qaytadi.
+- Sahifa tushuntirish matni — `Hint` (yopilsa qurilmada eslab qolinadi). Xato banneri (`Alert`) ma'lumot yuklanmaganda "Qayta urinish" tugmasini o'zi ko'rsatadi.

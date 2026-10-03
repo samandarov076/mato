@@ -1,12 +1,19 @@
 """Platforma egasining ikki bosqichli kirishi: parol + tasdiqlash ilovasidagi kod (TOTP).
 
-1. `POST /auth/login` parol to'g'ri bo'lsa sessiya emas, qisqa muddatli "challenge" token beradi.
-2. Ilova hali ulanmagan bo'lsa: `setup` (maxfiy kalit, QR) → `confirm` (birinchi kod) →
+Ixtiyoriy (`PLATFORM_2FA_REQUIRED=false`, standart): ilova ulanmagan bo'lsa — faqat parol bilan kiriladi;
+profil sahifasida o'zi yoqadi yoki o'chiradi. Majburiy (`true`) bo'lsa — ulanmagan egadan birinchi kirishda
+ulash talab qilinadi.
+
+Kirish oqimi:
+1. `POST /auth/login` ilova ulangan bo'lsa sessiya emas, qisqa muddatli "challenge" token beradi.
+2. Ulash majburiy va hali ulanmagan: `setup` (maxfiy kalit, QR) → `confirm` (birinchi kod) →
    10 ta bir martalik zaxira kod beriladi va sessiya ochiladi.
-3. Keyingi kirishlarda: `verify` — ilovadagi kod yoki zaxira kod (telefon yo'qolgan bo'lsa).
+3. Ulangan bo'lsa: `verify` — ilovadagi kod yoki zaxira kod (telefon yo'qolgan bo'lsa).
+
+Profildan (kirgan holda): `status` → `profile_setup` → `profile_enable` (zaxira kodlar) / `profile_disable`.
 """
 import pyotp
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
@@ -55,46 +62,76 @@ async def _wrong_code(user_id: int) -> AppError:
     return AppError(401, "invalid_code")
 
 
-async def begin_setup(challenge_token: str) -> tuple[str, str]:
-    """Yangi maxfiy kalit yaratadi. (kalit, QR uchun otpauth manzili) qaytaradi."""
-    async with system_session() as db:
-        user = await _challenged_user(db, challenge_token)
-        if user.totp_secret is not None:
-            raise AppError(409, "two_factor_already_set")
-        phone = user.phone
+async def _new_setup(user: User) -> tuple[str, str]:
+    """Yangi maxfiy kalit (Redis'da, tasdiqlanguncha). (kalit, QR uchun otpauth manzili) qaytaradi."""
+    if user.totp_secret is not None:
+        raise AppError(409, "two_factor_already_set")
     # Kalit birinchi kod bilan tasdiqlanmaguncha bazaga yozilmaydi. Sahifa qayta so'rasa ham
     # (yangilash, ikki marta bosish) o'sha kalit qaytadi — skanerlangan QR eskirib qolmaydi.
     redis = get_redis()
     await redis.set(_setup_key(user.id), pyotp.random_base32(), ex=_SETUP_TTL, nx=True)
     secret = await redis.get(_setup_key(user.id))
-    return secret, pyotp.TOTP(secret).provisioning_uri(name=phone, issuer_name=_ISSUER)
+    return secret, pyotp.TOTP(secret).provisioning_uri(name=user.phone, issuer_name=_ISSUER)
+
+
+async def _finish_setup(db: AsyncSession, user: User, code: str) -> list[str]:
+    """Birinchi kodni tekshiradi va ilovani yoqadi. 10 ta zaxira kod qaytaradi (faqat bir marta)."""
+    if user.totp_secret is not None:
+        raise AppError(409, "two_factor_already_set")
+    await _reject_if_blocked(user.id)
+    secret = await get_redis().get(_setup_key(user.id))
+    if secret is None:
+        raise AppError(400, "setup_expired")
+    if not _totp_ok(secret, code.strip()):
+        # Xato urinish Redis'da hisoblanadi — bazada o'zgarish yo'q, orqaga qaytarish zarar qilmaydi
+        raise await _wrong_code(user.id)
+    user.totp_secret = secret
+    codes = new_recovery_codes()
+    db.add_all(
+        RecoveryCode(user_id=user.id, code_hash=hash_token(normalize_recovery_code(c))) for c in codes
+    )
+    await get_redis().delete(_setup_key(user.id))
+    await ratelimit.clear(ratelimit.TWO_FACTOR, str(user.id))
+    return codes
+
+
+async def _code_accepted(db: AsyncSession, user: User, code: str) -> bool:
+    """Ilovadagi kod yoki ishlatilmagan zaxira kod (zaxira kod shu bilan ishlatilgan bo'ladi)."""
+    code = code.strip()
+    if _totp_ok(user.totp_secret, code):
+        return True
+    # Zaxira kod: har biri faqat bir marta ishlaydi
+    recovery = await db.scalar(
+        select(RecoveryCode)
+        .where(
+            RecoveryCode.user_id == user.id,
+            RecoveryCode.code_hash == hash_token(normalize_recovery_code(code)),
+            RecoveryCode.used_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if recovery is None:
+        return False
+    recovery.used_at = now_utc()
+    return True
+
+
+# ---------- Kirish oqimi (challenge token bilan) ----------
+
+
+async def begin_setup(challenge_token: str) -> tuple[str, str]:
+    """Yangi maxfiy kalit yaratadi. (kalit, QR uchun otpauth manzili) qaytaradi."""
+    async with system_session() as db:
+        user = await _challenged_user(db, challenge_token)
+        return await _new_setup(user)
 
 
 async def confirm_setup(challenge_token: str, code: str) -> tuple[Issued, list[str]]:
     """Birinchi kodni tekshirib, ikki bosqichli tasdiqlashni yoqadi. (sessiya, zaxira kodlar) qaytaradi."""
-    error: AppError | None = None
     async with system_session() as db:
         user = await _challenged_user(db, challenge_token)
-        if user.totp_secret is not None:
-            raise AppError(409, "two_factor_already_set")
-        await _reject_if_blocked(user.id)
-        secret = await get_redis().get(_setup_key(user.id))
-        if secret is None:
-            raise AppError(400, "setup_expired")
-        if not _totp_ok(secret, code.strip()):
-            error = await _wrong_code(user.id)
-        else:
-            user.totp_secret = secret
-            codes = new_recovery_codes()
-            db.add_all(
-                RecoveryCode(user_id=user.id, code_hash=hash_token(normalize_recovery_code(c)))
-                for c in codes
-            )
-            issued = await issue_platform_session(db, user)
-            await get_redis().delete(_setup_key(user.id))
-            await ratelimit.clear(ratelimit.TWO_FACTOR, str(user.id))
-    if error is not None:
-        raise error
+        codes = await _finish_setup(db, user, code)
+        issued = await issue_platform_session(db, user)
     return issued, codes
 
 
@@ -106,25 +143,7 @@ async def verify(challenge_token: str, code: str) -> Issued:
         if user.totp_secret is None:
             raise AppError(409, "two_factor_setup_required")
         await _reject_if_blocked(user.id)
-
-        code = code.strip()
-        accepted = _totp_ok(user.totp_secret, code)
-        if not accepted:
-            # Zaxira kod: har biri faqat bir marta ishlaydi
-            recovery = await db.scalar(
-                select(RecoveryCode)
-                .where(
-                    RecoveryCode.user_id == user.id,
-                    RecoveryCode.code_hash == hash_token(normalize_recovery_code(code)),
-                    RecoveryCode.used_at.is_(None),
-                )
-                .with_for_update()
-            )
-            if recovery is not None:
-                recovery.used_at = now_utc()
-                accepted = True
-
-        if accepted:
+        if await _code_accepted(db, user, code):
             await ratelimit.clear(ratelimit.TWO_FACTOR, str(user.id))
             issued = await issue_platform_session(db, user)
         else:
@@ -132,3 +151,36 @@ async def verify(challenge_token: str, code: str) -> Issued:
     if error is not None:
         raise error
     return issued
+
+
+# ---------- Profil (kirgan platforma egasi; db — so'rov sessiyasi, oxirida o'zi saqlanadi) ----------
+
+
+async def status(db: AsyncSession, user: User) -> tuple[bool, int]:
+    """(ilova ulanganmi, ishlatilmagan zaxira kodlar soni)."""
+    left = await db.scalar(
+        select(func.count())
+        .select_from(RecoveryCode)
+        .where(RecoveryCode.user_id == user.id, RecoveryCode.used_at.is_(None))
+    )
+    return user.totp_secret is not None, left or 0
+
+
+async def profile_setup(user: User) -> tuple[str, str]:
+    return await _new_setup(user)
+
+
+async def profile_enable(db: AsyncSession, user: User, code: str) -> list[str]:
+    return await _finish_setup(db, user, code)
+
+
+async def profile_disable(db: AsyncSession, user: User, code: str) -> None:
+    """O'chirish uchun hozirgi kod (yoki zaxira kod) kerak — sessiyani o'g'irlagan odam o'chira olmasin."""
+    if user.totp_secret is None:
+        raise AppError(409, "two_factor_not_set")
+    await _reject_if_blocked(user.id)
+    if not await _code_accepted(db, user, code):
+        raise await _wrong_code(user.id)
+    user.totp_secret = None
+    await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user.id))
+    await ratelimit.clear(ratelimit.TWO_FACTOR, str(user.id))

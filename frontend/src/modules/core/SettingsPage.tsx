@@ -10,7 +10,9 @@ import { Segmented, Toggle, UnitInput } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { CalendarClock, Coins, HandCoins, Lock, type LucideIcon, PackageMinus, Scale, Send } from "lucide-react";
 import { IconChip } from "@/shared/ui/list";
+import { RenameField } from "@/shared/ui/RenameField";
 import { focusRing, type Tone } from "@/shared/ui/tones";
+import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
 
 type Rounding = 1 | 100 | 1000;
 
@@ -106,6 +108,8 @@ function Row({
 
 export function SettingsPage() {
   const { t } = useTranslation();
+  const { business } = useCurrentUser();
+  const { updateBusiness } = useAuth();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/settings") });
@@ -175,7 +179,19 @@ export function SettingsPage() {
   }
 
   return (
-    <form onSubmit={save} noValidate className="max-w-3xl">
+    <div className="max-w-3xl space-y-4">
+      <Card>
+        <RenameField
+          label={t("settings.business_name")}
+          value={business?.name ?? ""}
+          hint={t("settings.business_name_hint")}
+          onSave={async (name) => {
+            await put("/settings/name", { name });
+            updateBusiness({ name });
+          }}
+        />
+      </Card>
+    <form onSubmit={save} noValidate>
       <Card>
         <div className="divide-y divide-line">
           <Row field="sell_by_kg">
@@ -262,5 +278,6 @@ export function SettingsPage() {
         {saveError && <Alert>{saveError}</Alert>}
       </div>
     </form>
+    </div>
   );
 }

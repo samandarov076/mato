@@ -12,6 +12,7 @@ import { ExportButton, Stat, Table, td, Th } from "./parts";
 import { useReportFilters } from "./ReportsLayout";
 import { reportQuery, reportsKeys, type DeviationBy, type DeviationReport } from "./types";
 import { Banknote, Tag } from "lucide-react";
+import { Hint } from "@/shared/ui/Hint";
 
 /** Farq: arzon sotilgan — qizil, qimmat sotilgan — yashil, farq yo'q — xira. */
 function Diff({ value, percent }: { value: number; percent: string }) {
@@ -58,7 +59,7 @@ export function DeviationReportPage() {
         />
         <ExportButton path={`/reports/price-deviation/export?${query}`} />
       </div>
-      <p className="mt-3 max-w-2xl text-muted">{t("reports.deviation_intro")}</p>
+      <Hint id="report-deviation" className="mt-3">{t("reports.deviation_intro")}</Hint>
 
       {report.isLoading && <Loading className="mt-4" />}
       {report.isError && (

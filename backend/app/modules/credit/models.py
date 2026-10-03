@@ -5,9 +5,19 @@ alohida paydo bo'ladi; qolgan qarz = amount − paid − written_off − returne
 To'lov bir nechta qarzni yopishi mumkin — har biriga qancha tushgani `payment_allocations` da.
 To'lov va hisobdan chiqarish yozuvlari faqat qo'shiladi.
 """
+import uuid
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Identity, Index, UniqueConstraint, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Identity,
+    Index,
+    UniqueConstraint,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -68,6 +78,8 @@ class DebtPayment(Base):
 
     __tablename__ = "debt_payments"
     __table_args__ = (
+        # Bir to'lov ikki marta yozilmaydi: forma har to'lovga noyob identifikator beradi
+        UniqueConstraint("business_id", "client_uuid"),
         CheckConstraint("amount > 0", name="amount"),
         CheckConstraint("method IN ('cash', 'card')", name="method"),
         Index("ix_debt_payments_business_id_customer_id", "business_id", "customer_id"),
@@ -76,6 +88,7 @@ class DebtPayment(Base):
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    client_uuid: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # 13-migratsiyagacha yozilganlarida yo'q
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))  # pul qaysi do'konga tushdi
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

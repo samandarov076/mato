@@ -7,6 +7,7 @@
 - `transfers`, `transfer_lines` — ko'chirish (jo'natish → qabul).
 - `batch_closures` — partiyani joyda yopish va metr farqi.
 """
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -18,6 +19,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     UniqueConstraint,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -65,11 +67,14 @@ class Transfer(Base):
         CheckConstraint("status IN ('in_transit', 'received', 'cancelled')", name="status"),
         CheckConstraint("from_location_id <> to_location_id", name="locations"),
         UniqueConstraint("business_id", "number"),
+        # Bir ko'chirish ikki marta yozilmaydi: forma har ko'chirishga noyob identifikator beradi
+        UniqueConstraint("business_id", "client_uuid"),
         Index("ix_transfers_business_id_status_sent_at", "business_id", "status", "sent_at"),
     )
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    client_uuid: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # 13-migratsiyagacha yozilganlarida yo'q
     number: Mapped[str]  # K-00045
     from_location_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))
     to_location_id: Mapped[int] = mapped_column(ForeignKey("locations.id"))

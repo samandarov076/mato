@@ -30,6 +30,7 @@ from app.modules.inventory.schemas import (
     ClosureDiff,
     ClosureOut,
     Differences,
+    DifferenceTotals,
     MovementOut,
     Place,
     PlaceTotal,
@@ -287,6 +288,25 @@ async def list_stock(
             )
         )
     return StockPage(items=items, total=total or 0, locations=[_place(row) for row in locations])
+
+
+async def low_stock_counts(ctx: AuthContext) -> tuple[dict[int, int], int]:
+    """Kam qoldiqdagi SKU'lar soni: ({joy: soni}, biror joyda kam bo'lgan SKU'lar soni) — bitta so'rovda.
+    `list_stock(only="low")` dagi qoida bilan bir xil: SKU'ning shu joydagi jami qoldig'i chegaradan past."""
+    visible = await visible_location_ids(ctx)
+    threshold = func.coalesce(Sku.low_stock_threshold, literal(ctx.business.low_stock_default))
+    low = (
+        _stock_rows(Batch.sku_id.label("sku_id"), BatchStock.location_id.label("location_id"))
+        .where(*([] if visible is None else [BatchStock.location_id.in_(visible)]))
+        .group_by(Batch.sku_id, BatchStock.location_id, Sku.low_stock_threshold)
+        .having(func.sum(BatchStock.qty_m) < threshold)
+        .subquery()
+    )
+    rows = (await ctx.db.execute(select(low.c.location_id, low.c.sku_id))).all()
+    per_place: dict[int, int] = {}
+    for location_id, _ in rows:
+        per_place[location_id] = per_place.get(location_id, 0) + 1
+    return per_place, len({sku_id for _, sku_id in rows})
 
 
 # ====================== Partiya kartochkasi ======================
@@ -593,6 +613,114 @@ def _day_range(ctx: AuthContext, date_from: date | None, date_to: date | None, c
     return conditions
 
 
+_GAP = TransferLine.sent_m - TransferLine.received_m  # ko'chirishda yo'qolgan metr (manfiy — ortiq kelgan)
+
+
+def _closure_conditions(
+    ctx: AuthContext,
+    date_from: date | None,
+    date_to: date | None,
+    location_id: int | None,
+    user_id: int | None,
+    kind: Literal["shortage", "surplus"] | None,
+) -> list:
+    """Farq bilan yopilgan partiyalar (qayta ochilganlari hisobga kirmaydi)."""
+    conditions = [
+        BatchClosure.reopened_at.is_(None),
+        BatchClosure.diff_m != 0,
+        *_day_range(ctx, date_from, date_to, BatchClosure.closed_at),
+    ]
+    if location_id is not None:
+        conditions.append(BatchClosure.location_id == location_id)
+    if user_id is not None:
+        conditions.append(BatchClosure.closed_by == user_id)
+    if kind == "shortage":
+        conditions.append(BatchClosure.diff_m > 0)
+    elif kind == "surplus":
+        conditions.append(BatchClosure.diff_m < 0)
+    return conditions
+
+
+def _transfer_conditions(
+    ctx: AuthContext,
+    date_from: date | None,
+    date_to: date | None,
+    location_id: int | None,
+    user_id: int | None,
+    kind: Literal["shortage", "surplus"] | None,
+) -> list:
+    """Ko'chirish farqlari: jo'natilgan − kelgan."""
+    conditions = [
+        Transfer.status == "received",
+        _GAP != 0,
+        *_day_range(ctx, date_from, date_to, Transfer.received_at),
+    ]
+    if location_id is not None:
+        conditions.append(
+            or_(Transfer.from_location_id == location_id, Transfer.to_location_id == location_id)
+        )
+    if user_id is not None:
+        conditions.append(Transfer.received_by == user_id)
+    if kind == "shortage":
+        conditions.append(_GAP > 0)
+    elif kind == "surplus":
+        conditions.append(_GAP < 0)
+    return conditions
+
+
+async def difference_totals(
+    ctx: AuthContext,
+    *,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    location_id: int | None = None,
+    user_id: int | None = None,
+    kind: Literal["shortage", "surplus"] | None = None,
+) -> DifferenceTotals:
+    """Metr farqi jami — bazada, filtrga mos BARCHA qatorlar bo'yicha (ro'yxat chegarasiga bog'liq emas)."""
+    filters = (ctx, date_from, date_to, location_id, user_id, kind)
+    short, over = BatchClosure.diff_m > 0, BatchClosure.diff_m < 0
+
+    def total(column: Any, condition: Any) -> Any:
+        return func.coalesce(func.sum(column).filter(condition), 0)
+
+    count, shortage_m, shortage_amount, surplus_m, surplus_amount = (
+        await ctx.db.execute(
+            select(
+                func.count(),
+                total(BatchClosure.diff_m, short),
+                total(BatchClosure.diff_amount, short),
+                total(BatchClosure.diff_m, over),
+                total(BatchClosure.diff_amount, over),
+            ).where(*_closure_conditions(*filters))
+        )
+    ).one()
+    # Qator summasi `amount()` dagidek: metr × tannarx, butun so'mgacha (yarim — yuqoriga)
+    moved_count, transfer_m, transfer_amount = (
+        await ctx.db.execute(
+            select(
+                func.count(),
+                func.coalesce(func.sum(_GAP), 0),
+                func.coalesce(func.sum(func.round(_GAP * Batch.cost_per_m)), 0),
+            )
+            .select_from(TransferLine)
+            .join(Transfer, Transfer.id == TransferLine.transfer_id)
+            .join(Batch, Batch.id == TransferLine.batch_id)
+            .where(*_transfer_conditions(*filters))
+        )
+    ).one()
+    return DifferenceTotals(
+        closures_total=count,
+        transfers_total=moved_count,
+        shortage_m=Decimal(shortage_m),
+        shortage_amount=int(shortage_amount),
+        surplus_m=abs(Decimal(surplus_m)),
+        surplus_amount=-int(surplus_amount),
+        transfer_m=Decimal(transfer_m),
+        transfer_amount=int(transfer_amount),
+    )
+
+
 async def differences(
     ctx: AuthContext,
     *,
@@ -601,8 +729,12 @@ async def differences(
     location_id: int | None = None,
     user_id: int | None = None,
     kind: Literal["shortage", "surplus"] | None = None,
+    limit: int = DIFFERENCES_LIMIT,
+    offset: int = 0,
 ) -> Differences:
-    """Metr farqi: yopilgan partiyalardagi farq va ko'chirish farqlari — alohida bo'limlarda."""
+    """Metr farqi: yopilgan partiyalardagi farq va ko'chirish farqlari — alohida bo'limlarda.
+    Ro'yxatlar sahifalanadi (`limit`, `offset` — ikkala bo'limga bir xil); jami — hamma qatorlar bo'yicha."""
+    filters = (ctx, date_from, date_to, location_id, user_id, kind)
     names = dict((await ctx.db.execute(select(Location.id, Location.name))).all())
     users = dict((await ctx.db.execute(select(User.id, User.full_name))).all())
 
@@ -616,20 +748,9 @@ async def differences(
             .join(Pattern, Pattern.id == Sku.pattern_id)
         )
 
-    # --- Yopilgan partiyalar (qayta ochilganlari hisobga kirmaydi) ---
-    closed = (
-        with_sku(select(BatchClosure).join(Batch, Batch.id == BatchClosure.batch_id))
-        .where(BatchClosure.reopened_at.is_(None), BatchClosure.diff_m != 0)
-        .where(*_day_range(ctx, date_from, date_to, BatchClosure.closed_at))
+    closed = with_sku(select(BatchClosure).join(Batch, Batch.id == BatchClosure.batch_id)).where(
+        *_closure_conditions(*filters)
     )
-    if location_id is not None:
-        closed = closed.where(BatchClosure.location_id == location_id)
-    if user_id is not None:
-        closed = closed.where(BatchClosure.closed_by == user_id)
-    if kind == "shortage":
-        closed = closed.where(BatchClosure.diff_m > 0)
-    elif kind == "surplus":
-        closed = closed.where(BatchClosure.diff_m < 0)
     closures = [
         ClosureDiff(
             id=closure.id,
@@ -649,34 +770,18 @@ async def differences(
             note=closure.note,
         )
         for closure, batch, sku, fabric, color, pattern in await ctx.db.execute(
-            closed.order_by(BatchClosure.closed_at.desc(), BatchClosure.id.desc()).limit(
-                DIFFERENCES_LIMIT
-            )
+            closed.order_by(BatchClosure.closed_at.desc(), BatchClosure.id.desc())
+            .limit(limit)
+            .offset(offset)
         )
     ]
 
-    # --- Ko'chirish farqlari: jo'natilgan − kelgan ---
-    gap = TransferLine.sent_m - TransferLine.received_m
-    moved = (
-        with_sku(
-            select(Transfer, TransferLine)
-            .select_from(TransferLine)
-            .join(Transfer, Transfer.id == TransferLine.transfer_id)
-            .join(Batch, Batch.id == TransferLine.batch_id)
-        )
-        .where(Transfer.status == "received", gap != 0)
-        .where(*_day_range(ctx, date_from, date_to, Transfer.received_at))
-    )
-    if location_id is not None:
-        moved = moved.where(
-            or_(Transfer.from_location_id == location_id, Transfer.to_location_id == location_id)
-        )
-    if user_id is not None:
-        moved = moved.where(Transfer.received_by == user_id)
-    if kind == "shortage":
-        moved = moved.where(gap > 0)
-    elif kind == "surplus":
-        moved = moved.where(gap < 0)
+    moved = with_sku(
+        select(Transfer, TransferLine)
+        .select_from(TransferLine)
+        .join(Transfer, Transfer.id == TransferLine.transfer_id)
+        .join(Batch, Batch.id == TransferLine.batch_id)
+    ).where(*_transfer_conditions(*filters))
     transfers = [
         TransferDiff(
             transfer_id=transfer.id,
@@ -695,19 +800,13 @@ async def differences(
             note=transfer.receive_note,
         )
         for transfer, line, batch, sku, fabric, color, pattern in await ctx.db.execute(
-            moved.order_by(Transfer.received_at.desc(), TransferLine.id).limit(DIFFERENCES_LIMIT)
+            moved.order_by(Transfer.received_at.desc(), TransferLine.id.desc())
+            .limit(limit)
+            .offset(offset)
         )
     ]
 
-    shortages = [c for c in closures if c.diff_m > 0]
-    surpluses = [c for c in closures if c.diff_m < 0]
-    return Differences(
-        closures=closures,
-        transfers=transfers,
-        shortage_m=sum((c.diff_m for c in shortages), ZERO),
-        shortage_amount=sum(c.diff_amount for c in shortages),
-        surplus_m=-sum((c.diff_m for c in surpluses), ZERO),
-        surplus_amount=-sum(c.diff_amount for c in surpluses),
-        transfer_m=sum((t.diff_m for t in transfers), ZERO),
-        transfer_amount=sum(t.diff_amount for t in transfers),
+    totals = await difference_totals(
+        ctx, date_from=date_from, date_to=date_to, location_id=location_id, user_id=user_id, kind=kind
     )
+    return Differences(closures=closures, transfers=transfers, **totals.model_dump())

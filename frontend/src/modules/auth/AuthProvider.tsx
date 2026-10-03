@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -12,6 +13,11 @@ import i18n, { loadLanguage } from "@/shared/i18n";
 import {
   api,
   bindSession,
+  clearLocked,
+  endSession,
+  isLocked,
+  markLocked,
+  pendingLogout,
   post,
   refreshSession,
   setSession,
@@ -44,6 +50,8 @@ type AuthContextValue = AuthState & {
   logout: () => Promise<void>;
   /** Profil o'zgarganda (til, parol) — serverga qayta so'rov yubormasdan holatni yangilaydi */
   updateUser: (patch: Partial<User>) => void;
+  /** Biznes nomi o'zgarganda — yuqori panel darhol yangilanadi */
+  updateBusiness: (patch: Partial<Business>) => void;
   reloadDevice: () => Promise<void>;
   /** Qurilma bog'langach: egasining sessiyasi tugagan — PIN ekraniga o'tiladi */
   deviceBound: () => Promise<void>;
@@ -61,9 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [device, setDevice] = useState<DeviceStatus | null>(null);
   const [ready, setReady] = useState(false);
   const queryClient = useQueryClient();
+  const lastUser = useRef<number | null>(null);
 
   const apply = useCallback((session: Session | null) => {
     setSession(session);
+    if (session) clearLocked(); // yangi kirish — eski "qulflangan" belgisi endi kerak emas
+    // Foydalanuvchi almashdi yoki sessiya tugadi (aniq chiqishsiz ham) — keshdagi ma'lumot keyingi odamga
+    // ko'rinmasin (masalan, egadan qolgan tannarx va foyda — sotuvchiga)
+    const next = session?.user.id ?? null;
+    if (lastUser.current !== null && lastUser.current !== next) queryClient.clear();
+    lastUser.current = next;
     // Profil tili sahifa chizilishidan OLDIN o'rnatiladi: keyin almashtirilsa, endigina ochilgan sahifa
     // eski tilda qolib ketishi mumkin (til boshqa qurilmada o'zgartirilgan bo'lsa).
     const language = session?.user.language;
@@ -78,6 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         : GUEST,
     );
+  }, [queryClient]);
+
+  // Oldingi safar chiqish (qulflash) serverga yetib bormagan bo'lsa — ilova ochilganda va ulanish tiklanganda
+  // qayta yuboriladi. Shu paytgacha sessiya tiklanmaydi (`refreshSession` qulf belgisini tekshiradi).
+  useEffect(() => {
+    const retry = () => {
+      if (isLocked()) void endSession();
+    };
+    retry();
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
   }, []);
 
   // Sahifa ochilganda: sessiya tirikmi (cookie) va bu brauzer do'kon qurilmasimi
@@ -105,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (phone: string, password: string) => {
+      await pendingLogout();
       const result = await post<Session | TwoFactorChallenge>("/auth/login", { phone, password });
       if ("challenge_token" in result) return result; // platforma egasi: ikkinchi bosqich kerak
       apply(result);
@@ -115,19 +142,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const pinLogin = useCallback(
     async (pin: string) => {
+      await pendingLogout();
       apply(await post<Session>("/auth/pin", { pin }));
     },
     [apply],
   );
 
   const logout = useCallback(async () => {
-    await post("/auth/logout").catch(() => {});
+    // Qulf darhol ishlaydi — javob kutilmaydi. Belgi avval qurilmaga yoziladi: so'rov yetib bormasa
+    // (internet yo'q), sahifa qayta ochilganda ham tirik cookie bilan sessiya tiklanmaydi.
+    markLocked();
     queryClient.clear(); // boshqa foydalanuvchi kirsa, eski ma'lumot ko'rinmasin
     apply(null);
+    void endSession();
   }, [apply, queryClient]);
 
   const updateUser = useCallback((patch: Partial<User>) => {
     setState((s) => (s.user ? { ...s, user: { ...s.user, ...patch } } : s));
+  }, []);
+
+  const updateBusiness = useCallback((patch: Partial<Business>) => {
+    setState((s) => (s.business ? { ...s, business: { ...s.business, ...patch } } : s));
   }, []);
 
   const reloadDevice = useCallback(async () => {
@@ -150,10 +185,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pinLogin,
       logout,
       updateUser,
+      updateBusiness,
       reloadDevice,
       deviceBound,
     }),
-    [state, ready, device, login, apply, pinLogin, logout, updateUser, reloadDevice, deviceBound],
+    [state, ready, device, login, apply, pinLogin, logout, updateUser, updateBusiness, reloadDevice, deviceBound],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -12,6 +12,7 @@ import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { SelectField, TextField } from "@/shared/ui/fields";
 import { useAuth } from "./AuthProvider";
 import { actionClass, Empty, IconChip } from "@/shared/ui/list";
+import { Hint } from "@/shared/ui/Hint";
 
 type Device = {
   id: number;
@@ -90,7 +91,7 @@ export function DevicesPage() {
   return (
     <div>
       {/* Sarlavha "Tuzilma" bo'limida — bu yerda faqat izoh */}
-      <p className="max-w-2xl text-muted">{t("devices.intro")}</p>
+      <Hint id="devices">{t("devices.intro")}</Hint>
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <Card title={t("devices.bind_title")} icon={Link2} tone="indigo">

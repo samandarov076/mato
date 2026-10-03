@@ -15,6 +15,8 @@ from app.modules.structure.schemas import (
     StaffOut,
     StaffSecretOut,
     StaffUpdate,
+    StoreAccessIn,
+    StoreSecretOut,
 )
 
 router = APIRouter(tags=["tuzilma"])
@@ -50,6 +52,23 @@ async def deactivate_location(location_id: int, ctx: OwnerAuth) -> None:
 @router.post("/locations/{location_id}/activate", status_code=204)
 async def activate_location(location_id: int, ctx: OwnerAuth) -> None:
     await service.set_location_active(ctx, location_id, True)
+
+
+@router.put("/locations/{location_id}/access", status_code=204)
+async def set_store_access(location_id: int, body: StoreAccessIn, ctx: OwnerAuth) -> None:
+    """Do'kon logini va paroli — do'kon qurilmasi shu bilan ochiladi, keyin sotuvchilar PIN bilan kiradi."""
+    await service.set_store_access(ctx, location_id, body)
+
+
+@router.delete("/locations/{location_id}/access", status_code=204)
+async def clear_store_access(location_id: int, ctx: OwnerAuth) -> None:
+    await service.clear_store_access(ctx, location_id)
+
+
+@router.post("/locations/{location_id}/access/reveal")
+async def reveal_store_password(location_id: int, ctx: OwnerAuth) -> StoreSecretOut:
+    """Do'kon parolini ko'rsatadi (jurnalga yoziladi)."""
+    return await service.reveal_store_password(ctx, location_id)
 
 
 # ---------- Xodimlar ----------

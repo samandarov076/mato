@@ -64,11 +64,12 @@ export function LogoMark({ className = "size-8" }: { className?: string }) {
   );
 }
 
-export function Logo() {
+/** `compact` — kirish ekranlari sarlavhasi: telefonda joy tor (til, tovush, rejim), faqat belgi qoladi */
+export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-ink">
+    <span className="inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap text-[17px] font-semibold tracking-tight text-ink">
       <LogoMark />
-      mato-savdo
+      <span className={compact ? "max-sm:sr-only" : ""}>mato-savdo</span>
     </span>
   );
 }

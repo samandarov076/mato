@@ -11,3 +11,9 @@ frontend/dev-dist/
 # Yuklangan rasmlar (lokal saqlash)
 /media/
 .DS_Store
+
+# Lokal serverlar (dev.sh): pid va jurnallar
+/.dev/
+
+# graphify bilimlar grafi (har commit'dan keyin qayta quriladi)
+graphify-out/

@@ -3,8 +3,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Response
 
+from app.core.audit import log_event
 from app.core.config import get_settings
 from app.core.deps import AuthBasic, OwnerAuth
+from app.core.errors import AppError
 from app.modules.auth import device_service, service
 from app.modules.auth.schemas import (
     AuthOut,
@@ -13,10 +15,11 @@ from app.modules.auth.schemas import (
     DeviceBindIn,
     DeviceOut,
     DeviceStatusOut,
-    LanguageIn,
     LoginIn,
     MeOut,
+    MeUpdateIn,
     PinIn,
+    StoreLoginIn,
     StoreOut,
     TwoFactorOut,
     UserOut,
@@ -93,6 +96,27 @@ async def pin_login(body: PinIn, response: Response, device: DeviceCookie = None
     return _respond(response, await device_service.pin_login(device, body.pin))
 
 
+@router.post("/store-login")
+async def store_login(
+    body: StoreLoginIn, response: Response, previous: DeviceCookie = None
+) -> DeviceStatusOut:
+    """Do'kon logini bilan SHU brauzerni do'kon qurilmasiga aylantiradi — keyin PIN ekrani ochiladi.
+
+    Sessiya ochilmaydi: login faqat qurilmani bog'laydi, ma'lumotlarga sotuvchi PIN bilan kiradi.
+    """
+    device, store, business, token = await device_service.store_login(
+        body.login, body.password, previous
+    )
+    _set_cookie(response, DEVICE_COOKIE, token, _DEVICE_COOKIE_MAX_AGE)
+    _delete_cookie(response, REFRESH_COOKIE)  # shu brauzerda kimdir kirgan bo'lsa — chiqariladi
+    return DeviceStatusOut(
+        bound=True,
+        device_name=device.name,
+        store=StoreOut.model_validate(store),
+        business=BusinessOut.model_validate(business),
+    )
+
+
 @router.post("/refresh")
 async def refresh(response: Response, token: RefreshCookie = None) -> AuthOut:
     return _respond(response, await service.refresh(token))
@@ -135,8 +159,23 @@ async def me(ctx: AuthBasic) -> MeOut:
 
 
 @router.patch("/me")
-async def update_me(body: LanguageIn, ctx: AuthBasic) -> UserOut:
-    ctx.user.language = body.language
+async def update_me(body: MeUpdateIn, ctx: AuthBasic) -> UserOut:
+    """O'z profilini o'zgartirish: til va (sotuvchidan boshqa) o'z ismi. Faqat berilgan maydonlar o'zgaradi."""
+    if body.language is not None:
+        ctx.user.language = body.language
+    if body.full_name is not None and body.full_name != ctx.user.full_name:
+        # Sotuvchining ismini ega boshqaradi (PIN bilan kiradi, profil sahifasi yo'q)
+        if ctx.user.role == "seller":
+            raise AppError(403, "forbidden")
+        log_event(
+            ctx.db,
+            business_id=ctx.user.business_id,
+            user_id=ctx.user.id,
+            category="staff",
+            event_code="user.name_changed",
+            data={"old": ctx.user.full_name, "new": body.full_name},
+        )
+        ctx.user.full_name = body.full_name
     return UserOut.model_validate(ctx.user)
 
 

@@ -14,6 +14,7 @@ import { InactiveChip, SearchInput, ShowInactive, Thumb, linkButton } from "./pa
 import { catalogKeys, similarCodes, type Attribute, type AttributeKind } from "./types";
 import { Chip, Empty, RowAction } from "@/shared/ui/list";
 import { focusWithinRing } from "@/shared/ui/tones";
+import { Hint } from "@/shared/ui/Hint";
 
 type Form = {
   id: number | null; // null — yangi
@@ -132,7 +133,7 @@ export function AttributesPage({ kind }: { kind: AttributeKind }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-muted">{k("intro")}</p>
+        <Hint id={kind}>{k("intro")}</Hint>
         {form === null && (
           <Button onClick={() => open(null)}>
             <Plus className="size-[18px]" aria-hidden="true" />

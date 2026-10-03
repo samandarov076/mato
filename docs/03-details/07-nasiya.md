@@ -57,6 +57,7 @@ Sotuv ekranidan to'g'ridan-to'g'ri tezkor qo'shish mumkin (ism + telefon).
 - Sotuvchi mijoz qarzini ko'radi (nasiya berish uchun kerak).
 - Biznes sozlamasida nasiya o'chirilgan bo'lsa (00) — bu modul ko'rinmaydi.
 - Barcha amallar jurnalga ("Nasiya").
+- **Takrorlanishdan himoya (2026-10-03, audit):** to'lov formasi har to'lovga noyob identifikator (`client_uuid`) yuboradi. Javob yo'qolib tugma qayta bosilsa, to'lov ikki marta yozilmaydi — server avvalgi to'lovni qaytaradi. Shu identifikator bilan boshqa summa, to'lov turi yoki mijoz kelsa — 409.
 
 ## Ruxsatlar
 | Amal | Biznes egasi | Omborchi | Sotuvchi |
