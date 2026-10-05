@@ -10,10 +10,11 @@ import { ALL_TIME, type Period } from "@/shared/period";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { SelectField } from "@/shared/ui/fields";
 import { FilterPanel } from "@/shared/ui/FilterPanel";
+import { ExportButton } from "@/shared/ui/ExportButton";
 import { PeriodFilter } from "@/shared/ui/PeriodFilter";
 import { HandCoins, History, Layers, LogIn, type LucideIcon, ShoppingCart, Tag, Users, X } from "lucide-react";
 import { Chip, Empty, IconChip, LoadMore, RowAction, rowClassCompact, sectionStrip } from "@/shared/ui/list";
-import type { Tone } from "@/shared/ui/tones";
+import { focusRing, type Tone } from "@/shared/ui/tones";
 
 const CATEGORIES = ["login", "sale", "stock", "price", "credit", "staff"] as const;
 
@@ -170,17 +171,23 @@ export function JournalPage() {
     queryFn: () => api<{ id: number; name: string }[]>("/locations?include_inactive=true"),
   });
 
+  /** Joriy filtrlar — ro'yxat so'rovi va Excel eksporti bir xil ishlatadi */
+  function filterParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    const { category, ...rest } = filters;
+    Object.entries({ ...rest, date_from: period.date_from, date_to: period.date_to }).forEach(
+      ([key, value]) => value && params.set(key, value),
+    );
+    if (category === NO_LOGIN) params.set("exclude_category", "login");
+    else if (category) params.set("category", category);
+    return params;
+  }
+
   const journal = useInfiniteQuery({
     queryKey: ["audit", filters, period.date_from, period.date_to],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams();
-      const { category, ...rest } = filters;
-      Object.entries({ ...rest, date_from: period.date_from, date_to: period.date_to }).forEach(
-        ([key, value]) => value && params.set(key, value),
-      );
-      if (category === NO_LOGIN) params.set("exclude_category", "login");
-      else if (category) params.set("category", category);
+      const params = filterParams();
       if (pageParam) params.set("cursor", pageParam);
       return api<Page>(`/audit-logs?${params}`);
     },
@@ -252,7 +259,13 @@ export function JournalPage() {
         </div>
       </Card>
 
-      <section className="mt-4 overflow-hidden rounded-card border border-line bg-panel shadow-card">
+      {entries.length > 0 && (
+        <div className="mt-4 flex justify-end">
+          <ExportButton path={`/audit-logs/export?${filterParams()}`} />
+        </div>
+      )}
+
+      <section className="mt-3 overflow-hidden rounded-card border border-line bg-panel shadow-card">
         {/* Jadval sarlavhasi faqat keng ekranda; qatorlar bilan bir xil ustun to'ri */}
         <div className={`${sectionStrip} hidden gap-4 lg:grid ${COLUMNS}`}>
           <span>{t("audit.columns.time")}</span>
@@ -308,11 +321,7 @@ export function JournalPage() {
                     {lines.length === 0 ? (
                       <span className="hidden text-muted lg:inline">—</span>
                     ) : (
-                      lines.map((line) => (
-                        <span key={line} className="block break-words">
-                          {line}
-                        </span>
-                      ))
+                      <Details lines={lines} />
                     )}
                   </span>
                 </div>
@@ -326,5 +335,35 @@ export function JournalPage() {
         <LoadMore loading={journal.isFetchingNextPage} onClick={() => void journal.fetchNextPage()} />
       )}
     </div>
+  );
+}
+
+// Shundan uzun tafsilot bitta qatorga qisqartiriladi (bosilsa to'liq ochiladi)
+const LONG_DETAILS = 70;
+
+/** "Tafsilot" katagi: qisqa matn — to'liq; uzun yoki ko'p qatorli — bitta qator, bosilsa hammasi ko'rinadi. */
+function Details({ lines }: { lines: string[] }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const text = lines.join(" · ");
+  if (lines.length === 1 && text.length <= LONG_DETAILS) return <span className="block break-words">{text}</span>;
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      title={open ? undefined : t("audit.details_show")}
+      onClick={() => setOpen(!open)}
+      className={`block w-full rounded text-left hover:text-indigo ${focusRing}`}
+    >
+      {open ? (
+        lines.map((line) => (
+          <span key={line} className="block break-words">
+            {line}
+          </span>
+        ))
+      ) : (
+        <span className="block truncate">{text}</span>
+      )}
+    </button>
   );
 }

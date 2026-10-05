@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LogOut, Menu, TabletSmartphone, X } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
 import { roleKey } from "@/modules/auth/ProfilePage";
 import { Logo, Selvedge } from "@/shared/ui/brand";
@@ -11,6 +11,7 @@ import { iconButton } from "@/shared/ui/Button";
 import { focusRing, TONES } from "@/shared/ui/tones";
 import { Bell } from "@/modules/notifications/Bell";
 import { Loading } from "@/shared/ui/feedback";
+import { useAutoLock } from "@/shared/useAutoLock";
 import { navFor } from "./nav";
 
 const itemBase = "group flex h-11 items-center gap-3 rounded-control px-2 text-[15px] transition-colors";
@@ -162,6 +163,12 @@ export function AppShell() {
   const drawer = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
   const section = pathname.split("/")[1];
+  // Ega O'Z biznesining do'kon planshetida parol bilan kirgan (begona biznes qurilmasi — oddiy brauzer):
+  // sessiya sotuvchinikidek avto-qulflanadi. Eslatma (banner) ko'rsatilmaydi — PIN ekraniga "Chiqish" qaytaradi
+  // (docs/03-details/02-tuzilma.md, chekka holatlar)
+  const onOwnDevice =
+    user.role === "owner" && !!device?.bound && !!business && device.business?.id === business.id;
+  useAutoLock(business?.autolock_minutes ?? 30, logout, onOwnDevice);
 
   // Boshqa sahifaga o'tilganda telefon menyusi yopiladi
   useEffect(() => setMenuOpen(false), [pathname]);
@@ -252,31 +259,6 @@ export function AppShell() {
             tabIndex={-1}
             className="mx-auto w-full max-w-[1760px] flex-1 px-4 py-6 outline-none sm:px-6 sm:py-8 lg:px-8 2xl:px-10"
           >
-            {/* Ega do'kon qurilmasida parol bilan kirgan: PIN ekraniga qaytish yoki qurilmani uzish yo'li */}
-            {device?.bound && user.role === "owner" && (
-              <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card border border-saffron/30 bg-saffron-soft px-4 py-3">
-                <TabletSmartphone className="size-5 shrink-0 text-saffron" aria-hidden="true" />
-                <p className="min-w-0 flex-1 basis-64 text-sm">
-                  {t("shell.device_bound", { store: device.store?.name ?? "" })}
-                </p>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    feedback("tap", event);
-                    void logout();
-                  }}
-                  className="pressable inline-flex h-9 items-center rounded-control bg-panel px-3 text-sm font-medium shadow-sm hover:bg-page"
-                >
-                  {t("pin.back")}
-                </button>
-                <Link
-                  to="/structure/devices"
-                  className="inline-flex h-9 items-center rounded-control px-3 text-sm font-medium text-saffron underline-offset-2 hover:underline"
-                >
-                  {t("shell.unbind")}
-                </Link>
-              </div>
-            )}
             {/* Bo'lim almashganda sahifa yumshoq paydo bo'ladi (kartochkalar o'zi ko'tariladi — ikki marta siljimaydi) */}
             <div key={section} className="animate-fade">
               <Suspense fallback={<Loading className="mt-6" />}>

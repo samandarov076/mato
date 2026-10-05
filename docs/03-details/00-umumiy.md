@@ -17,7 +17,9 @@ Sotuvchining PIN'i unga ruxsat berilgan do'konlar qurilmalarida ishlaydi (02-tuz
 - Ikki varaq: **Xodim** (telefon raqami, parol) va **Do'kon** (do'kon logini, parol → PIN ekrani)
 - Til, tovush va tungi rejim tugmalari — har ekranning yuqori o'ng burchagida (kirishdan oldin ham)
 - Xato: "Telefon raqami yoki parol noto'g'ri" / "Do'kon logini yoki paroli noto'g'ri" (qaysi biri xatoligi aytilmaydi)
-- Urinishlar cheklovi: telefon yoki do'kon logini bo'yicha 15 daqiqada 10 ta xato → 15 daqiqa to'xtatiladi
+- Urinishlar cheklovi: telefon yoki do'kon logini bo'yicha 15 daqiqada 10 ta xato → 15 daqiqa to'xtatiladi.
+  Qo'shimcha, IP bo'yicha: bitta manzildan login, do'kon logini va PIN bo'yicha jami 15 daqiqada 30 ta xato →
+  shu IP 15 daqiqa to'xtatiladi (begona raqamni ataylab bloklab qo'yish yo'li yopiladi; docs/07, 6.4)
 
 ### Qurilmani do'konga bog'lash (faqat biznes egasi)
 - Do'konni tanlash → qurilma nomi (masalan "1-do'kon kassasi") → bog'lash

@@ -26,6 +26,7 @@ from app.core.security import (
     new_recovery_codes,
     normalize_recovery_code,
 )
+from app.core.vault import seal, unseal
 from app.modules.auth.models import RecoveryCode, User
 from app.modules.auth.service import Issued, issue_platform_session, now_utc
 
@@ -85,7 +86,7 @@ async def _finish_setup(db: AsyncSession, user: User, code: str) -> list[str]:
     if not _totp_ok(secret, code.strip()):
         # Xato urinish Redis'da hisoblanadi — bazada o'zgarish yo'q, orqaga qaytarish zarar qilmaydi
         raise await _wrong_code(user.id)
-    user.totp_secret = secret
+    user.totp_secret = seal(secret)  # bazada shifrlangan (CREDENTIALS_KEY), 14-migratsiya
     codes = new_recovery_codes()
     db.add_all(
         RecoveryCode(user_id=user.id, code_hash=hash_token(normalize_recovery_code(c))) for c in codes
@@ -98,7 +99,9 @@ async def _finish_setup(db: AsyncSession, user: User, code: str) -> list[str]:
 async def _code_accepted(db: AsyncSession, user: User, code: str) -> bool:
     """Ilovadagi kod yoki ishlatilmagan zaxira kod (zaxira kod shu bilan ishlatilgan bo'ladi)."""
     code = code.strip()
-    if _totp_ok(user.totp_secret, code):
+    # Kalit mos kelmasa (CREDENTIALS_KEY almashgan) — unseal None: faqat zaxira kod bilan kiriladi
+    secret = unseal(user.totp_secret)
+    if secret and _totp_ok(secret, code):
         return True
     # Zaxira kod: har biri faqat bir marta ishlaydi
     recovery = await db.scalar(

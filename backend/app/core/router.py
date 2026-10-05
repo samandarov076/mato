@@ -1,10 +1,11 @@
 """Biznes sozlamalari (/api/settings) va harakatlar jurnali (/api/audit-logs). Faqat biznes egalari uchun."""
+import json
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from sqlalchemy import select, tuple_
 
 from app.core.audit import Category, log_event
@@ -20,6 +21,8 @@ from app.core.schemas import (
     SettingsBody,
 )
 from app.modules.auth.models import User
+from app.modules.reports.export import EXPORT_ROWS, download, local_time
+from app.modules.reports.labels import labels
 from app.modules.structure.models import Location
 
 settings_router = APIRouter(prefix="/settings", tags=["sozlamalar"])
@@ -91,6 +94,51 @@ def _decode_cursor(cursor: str) -> tuple[datetime, int]:
         return datetime.fromisoformat(created_at), int(log_id)
     except ValueError:
         raise AppError(400, "invalid_cursor") from None
+
+
+@audit_router.get("/export")
+async def export_audit_logs(
+    ctx: OwnerAuth,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    user_id: int | None = None,
+    location_id: int | None = None,
+    category: Category | None = None,
+    exclude_category: Category | None = None,
+) -> Response:
+    """Harakatlar jurnali Excel faylida — sahifadagi filtrlar bilan. Hodisa kodi va ma'lumoti chiqadi
+    (matni interfeysda tarjima qilinadi)."""
+    t = labels(ctx.user.language)
+    rows: list[list] = []
+    cursor: str | None = None
+    while len(rows) < EXPORT_ROWS:
+        page = await list_audit_logs(
+            ctx,
+            date_from=date_from,
+            date_to=date_to,
+            user_id=user_id,
+            location_id=location_id,
+            category=category,
+            exclude_category=exclude_category,
+            cursor=cursor,
+            limit=200,
+        )
+        rows.extend(
+            [
+                local_time(item.created_at, ctx.business.timezone),
+                item.user.full_name if item.user else t["system"],
+                item.location.name if item.location else "",
+                t[f"cat_{item.category}"],
+                item.event_code,
+                json.dumps(item.data, ensure_ascii=False) if item.data else "",
+            ]
+            for item in page.items
+        )
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    keys = ("time", "user", "place", "category", "event", "details")
+    return download("jurnal", [(t["journal"], [t[key] for key in keys], rows[:EXPORT_ROWS])])
 
 
 @audit_router.get("")

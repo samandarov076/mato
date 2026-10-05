@@ -319,6 +319,7 @@ async def list_transfers(
     location_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    sort: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> TransferPage:
@@ -351,8 +352,16 @@ async def list_transfers(
             select(Transfer, totals.c.lines, totals.c.sent, totals.c.received, totals.c.diff)
             .join(totals, totals.c.transfer_id == Transfer.id)
             .where(*conditions)
-            # Yo'ldagilar tepada — qabul kutayotgani darhol ko'rinadi
-            .order_by((Transfer.status == "in_transit").desc(), Transfer.sent_at.desc(), Transfer.id.desc())
+            # Standart: yo'ldagilar tepada — qabul kutayotgani darhol ko'rinadi. Sarlavhadan saralansa — sana bo'yicha
+            .order_by(
+                *(
+                    (Transfer.sent_at.asc(), Transfer.id.asc())
+                    if sort == "date"
+                    else (Transfer.sent_at.desc(), Transfer.id.desc())
+                    if sort == "-date"
+                    else ((Transfer.status == "in_transit").desc(), Transfer.sent_at.desc(), Transfer.id.desc())
+                )
+            )
             .limit(limit)
             .offset(offset)
         )

@@ -17,3 +17,11 @@ frontend/dev-dist/
 
 # graphify bilimlar grafi (har commit'dan keyin qayta quriladi)
 graphify-out/
+
+# Ishlab chiqarish sirlari va zaxira sozlamalari (docs/07-ishga-tushirish.md)
+.env.prod
+.env.local-prod
+deploy/backup/conf/*
+!deploy/backup/conf/.gitkeep
+deploy/backup/keys/*
+!deploy/backup/keys/.gitkeep

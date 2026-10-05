@@ -94,12 +94,27 @@ describe("Qoldiq", () => {
     expect(within(red).getByText("M101-03")).toBeInTheDocument();
     expect(within(red).getByText("Xon atlas · Qizil")).toBeInTheDocument();
     expect(within(red).getByText(/yo'lda/)).toHaveTextContent("40");
-    expect(within(red).getByText("1 ta partiya")).toBeInTheDocument();
+    // Bitta partiya — ochiladigan ro'yxat yo'q, raqami to'g'ridan-to'g'ri havola
+    expect(within(red).queryByText("1 ta partiya")).toBeNull();
     expect(within(red).getByRole("link", { name: "P-000012" })).toHaveAttribute("href", "/batches/12");
+    // Tovar ustuni yopishqoq — joylar ko'p bo'lsa qolgan ustunlar yonga aylanadi
+    expect(within(red).getAllByRole("cell")[0]).toHaveClass("sticky", "left-0");
     // Kam qoldiq — hozirgi ogohlantirish belgisi (izohi bilan); manfiy qoldiq — qizil
     expect(within(red).getByTitle("Kam qoldi — chegara 100 m")).toBeInTheDocument();
     expect(within(blue).getAllByText("-4.5")[0]).toHaveClass("text-madder");
     expect(screen.queryByRole("list", { name: "Qoldiq" })).toBeNull(); // telefon ko'rinishi chizilmaydi
+  });
+
+  it("'Jami' sarlavhasi bosilsa — jami metr bo'yicha saralanadi (server tomonda); Excel tugmasi bor", async () => {
+    setScreenWidth(1280);
+    renderPage();
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const table = await screen.findByRole("table");
+    await userEvent.click(within(table).getByRole("button", { name: "Jami" }));
+    expect(String(api.mock.calls.at(-1)?.[0])).toContain("sort=-total");
+    await userEvent.click(within(await screen.findByRole("table")).getByRole("button", { name: "Jami" }));
+    expect(String(api.mock.calls.at(-1)?.[0])).toContain("sort=total");
+    expect(screen.getByRole("button", { name: "Excel" })).toBeInTheDocument();
   });
 
   it("joy tanlansa — faqat o'sha joy ustuni qoladi", async () => {

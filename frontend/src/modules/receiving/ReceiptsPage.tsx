@@ -170,14 +170,14 @@ function ReceiptLine({ row }: { row: ReceiptRow }) {
         to={`/receiving/${row.id}`}
         className={`pressable group flex items-start gap-3 transition-colors hover:bg-page/60 active:bg-page md:items-center ${rowClass}`}
       >
-        <IconChip icon={PackagePlus} tone={cancelled ? "neutral" : "sky"} />
+        <IconChip icon={PackagePlus} tone={cancelled ? "madder" : "sky"} />
         <span className={`grid min-w-0 flex-1 items-center gap-x-4 gap-y-1 ${columns}`}>
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className={`font-medium group-hover:text-indigo ${cancelled ? "text-muted" : ""}`}>
                 {row.number}
               </span>
-              {cancelled && <Chip tone="neutral">{t("receiving.cancelled")}</Chip>}
+              {cancelled && <Chip tone="madder" dot>{t("receiving.cancelled")}</Chip>}
             </span>
             <span className="block text-sm text-muted">{formatDate(`${row.receipt_date}T12:00:00+05:00`)}</span>
           </span>

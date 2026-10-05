@@ -188,8 +188,8 @@ function ReceiptView({ id }: { id: number }) {
       <div className="mt-3">
         <PageTitle
           icon={PackagePlus}
-          tone={cancelled ? "neutral" : "sky"}
-          sub={cancelled ? <Chip tone="neutral">{t("receiving.cancelled")}</Chip> : undefined}
+          tone={cancelled ? "madder" : "sky"}
+          sub={cancelled ? <Chip tone="madder" dot>{t("receiving.cancelled")}</Chip> : undefined}
           action={
             receipt.can_cancel && (
               <Button

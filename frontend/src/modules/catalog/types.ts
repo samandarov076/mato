@@ -35,7 +35,7 @@ export type Sku = {
   id: number;
   /** mato-rang[-gul] */
   code: string;
-  fabric: { id: number; code: string; name: string; default_m_per_kg: string | null; is_active: boolean };
+  fabric: { id: number; code: string; name: string; image_url: string | null; default_m_per_kg: string | null; is_active: boolean };
   color: { id: number; code: string; name: string; hex: string | null; image_url: string | null; is_active: boolean };
   pattern: { id: number; code: string; name: string; image_url: string | null; is_plain: boolean; is_active: boolean };
   /** Tavsiya narx, so'm; null — narxi belgilanmagan */

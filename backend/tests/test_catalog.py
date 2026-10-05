@@ -436,6 +436,15 @@ async def test_upload_image_and_attach_it(client, owner):
     rows = (await client.get("/api/catalog/fabrics", headers=headers)).json()
     assert (rows[0]["id"], rows[0]["image_url"]) == (fabric, url)
 
+    # Mato rasmi SKU bilan birga ham keladi — sotuv ekrani tovar rasmini shundan oladi (docs/03-details/06-sotuv.md)
+    color = await _add(client, headers, "colors", "01", "Oq")
+    created = await client.post(
+        "/api/catalog/skus", json={"fabric_id": fabric, "color_ids": [color]}, headers=headers
+    )
+    assert created.status_code == 201, created.text
+    listed = (await client.get("/api/catalog/skus", headers=headers)).json()["items"]
+    assert listed[0]["fabric"]["image_url"] == url
+
     # Boshqa biznes bu rasmni o'z tovariga biriktira olmaydi
     _, stranger = await owner()
     stolen = await client.post(

@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, ChevronRight, HandCoins, UserPlus, Users } from "lucide-react";
 import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { SearchInput, ShowInactive } from "@/modules/catalog/parts";
@@ -13,6 +13,7 @@ import { Card } from "@/shared/ui/Card";
 import { Avatar } from "@/shared/ui/Avatar";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
+import { ExportButton } from "@/shared/ui/ExportButton";
 import { Hint } from "@/shared/ui/Hint";
 import { Chip, Empty, LoadMore, rowClass } from "@/shared/ui/list";
 import { LinkRow, num, SortTh, Table, td, Th } from "@/shared/ui/table";
@@ -20,14 +21,16 @@ import { useWide } from "@/shared/useWide";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { Stat, statGrid } from "@/shared/ui/Stat";
 import { focusRing } from "@/shared/ui/tones";
+import { AGING_KEYS, agingFilter, AgingRow } from "./AgingRow";
 import { NewCustomer } from "./CustomerPicker";
 import { creditKeys, phoneText, type CustomerPage, type CustomerRow } from "./types";
 
 const PAGE_SIZE = 50;
 
-type Only = "" | "debtors" | "overdue";
+type Only = "" | "debtors" | "overdue" | "not_due" | "d1_30" | "d31_60" | "d60_plus";
 type Sort = "name" | "debt" | "oldest";
-const ONLY: Only[] = ["debtors", "overdue"];
+const ONLY: Only[] = ["debtors", "overdue", "not_due", "d1_30", "d31_60", "d60_plus"];
+const BUCKETS = ["not_due", "d1_30", "d31_60", "d60_plus"] as const;
 const SORTS: Sort[] = ["name", "debt", "oldest"];
 
 /**
@@ -65,6 +68,8 @@ export function CustomersPage() {
   const customers = useInfiniteQuery({
     queryKey: creditKeys.list(JSON.stringify(query)),
     initialPageParam: 0,
+    // Filtr almashganda avvalgi javob turadi — taqsimot paneli va ro'yxat "o'chib-yonmaydi"
+    placeholderData: keepPreviousData,
     queryFn: ({ pageParam }) => {
       const search = new URLSearchParams({ ...query, limit: String(PAGE_SIZE), offset: String(pageParam) });
       return api<CustomerPage>(`/customers?${search}`);
@@ -109,23 +114,36 @@ export function CustomersPage() {
         </Card>
       )}
 
-      {totals && (
-        <div className={`${statGrid} mt-5 max-w-2xl`}>
-          <Stat label={t("credit.total_debt")} value={totals.debt_total} unit={sum} icon={HandCoins} accent="saffron" />
-          <Stat
-            label={t("credit.overdue")}
-            value={totals.overdue_total}
-            unit={sum}
-            icon={CalendarClock}
-            accent="madder"
-            tone={totals.overdue_total > 0 ? "text-madder" : ""}
+      {/* Muddat taqsimoti — bitta panel; ko'rsatkich bosilsa pastdagi ro'yxat shu oraliq bo'yicha filtrlanadi */}
+      {totals?.aging ? (
+        <div className="mt-5">
+          <AgingRow
+            aging={totals.aging}
+            selected={AGING_KEYS.find((key) => agingFilter(key) === only) ?? null}
+            onSelect={(key) => setOnly(key ? agingFilter(key) : "")}
           />
         </div>
+      ) : (
+        totals && (
+          <div className={`${statGrid} mt-5 max-w-2xl`}>
+            <Stat label={t("credit.total_debt")} value={totals.debt_total} unit={sum} icon={HandCoins} accent="saffron" />
+            <Stat
+              label={t("credit.overdue")}
+              value={totals.overdue_total}
+              unit={sum}
+              icon={CalendarClock}
+              accent="madder"
+              tone={totals.overdue_total > 0 ? "text-madder" : ""}
+            />
+          </div>
+        )
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <SearchInput value={search} onChange={setSearch} label={t("credit.customer.search")} />
-        <div className="overflow-x-auto">
+        {/* Tor ekranda variantlar siqilmaydi — qator yon tomonga suriladi */}
+        <div className="min-w-0 max-w-full overflow-x-auto">
+          <div className="w-max">
           <Segmented<Only>
             label={t("credit.filter")}
             value={only}
@@ -134,8 +152,15 @@ export function CustomersPage() {
               { value: "", label: t("common.all") },
               { value: "debtors", label: t("credit.only_debtors") },
               { value: "overdue", label: t("credit.only_overdue") },
+              // Oraliqlar tepadagi paneldan tanlanadi (tanlangani o'sha yerda belgilanadi) — bu qator qisqa qoladi.
+              // Panel yo'q bo'lsa (taqsimot kelmagan) — oraliqlar shu yerda.
+              ...BUCKETS.filter(() => !totals?.aging).map((key) => ({
+                value: key,
+                label: t(`credit.aging.${key}`),
+              })),
             ]}
           />
+          </div>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -155,6 +180,11 @@ export function CustomersPage() {
           </label>
         )}
         <ShowInactive checked={showInactive} onChange={setShowInactive} />
+        {rows.length > 0 && (
+          <span className="ml-auto">
+            <ExportButton path={`/customers/export?${new URLSearchParams(query)}`} />
+          </span>
+        )}
       </div>
 
       <section className="mt-4 overflow-hidden rounded-card border border-line bg-panel shadow-card">
@@ -239,7 +269,18 @@ const CustomerTableRow = memo(function CustomerTableRow({ row }: { row: Customer
       <td className={`${td} ${num}`}>
         {row.debt > 0 && row.oldest_days !== null ? t("credit.card.days", { count: row.oldest_days }) : dash}
       </td>
-      <td className={`${td} whitespace-nowrap`}>{row.last_payment_at ? formatDate(row.last_payment_at) : dash}</td>
+      <td className={`${td} whitespace-nowrap`}>
+        {row.last_payment_at ? (
+          <>
+            {formatDate(row.last_payment_at)}
+            {row.last_payment_amount != null && (
+              <span className="ml-2 text-[13px] tabular-nums text-muted">{formatNumber(row.last_payment_amount)}</span>
+            )}
+          </>
+        ) : (
+          dash
+        )}
+      </td>
     </LinkRow>
   );
 });

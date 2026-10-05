@@ -5,6 +5,9 @@ Muvaffaqiyatli kirish hisoblagichni nolga tushiradi. Blok paytida to'g'ri parol/
 """
 from dataclasses import dataclass
 
+from fastapi import Request
+
+from app.core.errors import AppError
 from app.core.redis import get_redis
 
 DAY = 24 * 3600
@@ -38,6 +41,26 @@ PIN_STORE = Limit(
 )
 # Ikki bosqichli tasdiqlash kodi (platforma egasi): 5 ta xato → 15 daqiqa
 TWO_FACTOR = Limit("2fa", max_failures=5, window_seconds=15 * 60, block_seconds=15 * 60)
+# IP bo'yicha (raqam/qurilma hisobidan tashqari): login, do'kon logini va PIN bo'yicha jami 30 ta xato →
+# 15 daqiqa. Raqamni ataylab bloklab qo'yish mumkin edi — endi buzg'unchining o'z manzili ham to'xtaydi.
+# Muvaffaqiyatli kirish bu hisobni nolga tushirmaydi (docs/07-ishga-tushirish.md, 6.4).
+IP = Limit("ip", max_failures=30, window_seconds=15 * 60, block_seconds=15 * 60)
+
+
+def client_ip(request: Request) -> str | None:
+    """So'rov kelgan manzil. Caddy ortida uvicorn `--proxy-headers` bilan X-Forwarded-For'ni shu yerga qo'yadi."""
+    return request.client.host if request.client else None
+
+
+async def reject_if_ip_blocked(ip: str | None) -> None:
+    """IP vaqtincha to'xtatilgan bo'lsa — 429 (kirish yo'llari boshida chaqiriladi)."""
+    if ip and (wait := await blocked_for(IP, ip)):
+        raise AppError(429, "too_many_attempts", retry_after=wait)
+
+
+async def record_ip_failure(ip: str | None) -> int:
+    """Xato kirishni IP hisobiga yozadi; shu urinish bilan blok boshlangan bo'lsa — blok muddati."""
+    return await record_failure(IP, ip) if ip else 0
 
 
 def _fails_key(limit: Limit, subject: str) -> str:

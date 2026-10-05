@@ -42,12 +42,6 @@ function renderPage() {
 /** Ro'yxatdagi xodim qatori */
 const row = async (name: string) => (await screen.findByText(name)).closest("li") as HTMLElement;
 
-/** Qatordagi "⋯" menyusini ochib, undagi amalni tanlaydi */
-async function more(line: HTMLElement, name: string, action: string) {
-  await userEvent.click(within(line).getByRole("button", { name: `${name}: boshqa amallar` }));
-  await userEvent.click(within(line).getByRole("menuitem", { name: action }));
-}
-
 describe("Xodimlar sahifasi", () => {
   beforeEach(() => {
     me.is_primary_owner = true;
@@ -63,13 +57,14 @@ describe("Xodimlar sahifasi", () => {
     expect(within(await row("Akmal Karimov")).queryByRole("button")).toBeNull();
     expect(within(await row("Nodira Yusupova")).getByText("PIN o'rnatilgan")).toBeInTheDocument();
     expect(within(await row("Nodira Yusupova")).getByText("Chorsu do'koni")).toBeInTheDocument();
-    // Qatorda — "Tahrirlash" va "⋯"; parol/PIN amallari va faolsizlantirish menyu ichida
+    // Qatorda — "Tahrirlash", "Parolni ko'rish" (bir bosishda) va "⋯"; yangilash va faolsizlantirish menyu ichida
     const coOwner = await row("Bahrom Sodiqov");
     expect(within(coOwner).getByRole("button", { name: "Tahrirlash" })).toBeInTheDocument();
+    expect(within(coOwner).getByRole("button", { name: "Parolni ko'rish" })).toBeInTheDocument();
     expect(within(coOwner).queryByRole("button", { name: "Parolni yangilash" })).toBeNull();
     await userEvent.click(within(coOwner).getByRole("button", { name: "Bahrom Sodiqov: boshqa amallar" }));
     expect(within(coOwner).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
-      "Parolni ko'rish", "Parolni yangilash", "Faolsizlantirish",
+      "Parolni yangilash", "Faolsizlantirish",
     ]);
     await userEvent.keyboard("{Escape}");
 
@@ -97,18 +92,18 @@ describe("Xodimlar sahifasi", () => {
     expect(within(await row("Akmal Karimov")).queryByRole("button")).toBeNull();
 
     const seller = await row("Nodira Yusupova");
-    await more(seller, "Nodira Yusupova", "PIN'ni ko'rish");
+    await userEvent.click(within(seller).getByRole("button", { name: "PIN'ni ko'rish" }));
     expect(post).toHaveBeenCalledWith("/users/2/reveal");
     expect(await within(seller).findByText("4321")).toBeInTheDocument();
     expect(within(seller).getByText("Ko'rganingiz harakatlar jurnaliga yozildi.")).toBeInTheDocument();
 
     // Qayta bosilsa — yashiriladi
-    await more(seller, "Nodira Yusupova", "Yashirish");
+    await userEvent.click(within(seller).getByRole("button", { name: "Yashirish" }));
     expect(within(seller).queryByText("4321")).toBeNull();
 
     // Parol hali saqlanmagan sherik-ega
     const coOwner = await row("Bahrom Sodiqov");
-    await more(coOwner, "Bahrom Sodiqov", "Parolni ko'rish");
+    await userEvent.click(within(coOwner).getByRole("button", { name: "Parolni ko'rish" }));
     expect(await within(coOwner).findByText(/Hali saqlanmagan/)).toBeInTheDocument();
   });
 

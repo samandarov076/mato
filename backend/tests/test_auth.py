@@ -241,12 +241,25 @@ def test_credentials_key_is_required_outside_dev():
 
     from app.core.config import Settings
 
-    base = {"database_url": "x", "database_owner_url": "y", "secret_key": "s" * 32, "_env_file": None}
+    base = {
+        "database_url": "postgresql+asyncpg://mato_app:p@db/mato",
+        "database_system_url": "postgresql+asyncpg://mato_system:p@db/mato",
+        "database_owner_url": "postgresql+asyncpg://mato:p@db/mato",
+        "secret_key": "s" * 32,
+        "_env_file": None,
+    }
     assert Settings(**base, app_env="dev", credentials_key="").credentials_key == ""
     assert Settings(**base, app_env="prod", credentials_key="k" * 32).credentials_key == "k" * 32
     for bad in ("", "   ", "s" * 32):
         with pytest.raises(ValidationError, match="CREDENTIALS_KEY"):
             Settings(**base, app_env="prod", credentials_key=bad)
+    # Serverda tizim roli jadvallar egasi bo'lmasligi kerak
+    with pytest.raises(ValidationError, match="DATABASE_SYSTEM_URL"):
+        Settings(
+            **(base | {"database_system_url": base["database_owner_url"]}),
+            app_env="prod",
+            credentials_key="k" * 32,
+        )
 
 
 async def test_refresh_without_cookie_is_rejected(client):
@@ -453,3 +466,39 @@ async def test_block_ends_by_itself_when_time_passes():
     await asyncio.sleep(1.2)
 
     assert await ratelimit.blocked_for(limit, subject) == 0
+
+
+# ---------- IP bo'yicha cheklov (Caddy ortidagi haqiqiy manzil) ----------
+
+
+async def test_thirty_failures_from_one_ip_block_that_ip(browser, new_account):
+    """Bitta IP'dan har xil raqamlarga 30 ta xato → shu IP 15 daqiqa to'xtatiladi; boshqa IP bemalol."""
+    attacker = browser(ip="10.200.0.9")
+    _, _, phone = await new_account()
+
+    for _ in range(29):
+        assert (await _login(attacker, random_phone(), "xato")).status_code == 401
+    thirtieth = await _login(attacker, random_phone(), "xato")
+    assert (thirtieth.status_code, thirtieth.json()["code"]) == (429, "too_many_attempts")
+    assert thirtieth.json()["retry_after"] == 15 * 60
+    # Blok paytida to'g'ri parol ham o'tmaydi — raqam bo'yicha hisob toza bo'lsa ham
+    assert (await _login(attacker, phone)).status_code == 429
+
+    assert (await _login(browser(ip="10.200.0.10"), phone)).status_code == 200
+
+
+async def test_ip_counter_is_shared_by_login_store_login_and_pin(browser, new_account):
+    """Uchala kirish yo'li bitta IP hisobiga tushadi — birida 10, boshqasida 20 xato ham blok beradi."""
+    attacker = browser(ip="10.200.0.11")
+    _, _, phone = await new_account()
+
+    for _ in range(15):
+        assert (await _login(attacker, random_phone(), "xato")).status_code == 401
+    for _ in range(14):
+        refused = await attacker.post(
+            "/api/auth/store-login", json={"login": f"yoq{random_phone()}", "password": "xato"}
+        )
+        assert refused.status_code == 401
+    last = await attacker.post("/api/auth/store-login", json={"login": "yoq", "password": "xato"})
+    assert (last.status_code, last.json()["code"]) == (429, "too_many_attempts")
+    assert (await _login(attacker, phone)).status_code == 429

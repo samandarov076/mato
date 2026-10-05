@@ -66,6 +66,13 @@ Do'konlar va skladlar interfeysda **alohida bo'limlar**.
 
 ## Chekka holatlar
 - Sotuvchi faolsizlantirilsa → barcha qurilmalarda darhol chiqariladi.
+- **Ega planshetda parol bilan kirsa (2026-10-04):** qurilma o'z biznesining do'koniga bog'langan bo'lsa, eganing sessiyasi
+  sotuvchinikidek bo'ladi — qurilmaga bog'lanadi, avto-qulflanadi (sozlamadagi daqiqa; qulf = chiqish → PIN ekrani),
+  qurilma uzilsa darhol tugaydi; 30 kunlik shaxsiy sessiya ochilmaydi. Eganing "Yangi sotuv"ida qurilma do'koni
+  oldindan tanlangan turadi (o'zgartirish mumkin). Qurilma **boshqa** biznesniki bo'lsa — ega uchun bu oddiy
+  brauzer: shaxsiy sessiya, avto-qulf yo'q.
+  "Bu qurilma bog'langan" eslatmasi (sariq banner) **hech kimga ko'rsatilmaydi** (2026-10-05, biznes qarori):
+  PIN ekraniga qaytish — "Chiqish" tugmasi yoki avto-qulf; qurilmani uzish — Tuzilma → Qurilmalar.
 - Omborchidan sklad olib qo'yilsa → o'sha sklad unga darhol ko'rinmay qoladi.
 - Biznes egasi o'zini faolsizlantira olmaydi. Asosiy egani hech kim faolsizlantira olmaydi (faqat platforma egasi almashtiradi).
 

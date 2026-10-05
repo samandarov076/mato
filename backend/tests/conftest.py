@@ -28,6 +28,9 @@ TEST_DB = f"{_owner_url.database}_test"
 os.environ["DATABASE_URL"] = (
     make_url(_base.database_url).set(database=TEST_DB).render_as_string(hide_password=False)
 )
+os.environ["DATABASE_SYSTEM_URL"] = (
+    make_url(_base.database_system_url).set(database=TEST_DB).render_as_string(hide_password=False)
+)
 os.environ["DATABASE_OWNER_URL"] = _owner_url.set(database=TEST_DB).render_as_string(
     hide_password=False
 )
@@ -103,8 +106,12 @@ async def browser():
 
     opened = []
 
-    def _open() -> httpx.AsyncClient:
-        c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+    def _open(ip: str | None = None) -> httpx.AsyncClient:
+        """`ip` — brauzerning manzili (IP bo'yicha cheklov testlari); berilmasa har brauzerga tasodifiy."""
+        ip = ip or f"10.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+        c = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, client=(ip, 12345)), base_url="http://test"
+        )
         opened.append(c)
         return c
 

@@ -35,6 +35,7 @@ import { CountUp, Tilt } from "@/shared/ui/motion";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { Stat } from "@/shared/ui/Stat";
 import { focusRing, TONES, type Tone } from "@/shared/ui/tones";
+import { AgingRow } from "@/modules/credit/AgingRow";
 import { Bars, Change } from "./parts";
 import { reportsKeys, revenue, type Dashboard as Board, type DashboardPeriod } from "./types";
 
@@ -174,6 +175,8 @@ export function Dashboard() {
               <span className={data.debt_overdue > 0 ? "font-medium text-madder" : ""}>
                 {t("dashboard.overdue", { amount: formatNumber(data.debt_overdue) })}
               </span>
+              {/* Qancha kechikkani: 1–30 · 31–60 · 60+ kun (60+ — qizil) */}
+              {data.debt_aging && data.debt_overdue > 0 && <AgingRow aging={data.debt_aging} compact />}
             </Watch>
             <Watch
               to={`/stock?only=low${store ? `&location_id=${store}` : ""}`}

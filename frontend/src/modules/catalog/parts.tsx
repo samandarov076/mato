@@ -13,9 +13,9 @@ const SIZES = {
   lg: "size-12 rounded-2xl text-sm",
   xl: "size-16 rounded-2xl text-base",
   // Sotuvda tanlangan tovar: sotuvchi matoni rasmdan bir qarashda taniydi
-  hero: "size-24 rounded-2xl text-xl sm:size-28",
+  hero: "size-28 rounded-2xl text-2xl sm:size-36",
 };
-const PIXELS = { sm: 32, md: 40, lg: 48, xl: 64, hero: 112 };
+const PIXELS = { sm: 32, md: 40, lg: 48, xl: 64, hero: 144 };
 
 /** Rasmning kichik varianti (96px) — ro'yxat va chiplar uchun; katta fayl faqat xl va hero da */
 function thumbUrl(url: string, size: keyof typeof SIZES) {

@@ -31,7 +31,7 @@ Tizim ichidagi xabarlar (09) va Telegram bot (10).
 - Ro'yxat: vaqt, hodisa, qisqa matn, o'qilgan/o'qilmagan
 - Xabar bosilsa — tegishli sahifa ochiladi (masalan qaytarish → sotuv kartochkasi)
 - "Hammasini o'qilgan qilish"
-- Filtr: hodisa turi
+- Filtr: tur bo'yicha tugmalar — Barchasi · Kam qoldiq · Ko'chirish · Nasiya · Boshqa (API: `GET /api/notifications?kind=low_stock|transfers|credit|other`; 2026-10-04)
 
 ### Telegram sozlamalari (har bir ega o'z profilida) — 10-modul
 - "Telegram'ni ulash" → bot ochiladi → "Start" → akkaunt bog'lanadi (bir martalik havola orqali)

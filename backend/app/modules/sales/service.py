@@ -376,6 +376,14 @@ async def create_sale(ctx: AuthContext, body: SaleCreate) -> tuple[Sale, bool]:
 
 # ====================== Ro'yxat ======================
 
+# Jadval sarlavhasidan saralash: vaqt yoki summa, ikki yo'nalishda (standart — eng yangisi tepada)
+SALE_ORDER = {
+    "-time": (Sale.created_at.desc(), Sale.id.desc()),
+    "time": (Sale.created_at.asc(), Sale.id.asc()),
+    "-amount": (Sale.total.desc(), Sale.id.desc()),
+    "amount": (Sale.total.asc(), Sale.id.asc()),
+}
+
 
 async def list_sales(
     ctx: AuthContext,
@@ -389,6 +397,7 @@ async def list_sales(
     status: str | None = None,
     customer_id: int | None = None,
     search: str | None = None,
+    sort: str = "-time",
     limit: int = 50,
     offset: int = 0,
 ) -> SalePage:
@@ -435,7 +444,7 @@ async def list_sales(
     rows = (
         await ctx.db.execute(
             joined(Sale, Location.name, User.full_name, Customer)
-            .order_by(Sale.created_at.desc(), Sale.id.desc())
+            .order_by(*SALE_ORDER.get(sort, SALE_ORDER["-time"]))
             .limit(limit)
             .offset(offset)
         )

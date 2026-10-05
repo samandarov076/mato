@@ -6,7 +6,9 @@ unutsa ham baza boshqa biznes ma'lumotini bermasligi kerak.
 import pytest
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.core.config import get_settings
 from app.core.db import SessionLocal, system_session, tenant_session
 from app.core.models import AuditLog
 from app.modules.auth.models import User
@@ -131,15 +133,26 @@ async def test_audit_log_is_append_only(new_business):
         async with tenant_session(a) as s:
             await s.execute(update(AuditLog).where(AuditLog.id == log_id).values(event_code="x"))
 
-    # Jadval egasi ham o'zgartira olmaydi: trigger
-    for statement in (
+    statements = (
         update(AuditLog).where(AuditLog.id == log_id).values(event_code="x"),
         delete(AuditLog).where(AuditLog.id == log_id),
         text("TRUNCATE audit_logs"),
-    ):
-        with pytest.raises(DBAPIError, match="append-only"):
+    )
+    # Tizim roli (mato_system): huquqning o'zi yo'q
+    for statement in statements:
+        with pytest.raises(DBAPIError, match="permission denied"):
             async with system_session() as s:
                 await s.execute(statement)
+
+    # Jadval egasi ham o'zgartira olmaydi: trigger
+    owner = create_async_engine(get_settings().database_owner_url)
+    try:
+        for statement in statements:
+            with pytest.raises(DBAPIError, match="append-only"):
+                async with owner.begin() as conn:
+                    await conn.execute(statement)
+    finally:
+        await owner.dispose()
 
     async with system_session() as s:
         assert (await s.get(AuditLog, log_id)).event_code == "login.success"
@@ -188,3 +201,40 @@ async def test_role_and_business_must_match(new_user, new_business):
         await new_user(None, role="seller")  # xodim biznessiz bo'lmaydi
     with pytest.raises(IntegrityError):
         await new_user(a, role="platform_owner")  # platforma egasi biznesga tegishli emas
+
+
+# ---------- Tizim rolining (mato_system) chegaralari ----------
+
+
+async def test_system_role_bypasses_rls_but_is_not_superuser():
+    """RLS'dan tashqari, lekin superuser emas: rol yarata olmaydi, baza yarata olmaydi."""
+    async with system_session() as s:
+        row = (
+            await s.execute(
+                text(
+                    "SELECT rolsuper, rolbypassrls, rolcreaterole, rolcreatedb "
+                    "FROM pg_roles WHERE rolname = current_user"
+                )
+            )
+        ).one()
+
+    assert tuple(row) == (False, True, False, False)
+
+
+async def test_system_role_cannot_change_the_schema():
+    with pytest.raises(DBAPIError, match="permission denied"):
+        async with system_session() as s:
+            await s.execute(text("CREATE TABLE begona (id int)"))
+    with pytest.raises(DBAPIError, match="must be owner"):
+        async with system_session() as s:
+            await s.execute(text("ALTER TABLE users ADD COLUMN begona text"))
+
+
+@pytest.mark.parametrize("model", [User, AuditLog, Business])
+async def test_system_role_cannot_delete_business_data(new_business, new_user, model):
+    a = await new_business()
+    await new_user(a)
+
+    with pytest.raises(DBAPIError, match="permission denied"):
+        async with system_session() as s:
+            await s.execute(delete(model))

@@ -146,6 +146,31 @@ export function Fact({
   );
 }
 
+/** Ma'lumot jadvali: har qatorda chapda nom, o'ngda qiymat (kartochkadagi "Sana / Do'kon / Jami" kabi). */
+export function InfoTable({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <dl className={`divide-y divide-line ${className}`}>{children}</dl>;
+}
+
+/** `InfoTable` qatori. `strong` — asosiy ko'rsatkich (masalan "Jami"): kattaroq va qalinroq. */
+export function InfoRow({
+  label,
+  children,
+  strong = false,
+}: {
+  label: string;
+  children: ReactNode;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+      <dt className={`shrink-0 text-muted ${strong ? "" : "text-sm"}`}>{label}</dt>
+      <dd className={`min-w-0 break-words text-right tabular-nums ${strong ? "text-lg font-semibold" : "font-medium"}`}>
+        {children}
+      </dd>
+    </div>
+  );
+}
+
 /** Bo'sh holat: belgi, tushuntirish va (bo'lsa) birinchi qadam tugmasi. */
 export function Empty({
   icon: Icon,

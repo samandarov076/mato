@@ -15,7 +15,7 @@ import { Alert, Loading } from "@/shared/ui/feedback";
 import { Hint } from "@/shared/ui/Hint";
 import { Chip, Empty, IconChip, LoadMore, rowClass } from "@/shared/ui/list";
 import { PeriodFilter } from "@/shared/ui/PeriodFilter";
-import { LinkRow, num, Table, td, Th } from "@/shared/ui/table";
+import { LinkRow, num, SortTh, Table, td, Th } from "@/shared/ui/table";
 import type { Tone } from "@/shared/ui/tones";
 import { InventoryHeader } from "./InventoryHeader";
 import { inventoryKeys, type TransferPage, type TransferRow, type TransferStatus } from "./types";
@@ -26,7 +26,7 @@ const PAGE_SIZE = 50;
 export function TransferStatusChip({ status, hasDiff }: { status: TransferStatus; hasDiff: boolean }) {
   const { t } = useTranslation();
   const tone: Tone =
-    status === "in_transit" ? "saffron" : status === "cancelled" ? "neutral" : hasDiff ? "madder" : "leaf";
+    status === "in_transit" ? "saffron" : status === "cancelled" ? "madder" : hasDiff ? "madder" : "leaf";
   return (
     <Chip tone={tone} dot>
       {t(status === "received" && hasDiff ? "inventory.transfer.status.received_diff" : `inventory.transfer.status.${status}`)}
@@ -42,15 +42,18 @@ export function TransfersPage() {
   const wide = useWide();
   const [status, setStatus] = useState<TransferStatus | "">("");
   const [period, setPeriod] = useState<Period>(ALL_TIME);
+  // "" — standart tartib (yo'ldagilar tepada); sarlavha bosilsa — sana bo'yicha
+  const [sort, setSort] = useState<"" | "date" | "-date">("");
 
   const transfers = useInfiniteQuery({
-    queryKey: inventoryKeys.transfers(JSON.stringify([status, period.date_from, period.date_to])),
+    queryKey: inventoryKeys.transfers(JSON.stringify([status, period.date_from, period.date_to, sort])),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(pageParam) });
       if (status) query.set("status", status);
       if (period.date_from) query.set("date_from", period.date_from);
       if (period.date_to) query.set("date_to", period.date_to);
+      if (sort) query.set("sort", sort);
       return api<TransferPage>(`/transfers?${query}`);
     },
     getNextPageParam: (last, pages) => {
@@ -119,7 +122,13 @@ export function TransfersPage() {
                 <Th className="text-right">{t("receiving.batches")}</Th>
                 <Th className="text-right">{t("inventory.transfer.meters")}</Th>
                 <Th>{t("inventory.transfer.col_by")}</Th>
-                <Th>{t("inventory.transfer.col_when")}</Th>
+                <SortTh
+                  active={sort !== ""}
+                  direction={sort === "date" ? "asc" : "desc"}
+                  onSort={() => setSort(sort === "-date" ? "date" : "-date")}
+                >
+                  {t("inventory.transfer.col_when")}
+                </SortTh>
                 <Th>{t("inventory.transfer.status_filter")}</Th>
               </tr>
             }

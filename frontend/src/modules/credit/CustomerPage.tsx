@@ -16,10 +16,11 @@ import { Card } from "@/shared/ui/Card";
 import { MoneyInput, Segmented } from "@/shared/ui/controls";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { fieldLabel, PhoneField, SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
-import { BackLink, Chip, Empty, IconChip, RowAction, rowClass, SectionHeader } from "@/shared/ui/list";
+import { BackLink, Chip, Empty, IconChip, LoadMore, RowAction, rowClass, SectionHeader } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { Stat, statGrid } from "@/shared/ui/Stat";
 import { num, Table, td, Th } from "@/shared/ui/table";
+import { useMore } from "@/shared/useMore";
 import { useWide } from "@/shared/useWide";
 import {
   creditKeys,
@@ -27,7 +28,9 @@ import {
   type CustomerCard,
   type DebtRow,
   type MoneyMethod,
+  type Payment,
   type PaymentCreated,
+  type Writeoff,
 } from "./types";
 
 /** Mijoz kartochkasi: qarzlari, to'lovlar va hisobdan chiqarishlar tarixi; to'lov qabul qilish. */
@@ -52,6 +55,13 @@ function CustomerView({ id }: { id: number }) {
     queryFn: () => api<CustomerCard>(`/customers/${id}`),
   });
   const customer = card.data;
+  // Tarix sahifalanadi: kartochkada birinchi 20 ta, qolgani "Yana ko'rsatish" bilan
+  const payments = useMore(customer?.payments, customer?.payments_total, (offset) =>
+    api<{ items: Payment[] }>(`/customers/${id}/payments?limit=20&offset=${offset}`),
+  );
+  const writeoffs = useMore(customer?.writeoffs, customer?.writeoffs_total, (offset) =>
+    api<{ items: Writeoff[] }>(`/customers/${id}/writeoffs?limit=20&offset=${offset}`),
+  );
 
   /** Qarz o'zgardi: mijozlar ro'yxati va sotuv kartochkalari ham yangilanadi */
   async function changed(message: string) {
@@ -278,7 +288,7 @@ function CustomerView({ id }: { id: number }) {
                     </tr>
                   }
                 >
-                  {customer.payments.map((payment) => (
+                  {payments.items.map((payment) => (
                     <tr key={payment.id} className="align-top">
                       <td className={td}>
                         <span className="whitespace-nowrap">{formatDateTime(payment.created_at)}</span>
@@ -308,7 +318,7 @@ function CustomerView({ id }: { id: number }) {
               )}
               {!wide && (
                 <ul className="divide-y divide-line">
-                  {customer.payments.map((payment) => (
+                  {payments.items.map((payment) => (
                     <li key={payment.id} className={`${rowClass} flex items-start gap-3`}>
                       <IconChip icon={Wallet} tone="leaf" />
                       <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1.5">
@@ -343,13 +353,18 @@ function CustomerView({ id }: { id: number }) {
                   ))}
                 </ul>
               )}
+              {payments.hasMore && (
+                <div className="px-4 pb-4 sm:px-5">
+                  <LoadMore loading={payments.loading} onClick={() => void payments.more()} />
+                </div>
+              )}
             </section>
 
             {customer.writeoffs.length > 0 && (
               <section className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
                 <SectionHeader>{t("credit.card.writeoffs")}</SectionHeader>
                 <ul className="divide-y divide-line">
-                  {customer.writeoffs.map((item) => (
+                  {writeoffs.items.map((item) => (
                     <li key={item.id} className={`${rowClass} flex items-start gap-3`}>
                       <IconChip icon={Eraser} tone="madder" />
                       <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1.5">
@@ -367,6 +382,11 @@ function CustomerView({ id }: { id: number }) {
                     </li>
                   ))}
                 </ul>
+                {writeoffs.hasMore && (
+                  <div className="px-4 pb-4 sm:px-5">
+                    <LoadMore loading={writeoffs.loading} onClick={() => void writeoffs.more()} />
+                  </div>
+                )}
               </section>
             )}
           </div>

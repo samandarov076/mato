@@ -340,7 +340,8 @@
         "written_off": "Qarzni hisobdan chiqardi"
       }
     },
-    "without_login": "Kirish-chiqishsiz"
+    "without_login": "Kirish-chiqishsiz",
+    "details_show": "To'liq ko'rsatish"
   },
   "twofactor": {
     "title": "Tasdiqlash kodi",
@@ -742,7 +743,7 @@
     "rolls_about_one": "≈ {{count}} rulon",
     "rolls_about_other": "≈ {{count}} rulon",
     "stock": {
-      "intro": "Qoldiq metrda yuritiladi; rulonlar soni taxminiy. Partiya raqamini bossangiz, uning butun tarixi ochiladi.",
+      "intro": "Qoldiq metrda yuritiladi; rulonlar soni taxminiy. Partiya raqamini bossangiz, uning butun tarixi ochiladi. Partiya — bitta kirimning tovari; tannarx va metr farqi shu bo'yicha yuritiladi.",
       "search_label": "Qidiruv",
       "search": "Tovar yoki partiya raqami",
       "show": "Ko'rsatish",
@@ -771,7 +772,14 @@
       "reopen": "Qayta ochish",
       "history": "Partiya tarixi",
       "reopen_confirm": "Partiya «{{place}}»da qayta ochilsinmi?",
-      "reopen_yes": "Ha, qayta ochish"
+      "reopen_yes": "Ha, qayta ochish",
+      "history_kind": "Harakat turi",
+      "kinds": {
+        "sales": "Sotuvlar",
+        "transfers": "Ko'chirishlar",
+        "other": "Boshqa"
+      },
+      "history_empty": "Bu turdagi harakat yo'q."
     },
     "diff": {
       "short": "{{meters}} m kam chiqdi",
@@ -952,6 +960,12 @@
       "pin": {
         "store_locked": "«{{store}}» do'konida PIN ko'p marta xato kiritildi — do'kon qurilmalari {{minutes}} daqiqaga bloklandi. Sotuvchilardan so'rang; shubha bo'lsa, PIN'larni almashtiring."
       }
+    },
+    "kinds": {
+      "low_stock": "Kam qoldiq",
+      "transfers": "Ko'chirish",
+      "credit": "Nasiya",
+      "other": "Boshqa"
     }
   },
   "sales": {
@@ -994,7 +1008,11 @@
       "sell_credit": "Mijozni tanlash",
       "at_recommended": "Tavsiya narx bo'yicha",
       "recommended_restore": "Tavsiya narxni qaytarish: {{price}}",
-      "items": "Tovarlar"
+      "items": "Tovarlar",
+      "found": "{{count}} ta topildi",
+      "search_keys": "↓ ↑ — tanlash, Enter — olish",
+      "parts": "Tovar tarkibi",
+      "clear_filter": "{{name}}: tanlovni olib tashlash"
     },
     "cart": {
       "title": "Savat",
@@ -1076,7 +1094,8 @@
       "return_refund_cash": "{{amount}} so'm naqd qaytarildi",
       "return_refund_card": "{{amount}} so'm kartaga qaytarildi",
       "cancelled_by": "{{name}} bekor qildi — {{when}}",
-      "reason": "Sabab: {{reason}}"
+      "reason": "Sabab: {{reason}}",
+      "info": "Ma'lumot"
     },
     "return": {
       "open": "Qaytarish",
@@ -1101,7 +1120,8 @@
       "reason": "Bekor qilish sababi",
       "reason_required": "Sababni yozing",
       "yes": "Ha, bekor qilish"
-    }
+    },
+    "done_duplicate": "Bu sotuv avval yozilgan edi ({{number}}) — yangidan yozilmadi."
   },
   "credit": {
     "intro": "Mijoz biznes bo'yicha umumiy: istalgan do'konda nasiya oladi va istalgan do'konda to'laydi.",
@@ -1186,7 +1206,15 @@
       "submit": "Ha, hisobdan chiqarish",
       "done": "{{amount}} so'm hisobdan chiqarildi"
     },
-    "col_debt": "Qarz"
+    "col_debt": "Qarz",
+    "aging": {
+      "title": "Muddat taqsimoti",
+      "total": "Jami",
+      "not_due": "Muddati kelmagan",
+      "d1_30": "1–30 kun",
+      "d31_60": "31–60 kun",
+      "d60_plus": "60+ kun"
+    }
   },
   "dashboard": {
     "period": {
@@ -1325,10 +1353,6 @@
       "title": "Darhol xabarlar",
       "hint": "Ko'chirish farq bilan qabul qilinganda va partiya katta farq bilan yopilganda."
     }
-  },
-  "shell": {
-    "device_bound": "Bu qurilma «{{store}}» do'koniga bog'langan — sotuvchilar unda PIN bilan kiradi. Siz hozir parol bilan kirgansiz.",
-    "unbind": "Qurilmani uzish"
   },
   "errors": {
     "invalid_credentials": "Telefon raqami yoki parol noto'g'ri",

@@ -11,6 +11,7 @@ import { focusRing } from "@/shared/ui/tones";
 import { ExportButton, Stat } from "./parts";
 import { useReportFilters } from "./ReportsLayout";
 import { reportQuery, reportsKeys, type CreditReport } from "./types";
+import { AgingRow } from "@/modules/credit/AgingRow";
 
 /** Nasiya: hozirgi qarz va tanlangan davrdagi harakat. Mijozlar kesimi — "Nasiya" bo'limida. */
 export function CreditReportPage() {
@@ -50,6 +51,11 @@ export function CreditReportPage() {
         <>
           {/* Ikki guruh — har biri sarlavhali kartochkada (yalang'och 13px yozuv emas) */}
           <Card title={t("reports.credit_now")} icon={HandCoins} tone="saffron" className="mt-4">
+            {data.aging && (
+              <div className="mb-4">
+                <AgingRow aging={data.aging} />
+              </div>
+            )}
             <div className={`${statGrid} lg:grid-cols-3`}>
               <Stat label={t("credit.total_debt")} value={data.debt_total} unit={sum} icon={HandCoins} accent="saffron" />
               <Stat

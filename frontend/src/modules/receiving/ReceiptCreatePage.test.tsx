@@ -34,7 +34,7 @@ const patterns = [
 // Katalogda faqat M101-01 bor (narxi 40 000 so'm / m); M101-02 — yangi SKU
 const existingSku = {
   id: 101, code: "M101-01", price: 40000, price_unit: "m", low_stock_threshold: null, is_active: true,
-  fabric: { id: 1, code: "M101", name: "Atlas", default_m_per_kg: "4.0000", is_active: true },
+  fabric: { id: 1, code: "M101", name: "Atlas", image_url: null, default_m_per_kg: "4.0000", is_active: true },
   color: { id: 11, code: "01", name: "Qizil", hex: "#c0392b", image_url: null, is_active: true },
   pattern: { id: 21, code: "0", name: "Gulsiz", image_url: null, is_plain: true, is_active: true },
 };

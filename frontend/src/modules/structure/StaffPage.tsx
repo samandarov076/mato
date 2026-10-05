@@ -520,21 +520,24 @@ export function StaffPage() {
                       <RowAction icon={Pencil} onClick={() => openEdit(row)}>
                         {t("structure.edit")}
                       </RowAction>
-                      {/* Kam ishlatiladigan amallar — "⋯" menyusida: qator bitta tugma bilan toza turadi */}
+                      {/* Parol/PIN'ni ko'rish — bir bosishda, qatorning o'zida (ega buni tez-tez ishlatadi) */}
+                      {row.is_active && (
+                        <RowAction
+                          icon={shown?.id === row.id ? EyeOff : Eye}
+                          disabled={revealing === row.id}
+                          onClick={() => void reveal(row)}
+                        >
+                          {shown?.id === row.id
+                            ? t("structure.staff.hide")
+                            : t(row.role === "seller" ? "structure.staff.show_pin" : "structure.staff.show_password")}
+                        </RowAction>
+                      )}
+                      {/* Kam ishlatiladigan amallar (yangilash, faolsizlantirish) — "⋯" menyusida */}
                       {row.is_active ? (
                         <ActionMenu
                           label={t("structure.staff.more", { name: row.full_name })}
                           triggerRef={triggerFor(row.id)}
                         >
-                          <MenuItem
-                            icon={shown?.id === row.id ? EyeOff : Eye}
-                            disabled={revealing === row.id}
-                            onSelect={() => void reveal(row)}
-                          >
-                            {shown?.id === row.id
-                              ? t("structure.staff.hide")
-                              : t(row.role === "seller" ? "structure.staff.show_pin" : "structure.staff.show_password")}
-                          </MenuItem>
                           {row.role === "seller" ? (
                             <MenuItem icon={KeyRound} onSelect={() => openAction({ kind: "pin", id: row.id })}>
                               {t("structure.staff.change_pin")}

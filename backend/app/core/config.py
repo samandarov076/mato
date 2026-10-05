@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 
@@ -13,7 +14,10 @@ class Settings(BaseSettings):
 
     # Ilova roli (RLS ta'sir qiladi) — biznes ichidagi barcha so'rovlar
     database_url: str
-    # Jadvallar egasi (RLS'dan tashqari) — migratsiyalar, kirishdagi qidiruv, platforma paneli
+    # Tizim roli (mato_system): RLS'dan tashqari, lekin DDL va DELETE yo'q — kirishdagi qidiruv,
+    # platforma paneli, fon vazifalari (`system_session`). Rolni 15-migratsiya yaratadi.
+    database_system_url: str
+    # Jadvallar egasi — faqat migratsiyalar (alembic). Ilova ishlayotganda ishlatilmaydi.
     database_owner_url: str
     redis_url: str = "redis://localhost:6379/0"
 
@@ -38,6 +42,9 @@ class Settings(BaseSettings):
     # Telegram boti (10-telegram). Token bo'sh bo'lsa — Telegram qismi o'chiq: xabarlar faqat tizim ichida.
     telegram_bot_token: str = ""
     telegram_api_url: str = "https://api.telegram.org"
+    # Platforma egasining Telegram suhbati: texnik ogohlantirishlar (zaxira olinmadi, qoldiq farqi) —
+    # app/core/alerts.py va deploy/backup/backup.sh. Bo'sh bo'lsa — faqat jurnal.
+    platform_alert_chat_id: str = ""
 
     app_timezone: str = "Asia/Tashkent"
     cors_origins: str = "http://localhost:5173"
@@ -52,6 +59,12 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "CREDENTIALS_KEY majburiy (APP_ENV=dev dan boshqa muhitda): alohida, uzun tasodifiy "
                     "qiymat qo'ying — bo'sh yoki SECRET_KEY bilan bir xil bo'lmasin"
+                )
+            # Serverda ilova jadvallar egasi bilan ishlamaydi: tizim roli alohida bo'lishi shart
+            if make_url(self.database_system_url).username == make_url(self.database_owner_url).username:
+                raise ValueError(
+                    "DATABASE_SYSTEM_URL da jadvallar egasi emas, cheklangan tizim roli (mato_system) "
+                    "bo'lishi kerak (docs/07-ishga-tushirish.md, 6.2)"
                 )
         return self
 

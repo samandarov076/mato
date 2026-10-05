@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useAutoLock } from "./StoreShell";
+import { useAutoLock } from "./useAutoLock";
 
 describe("avto-qulflash", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -28,5 +28,13 @@ describe("avto-qulflash", () => {
     expect(lock).not.toHaveBeenCalled();
     vi.advanceTimersByTime(20_000);
     expect(lock).toHaveBeenCalledTimes(1);
+  });
+
+  it("o'chirilgan bo'lsa (ega o'z planshetida emas) hech qachon qulflamaydi", () => {
+    const lock = vi.fn();
+    renderHook(() => useAutoLock(1, lock, false));
+
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(lock).not.toHaveBeenCalled();
   });
 });

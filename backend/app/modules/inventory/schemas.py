@@ -111,6 +111,11 @@ class MovementOut(BaseModel):
     note: str | None
 
 
+class MovementPage(BaseModel):
+    items: list[MovementOut]
+    total: int
+
+
 class TransitOut(BaseModel):
     transfer_id: int
     number: str
@@ -137,7 +142,8 @@ class BatchCard(BaseModel):
     cost_per_m: int | None  # faqat biznes egasiga
     places: list[BatchPlace]
     in_transit: list[TransitOut]
-    movements: list[MovementOut]
+    movements: list[MovementOut]  # birinchi sahifa (eng yangilari); qolgani — /batches/{id}/movements
+    movements_total: int
 
 
 class CloseIn(BaseModel):

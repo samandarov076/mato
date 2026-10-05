@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, PackageCheck, ScanLine } from "lucide-react";
+import { ChevronRight, PackageCheck, ScanLine, Store, Warehouse } from "lucide-react";
 import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { Thumb } from "@/modules/catalog/parts";
 import { api } from "@/shared/api/client";
@@ -35,12 +35,21 @@ export function CloseBatchPage() {
     queryKey: inventoryKeys.stock(`close-${store?.id ?? "all"}`),
     queryFn: () => api<StockPage>(`/stock?limit=200${store ? `&location_id=${store.id}` : ""}`),
   });
+  const places = stock.data?.locations ?? [];
   const here = (stock.data?.items ?? [])
     .flatMap((item) =>
       item.batches.flatMap((batch) =>
         batch.stocks
           .filter((cell) => !store || cell.location_id === store.id)
-          .map((cell) => ({ batch, sku: item.sku, qty: cell.qty_m, rolls: cell.rolls })),
+          .map((cell) => ({
+            batch,
+            sku: item.sku,
+            qty: cell.qty_m,
+            rolls: cell.rolls,
+            // Bir nechta joy ko'radigan xodimda (omborchi, ega) bitta partiya har joy uchun alohida qator —
+            // qaysi qator qaysi joy ekani ko'rinishi kerak. Do'kon qurilmasida joy bitta — sarlavhada turadi.
+            place: store ? undefined : places.find((place) => place.id === cell.location_id),
+          })),
       ),
     )
     .sort((a, b) => Number(a.qty) - Number(b.qty));
@@ -104,8 +113,8 @@ export function CloseBatchPage() {
           </Empty>
         )}
         <ul className="divide-y divide-line">
-          {here.map(({ batch, sku, qty, rolls }) => (
-            <li key={`${batch.id}-${sku.id}`}>
+          {here.map(({ batch, sku, qty, rolls, place }) => (
+            <li key={`${batch.id}-${place?.id ?? "here"}`}>
               <Link
                 to={`/batches/${batch.id}`}
                 state={{ from: "/close" }}
@@ -117,6 +126,16 @@ export function CloseBatchPage() {
                   <span className="block truncate text-sm text-muted">
                     {sku.code} · {skuNames(sku)}
                   </span>
+                  {place && (
+                    <span className="mt-0.5 flex items-center gap-1.5 text-sm">
+                      {place.type === "store" ? (
+                        <Store className="size-4 shrink-0 text-leaf" aria-hidden="true" />
+                      ) : (
+                        <Warehouse className="size-4 shrink-0 text-sky" aria-hidden="true" />
+                      )}
+                      <span className="truncate">{place.name}</span>
+                    </span>
+                  )}
                 </span>
                 <span className={`shrink-0 text-right tabular-nums ${Number(qty) < 0 ? "text-madder" : ""}`}>
                   <span className="whitespace-nowrap font-semibold">{formatDecimal(qty)} m</span>

@@ -9,10 +9,15 @@ import { setScreenWidth } from "@/test-utils";
 import { SalesPage } from "./SalesPage";
 import type { SalePage, SaleRow } from "./types";
 
-const { api, role } = vi.hoisted(() => ({ api: vi.fn(), role: { current: "owner" } }));
+const { api, downloadFile, role } = vi.hoisted(() => ({
+  api: vi.fn(),
+  downloadFile: vi.fn().mockResolvedValue(undefined),
+  role: { current: "owner" },
+}));
 vi.mock("@/shared/api/client", async (original) => ({
   ...(await original<typeof import("@/shared/api/client")>()),
   api,
+  downloadFile,
 }));
 vi.mock("@/modules/auth/AuthProvider", () => ({
   useCurrentUser: () => ({ user: { id: 1, full_name: "Akmal Ega", role: role.current } }),
@@ -91,6 +96,26 @@ describe("Sotuvlar ro'yxati", () => {
     expect(within(first).getByRole("link", { name: "S-000005" })).toHaveAttribute("href", "/sales/5");
     await userEvent.click(within(first).getByText("Nodira Yusupova"));
     expect(await screen.findByText("sotuv kartochkasi")).toBeInTheDocument();
+  });
+
+  it("sarlavhadan saralash (vaqt, summa) va Excel — joriy filtr va tartib bilan", async () => {
+    setScreenWidth(1280);
+    renderPage();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Vaqt" })).toHaveAttribute("aria-sort", "descending");
+
+    await userEvent.click(within(table).getByRole("button", { name: "Summa" }));
+    await screen.findByRole("table");
+    expect(lastQuery().get("sort")).toBe("-amount");
+    await userEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "Summa" }));
+    await screen.findByRole("table");
+    expect(lastQuery().get("sort")).toBe("amount");
+
+    await userEvent.click(screen.getByRole("button", { name: "Excel" }));
+    const path = String(downloadFile.mock.calls[0][0]);
+    expect(path).toMatch(/^\/sales\/export\?/);
+    expect(path).toContain("sort=amount");
+    expect(path).toContain(`date_from=${todayISO()}`);
   });
 
   it("telefonda — avvalgi kartochka ko'rinishi", async () => {

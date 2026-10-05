@@ -12,9 +12,14 @@ export function trimDecimal(value: string): string {
 
 /** Aniq son o'qishga qulay ko'rinishda (metr, kg): "5000.50" → "5 000.5", "700.00" → "700" */
 export function formatDecimal(value: string): string {
-  const [whole, fraction] = trimDecimal(value).split(".");
+  // Belgi butun qismdan ALOHIDA saqlanadi: "-0.13" ning butun qismi "-0", Number("-0") esa matnda "0" —
+  // minus yo'qolib, −1 va 0 orasidagi har qiymat musbat ko'rinardi (metr farqi teskari tushunilardi).
+  const trimmed = trimDecimal(value.trim());
+  const negative = trimmed.startsWith("-");
+  const [whole, fraction] = (negative ? trimmed.slice(1) : trimmed).split(".");
   const grouped = formatNumber(Number(whole));
-  return fraction ? `${grouped}.${fraction}` : grouped;
+  const text = fraction ? `${grouped}.${fraction}` : grouped;
+  return negative && /[1-9]/.test(text) ? `-${text}` : text; // "-0.00" — oddiy nol
 }
 
 /** Narx birligi bilan: "45 000 so'm / m". `t` — i18next tarjima funksiyasi. */

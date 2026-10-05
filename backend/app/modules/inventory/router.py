@@ -14,6 +14,7 @@ from app.modules.inventory.schemas import (
     BatchCard,
     CloseIn,
     Differences,
+    MovementPage,
     ReceiveIn,
     ReopenIn,
     Sendable,
@@ -24,6 +25,8 @@ from app.modules.inventory.schemas import (
     TransferPage,
     TransferStatus,
 )
+from app.modules.reports.export import EXPORT_ROWS, EXPORT_SKUS, download, local_time, number
+from app.modules.reports.labels import labels
 
 router = APIRouter(tags=["ombor"])
 
@@ -42,6 +45,7 @@ async def list_stock(
     pattern_id: int | None = None,
     search: str | None = None,
     only: Literal["low", "negative", "in_transit"] | None = None,
+    sort: Literal["total", "-total"] | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> StockPage:
@@ -53,8 +57,112 @@ async def list_stock(
         pattern_id=pattern_id,
         search=search,
         only=only,
+        sort=sort,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/stock/export")
+async def export_stock(
+    ctx: Auth,
+    location_id: int | None = None,
+    search: str | None = None,
+    only: Literal["low", "negative", "in_transit"] | None = None,
+) -> Response:
+    """Qoldiq Excel faylida — matritsa: qatorda tovar, ustunlarda xodim ko'ra oladigan joylar, oxirida jami.
+    Faqat metr: tannarx va qiymat chiqmaydi (omborchi va sotuvchi ham yuklaydi)."""
+    t = labels(ctx.user.language)
+    page = await service.list_stock(
+        ctx, location_id=location_id, search=search, only=only, limit=EXPORT_SKUS
+    )
+    places = [place for place in page.locations if location_id is None or place.id == location_id]
+    rows = []
+    for item in page.items:
+        here = {total.location_id: total.qty_m for total in item.totals}
+        names = [item.sku.fabric_name, item.sku.color_name, item.sku.pattern_name]
+        rows.append(
+            [
+                item.sku.code,
+                " · ".join(name for name in names if name),
+                *(number(here.get(place.id)) for place in places),
+                number(sum((here.get(place.id, 0) for place in places), 0) if location_id else item.total_m),
+            ]
+        )
+    headers = [t["code"], t["item"], *(place.name for place in places), t["total_m"]]
+    return download("qoldiq", [(t["stock"], headers, rows)])
+
+
+@router.get("/stock/differences/export")
+async def export_differences(
+    ctx: OwnerAuth,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    location_id: int | None = None,
+    user_id: int | None = None,
+    kind: Literal["shortage", "surplus"] | None = None,
+) -> Response:
+    """Metr farqi Excel faylida: yopilgan partiyalar va ko'chirish farqlari — ikki varaq. Faqat biznes egasi."""
+    t, zone = labels(ctx.user.language), ctx.business.timezone
+    report = await service.differences(
+        ctx,
+        date_from=date_from,
+        date_to=date_to,
+        location_id=location_id,
+        user_id=user_id,
+        kind=kind,
+        limit=EXPORT_ROWS,
+    )
+
+    def item(sku) -> str:
+        names = [sku.code, sku.fabric_name, sku.color_name, sku.pattern_name]
+        return " · ".join(name for name in names if name)
+
+    closures = [
+        [
+            row.batch_number,
+            item(row.sku),
+            row.location.name,
+            number(row.received_m),
+            number(row.out_m),
+            number(row.diff_m),
+            number(row.diff_percent),
+            row.diff_amount,
+            row.closed_by.name,
+            local_time(row.closed_at, zone),
+            row.note or "",
+        ]
+        for row in report.closures
+    ]
+    moved = [
+        [
+            row.number,
+            row.batch_number,
+            item(row.sku),
+            row.source.name,
+            row.target.name,
+            number(row.sent_m),
+            number(row.received_m),
+            number(row.diff_m),
+            row.diff_amount,
+            row.received_by.name,
+            local_time(row.received_at, zone),
+            row.note or "",
+        ]
+        for row in report.transfers
+    ]
+    closed_keys = (
+        "batch", "item", "place", "labeled_m", "out_m", "diff_m", "percent", "diff", "by", "when", "note",
+    )  # fmt: skip
+    moved_keys = (
+        "transfer", "batch", "item", "from", "to", "sent_m", "received_m", "diff_m", "diff", "by", "when", "note",
+    )  # fmt: skip
+    return download(
+        "metr_farqi",
+        [
+            (t["differences"], [t[key] for key in closed_keys], closures),
+            (t["transfer_diffs"], [t[key] for key in moved_keys], moved),
+        ],
     )
 
 
@@ -97,6 +205,18 @@ async def get_batch(batch_id: int, ctx: Auth) -> BatchCard:
     return await service.get_batch(ctx, batch_id)
 
 
+@router.get("/batches/{batch_id}/movements")
+async def list_movements(
+    batch_id: int,
+    ctx: Auth,
+    kind: Literal["sales", "transfers", "other"] | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> MovementPage:
+    """Partiya tarixi — sahifalab; `kind` — sotuvlar / ko'chirishlar / boshqa."""
+    return await service.list_movements(ctx, batch_id, kind=kind, limit=limit, offset=offset)
+
+
 @router.post("/batches/{batch_id}/close", status_code=204)
 async def close_batch(batch_id: int, body: CloseIn, ctx: Auth) -> None:
     """Partiya shu joyda tugadi. Sotuvchi — o'z do'konida, omborchi — o'z skladida, ega — har qayerda."""
@@ -118,6 +238,7 @@ async def list_transfers(
     location_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    sort: Literal["date", "-date"] | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> TransferPage:
@@ -127,6 +248,7 @@ async def list_transfers(
         location_id=location_id,
         date_from=date_from,
         date_to=date_to,
+        sort=sort,
         limit=limit,
         offset=offset,
     )

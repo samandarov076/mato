@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.modules.credit.schemas import Aging
+
 Period = Literal["day", "week", "month"]
 Group = Literal["day", "month"]
 TopBy = Literal["sku", "fabric", "color", "pattern"]
@@ -48,6 +50,7 @@ class Dashboard(BaseModel):
     previous: Money
     debt_total: int
     debt_overdue: int
+    debt_aging: Aging  # muddat taqsimoti: kelmagan · 1–30 · 31–60 · 60+ kun
     low_stock: int  # chegaradan pastga tushgan SKU'lar soni
     diff_amount: int  # metr farqi (kam chiqqani + ko'chirishda yo'qolgani), so'm
     diff_m: Decimal
@@ -100,6 +103,7 @@ class CreditReport(BaseModel):
     debt_total: int  # hozirgi umumiy qarz
     debt_overdue: int
     debtors: int
+    aging: Aging
     # Davr bo'yicha
     given: int  # berilgan nasiya
     paid: int  # qaytgan qarz (to'lovlar)

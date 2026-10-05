@@ -391,8 +391,8 @@ async def test_stock_movements_can_never_be_changed(shop):
         update(StockMovement).where(StockMovement.batch_id == batch).values(qty_m=1),
         delete(StockMovement).where(StockMovement.batch_id == batch),
     ):
-        with pytest.raises(DBAPIError, match="append-only"):
-            async with system_session() as session:  # jadval egasi ham o'zgartira olmaydi
+        with pytest.raises(DBAPIError, match="permission denied"):
+            async with system_session() as session:  # tizim roli (mato_system) ham o'zgartira olmaydi
                 await session.execute(statement)
     assert await s.movements(batch) == [("receipt", Decimal("500.00"))]
 

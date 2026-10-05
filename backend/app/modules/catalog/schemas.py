@@ -91,6 +91,7 @@ class FabricRef(BaseModel):
     id: int
     code: str
     name: str
+    image_url: str | None  # sotuv ekranida tovar rasmi: gul → rang → mato
     default_m_per_kg: Decimal | None
     is_active: bool
 

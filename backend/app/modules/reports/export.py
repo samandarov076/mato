@@ -1,6 +1,9 @@
 """Hisobotni Excel fayliga (.xlsx) aylantirish."""
+from datetime import datetime
+from decimal import Decimal
 from io import BytesIO
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import Response
 from openpyxl import Workbook
@@ -11,6 +14,21 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # Varaq: (nomi, sarlavhalar, qatorlar)
 Sheet = tuple[str, list[str], list[list[Any]]]
+
+
+# Ro'yxat eksportida bitta fayldagi eng ko'p qator (qoldiqda — SKU)
+EXPORT_ROWS = 5000
+EXPORT_SKUS = 2000
+
+
+def local_time(moment: datetime | None, timezone: str) -> str:
+    """Vaqt — biznes vaqt mintaqasida, o'qishga qulay: "03.10.2026 21:56"."""
+    return moment.astimezone(ZoneInfo(timezone)).strftime("%d.%m.%Y %H:%M") if moment else ""
+
+
+def number(value: Decimal | None) -> float | None:
+    """Metr — Excel'da son bo'lib tursin (matn emas): yig'indi va saralash ishlaydi."""
+    return None if value is None else float(value)
 
 
 def workbook(sheets: list[Sheet]) -> bytes:

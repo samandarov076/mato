@@ -1,12 +1,13 @@
 """Kirish API'si: /api/auth/... va do'kon qurilmalari: /api/devices/..."""
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Response
+from fastapi import APIRouter, Cookie, Request, Response
 
 from app.core.audit import log_event
 from app.core.config import get_settings
-from app.core.deps import AuthBasic, OwnerAuth
+from app.core.deps import AnyAuth, AuthBasic, OwnerAuth
 from app.core.errors import AppError
+from app.core.ratelimit import client_ip
 from app.modules.auth import device_service, service
 from app.modules.auth.schemas import (
     AuthOut,
@@ -80,8 +81,12 @@ _respond = respond_with_session
 
 
 @router.post("/login")
-async def login(body: LoginIn, response: Response) -> AuthOut | TwoFactorOut:
-    result = await service.login(body.phone, body.password)
+async def login(
+    body: LoginIn, request: Request, response: Response, device: DeviceCookie = None
+) -> AuthOut | TwoFactorOut:
+    result = await service.login(
+        body.phone, body.password, ip=client_ip(request), device_token=device
+    )
     if isinstance(result, service.TwoFactorChallenge):
         return TwoFactorOut(
             two_factor="setup" if result.setup_required else "required",
@@ -91,21 +96,25 @@ async def login(body: LoginIn, response: Response) -> AuthOut | TwoFactorOut:
 
 
 @router.post("/pin")
-async def pin_login(body: PinIn, response: Response, device: DeviceCookie = None) -> AuthOut:
+async def pin_login(
+    body: PinIn, request: Request, response: Response, device: DeviceCookie = None
+) -> AuthOut:
     """Do'kon qurilmasida sotuvchining 4 xonali PIN bilan kirishi."""
-    return _respond(response, await device_service.pin_login(device, body.pin))
+    return _respond(
+        response, await device_service.pin_login(device, body.pin, ip=client_ip(request))
+    )
 
 
 @router.post("/store-login")
 async def store_login(
-    body: StoreLoginIn, response: Response, previous: DeviceCookie = None
+    body: StoreLoginIn, request: Request, response: Response, previous: DeviceCookie = None
 ) -> DeviceStatusOut:
     """Do'kon logini bilan SHU brauzerni do'kon qurilmasiga aylantiradi — keyin PIN ekrani ochiladi.
 
     Sessiya ochilmaydi: login faqat qurilmani bog'laydi, ma'lumotlarga sotuvchi PIN bilan kiradi.
     """
     device, store, business, token = await device_service.store_login(
-        body.login, body.password, previous
+        body.login, body.password, previous, ip=client_ip(request)
     )
     _set_cookie(response, DEVICE_COOKIE, token, _DEVICE_COOKIE_MAX_AGE)
     _delete_cookie(response, REFRESH_COOKIE)  # shu brauzerda kimdir kirgan bo'lsa — chiqariladi
@@ -180,7 +189,8 @@ async def update_me(body: MeUpdateIn, ctx: AuthBasic) -> UserOut:
 
 
 @router.post("/me/password", status_code=204)
-async def change_password(body: ChangePasswordIn, ctx: AuthBasic) -> None:
+async def change_password(body: ChangePasswordIn, ctx: AnyAuth) -> None:
+    """Parolni almashtirish — biznes xodimi ham, platforma egasi ham (vaqtinchalik paroldan keyin)."""
     await service.change_password(
         ctx.db, ctx.user, ctx.session_id, body.old_password, body.new_password
     )

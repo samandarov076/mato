@@ -376,3 +376,64 @@ async def test_device_of_deactivated_store_does_not_accept_pins(new_shop, new_se
         await s.execute(update(Location).where(Location.id == shop.store_id).values(is_active=False))
 
     assert (await _pin(shop.tablet)).json()["code"] == "device_not_bound"
+
+
+# ---------- Ega bog'langan planshetda parol bilan kirsa (docs/03-details/02-tuzilma.md, chekka holatlar) ----------
+
+
+async def _session_of(response: httpx.Response):
+    from app.modules.auth.models import UserSession
+
+    user_id = response.json()["user"]["id"]
+    async with system_session() as s:
+        return await s.scalar(
+            select(UserSession).where(UserSession.user_id == user_id).order_by(UserSession.id.desc())
+        )
+
+
+async def test_owner_login_on_own_store_device_is_a_short_device_session(new_shop):
+    """O'z do'konining planshetida ega sessiyasi qurilmaga bog'lanadi: muddati avto-qulf + 30 daqiqa, 30 kun emas."""
+    from datetime import UTC, datetime, timedelta
+
+    shop = await new_shop()
+    login = await shop.tablet.post(
+        "/api/auth/login", json={"phone": shop.owner_phone, "password": PASSWORD}
+    )
+    assert login.status_code == 200
+    assert login.json()["store"]["id"] == shop.store_id
+
+    row = await _session_of(login)
+    assert row.device_id == shop.device_id
+    idle = timedelta(minutes=30 + 30)  # autolock_minutes (standart 30) + access_token_minutes
+    assert abs(row.expires_at - (datetime.now(UTC) + idle)) < timedelta(minutes=1)
+    assert login.json()["user"]["role"] == "owner"
+    assert (await shop.tablet.post("/api/auth/refresh")).json()["store"]["id"] == shop.store_id
+    assert ("login.success", shop.store_id) in await _events(shop.business_id)
+
+
+async def test_owner_of_another_business_gets_a_plain_personal_session(new_shop, new_account):
+    from datetime import UTC, datetime, timedelta
+
+    shop = await new_shop()
+    _, _, other_phone = await new_account()
+    login = await shop.tablet.post("/api/auth/login", json={"phone": other_phone, "password": PASSWORD})
+    assert login.status_code == 200
+    assert login.json()["store"] is None
+
+    row = await _session_of(login)
+    assert row.device_id is None
+    assert row.expires_at - datetime.now(UTC) > timedelta(days=29)
+
+
+async def test_revoking_the_device_ends_the_owner_session_on_it(browser, new_shop):
+    shop = await new_shop()
+    on_tablet = await shop.tablet.post(
+        "/api/auth/login", json={"phone": shop.owner_phone, "password": PASSWORD}
+    )
+    laptop = browser()
+    owner = await _owner_headers(laptop, shop.owner_phone)
+    assert (await laptop.post(f"/api/devices/{shop.device_id}/revoke", headers=owner)).status_code == 204
+
+    assert (await shop.tablet.get("/api/auth/me", headers=_bearer(on_tablet))).status_code == 401
+    assert (await shop.tablet.post("/api/auth/refresh")).status_code == 401
+    assert (await laptop.get("/api/auth/me", headers=owner)).status_code == 200  # noutbuk sessiyasi qoladi

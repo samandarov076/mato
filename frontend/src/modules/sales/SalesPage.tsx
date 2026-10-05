@@ -29,7 +29,8 @@ import { FilterPanel } from "@/shared/ui/FilterPanel";
 import { Chip, Empty, IconChip, LoadMore, RowAction, rowClass } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { PeriodFilter } from "@/shared/ui/PeriodFilter";
-import { LinkRow, num, Table, td, Th } from "@/shared/ui/table";
+import { ExportButton } from "@/shared/ui/ExportButton";
+import { LinkRow, num, SortTh, Table, td, Th } from "@/shared/ui/table";
 import type { Tone } from "@/shared/ui/tones";
 import { salesKeys, type PaymentType, type Ref, type SalePage, type SaleRow, type SaleStatus } from "./types";
 
@@ -44,6 +45,8 @@ type Filters = {
   status: string;
 };
 type Scope = "mine" | "all";
+/** Server tartibi: vaqt yoki summa; "-" — kattadan kichikka (standart — eng yangisi tepada) */
+type Sort = "-time" | "time" | "-amount" | "amount";
 
 const NO_FILTERS: Filters = { store_id: "", seller_id: "", payment_type: "", status: "" };
 
@@ -64,12 +67,12 @@ export function PaymentChip({ type }: { type: PaymentType }) {
   );
 }
 
-// Holat rangi: yakunlangan — yashil, qaytarilgan — sariq, bekor qilingan — kulrang
+// Holat rangi: yakunlangan — yashil, qaytarilgan — sariq, bekor qilingan — qizil (docs/06, "Holat ranglari")
 const STATUS_TONE: Record<SaleStatus, Tone> = {
   completed: "leaf",
   partially_returned: "saffron",
   returned: "saffron",
-  cancelled: "neutral",
+  cancelled: "madder",
 };
 
 /** Holat belgisi: qaytarilgan va bekor qilingan sotuvlar ro'yxatda ajralib turadi. */
@@ -100,6 +103,10 @@ export function SalesPage() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   // Qidiruv matni SearchInput ichida kechiktiriladi (300 ms) — bu yerga tayyor qiymat keladi
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<Sort>("-time");
+  // Sarlavha bosilsa: shu ustun bo'yicha (avval kattadan), yana bosilsa — teskari
+  const sortBy = (column: "time" | "amount") =>
+    setSort(sort === `-${column}` ? column : (`-${column}` as Sort));
   const set = (key: keyof Filters) => (value: string) => setFilters({ ...filters, [key]: value });
   const mineToday = !owner && scope === "mine";
   const wanted = search.trim();
@@ -110,8 +117,9 @@ export function SalesPage() {
   );
 
   const params: Record<string, string> = mineToday
-    ? { mine: "true", date_from: todayISO(), date_to: todayISO() }
+    ? { mine: "true", date_from: todayISO(), date_to: todayISO(), ...(sort !== "-time" ? { sort } : {}) }
     : {
+        ...(sort !== "-time" ? { sort } : {}),
         ...dates,
         ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
         ...(wanted ? { search: wanted } : {}),
@@ -240,9 +248,13 @@ export function SalesPage() {
       )}
 
       {summary && summary.total > 0 && (
-        <p className="mt-4 text-muted">
-          {t("sales.list.summary", { count: summary.total, amount: formatNumber(summary.amount) })}
-        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="text-muted">
+            {t("sales.list.summary", { count: summary.total, amount: formatNumber(summary.amount) })}
+          </p>
+          {/* Shu filtr va tartibdagi ro'yxat — Excel faylida */}
+          <ExportButton path={`/sales/export?${new URLSearchParams(params)}`} />
+        </div>
       )}
 
       <section className="mt-3 overflow-hidden rounded-card border border-line bg-panel shadow-card">
@@ -266,12 +278,21 @@ export function SalesPage() {
             head={
               <tr>
                 <Th>{t("sales.list.col_number")}</Th>
-                <Th>{t("sales.list.col_time")}</Th>
+                <SortTh active={sort.endsWith("time")} direction={sort === "time" ? "asc" : "desc"} onSort={() => sortBy("time")}>
+                  {t("sales.list.col_time")}
+                </SortTh>
                 {owner && <Th>{t("sales.store")}</Th>}
                 <Th>{t("sales.list.seller")}</Th>
                 <Th>{t("sales.list.col_customer")}</Th>
                 <Th>{t("sales.payment.label")}</Th>
-                <Th className="text-right">{t("sales.list.col_amount")}</Th>
+                <SortTh
+                  active={sort.endsWith("amount")}
+                  direction={sort === "amount" ? "asc" : "desc"}
+                  onSort={() => sortBy("amount")}
+                  className="text-right"
+                >
+                  {t("sales.list.col_amount")}
+                </SortTh>
                 <Th>{t("sales.list.status_filter")}</Th>
               </tr>
             }

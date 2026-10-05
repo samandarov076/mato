@@ -43,6 +43,10 @@ def _channel(business_id: int, user_id: int) -> str:
     return f"notify:{business_id}:{user_id}"
 
 
+# Xabarlar sahifasidagi tur filtri: hodisa kodi boshiga qarab (qolgan hammasi — "boshqa")
+KIND_PREFIXES = {"low_stock": "stock", "transfers": "transfer", "credit": "debt"}
+
+
 # ====================== Yuborish ======================
 
 
@@ -170,6 +174,7 @@ async def list_notifications(
     ctx: AuthContext,
     *,
     event: str | None = None,
+    kind: str | None = None,
     unread_only: bool = False,
     cursor: int | None = None,
     limit: int = 30,
@@ -177,6 +182,12 @@ async def list_notifications(
     query = select(Notification).where(Notification.user_id == ctx.user.id)
     if event:
         query = query.where(Notification.event_code == event)
+    if kind in KIND_PREFIXES:
+        query = query.where(Notification.event_code.like(f"{KIND_PREFIXES[kind]}.%"))
+    elif kind == "other":
+        query = query.where(
+            and_(*(Notification.event_code.not_like(f"{prefix}.%") for prefix in KIND_PREFIXES.values()))
+        )
     if unread_only:
         query = query.where(Notification.read_at.is_(None))
     if cursor is not None:

@@ -30,6 +30,8 @@ Sotuv ekranidan to'g'ridan-to'g'ri tezkor qo'shish mumkin (ism + telefon).
 - To'lovlar tarixi: sana, summa, turi, kim qabul qildi, qaysi qarzlarga yozildi
 - Hisobdan chiqarishlar: sana, summa, sabab, kim
 
+- **To'lovlar va hisobdan chiqarishlar tarixi sahifalanadi (2026-10-04):** kartochkada oxirgi 20 tadan ko'rinadi, qolgani "Yana ko'rsatish" bilan (avval to'lovlar 200 tada jimgina qirqilardi, hisobdan chiqarishlarda chegara yo'q edi). API: `GET /api/customers/{id}/payments?limit=&offset=` va `GET /api/customers/{id}/writeoffs?limit=&offset=` → `{items, total}`; kartochka javobida birinchi sahifa va `payments_total`, `writeoffs_total`.
+
 ### Nasiya sotuv (06-sotuv ekranida "Nasiya" tanlanganda)
 1. Mijoz telefon yoki ism bo'yicha topiladi yoki yangi qo'shiladi
 2. Ekranda mijozning hozirgi qarzi ko'rinadi
@@ -58,6 +60,21 @@ Sotuv ekranidan to'g'ridan-to'g'ri tezkor qo'shish mumkin (ism + telefon).
 - Biznes sozlamasida nasiya o'chirilgan bo'lsa (00) — bu modul ko'rinmaydi.
 - Barcha amallar jurnalga ("Nasiya").
 - **Takrorlanishdan himoya (2026-10-03, audit):** to'lov formasi har to'lovga noyob identifikator (`client_uuid`) yuboradi. Javob yo'qolib tugma qayta bosilsa, to'lov ikki marta yozilmaydi — server avvalgi to'lovni qaytaradi. Shu identifikator bilan boshqa summa, to'lov turi yoki mijoz kelsa — 409.
+
+## Muddat taqsimoti (2026-10-04)
+Qarz qancha kechikkaniga qarab besh ko'rsatkichga bo'linadi — "Jami qarz" va "Muddati o'tgan" ikki katta karta o'rniga bitta ixcham qator:
+
+| Ko'rsatkich | Qoida (kun = bugun − qarz muddati `due_date`, biznes vaqt mintaqasida) |
+|---|---|
+| **Jami** | barcha yopilmagan qarzlarning qolgani |
+| **Muddati kelmagan** | muddat bugun yoki keyin (kun ≤ 0) |
+| **1–30 kun** | muddatidan 1–30 kun o'tgan (30-kun shu yerda) |
+| **31–60 kun** | 31–60 kun o'tgan (31-kun va 60-kun shu yerda) |
+| **60+ kun** | 61 kun va undan ko'p — qizil rangda |
+
+- Summa qarzning **qolgani** bo'yicha (to'langan, qaytarilgan, hisobdan chiqarilgani ayirilgan); bekor qilingan sotuv qarzi kirmaydi.
+- Qayerda: Nasiya sahifasi (beshta kartochka: Jami — katta son va ostida oraliqlar ulushi bitta chiziqda; har oraliq — summa, ulush chizig'i va foizi + mijozlar ro'yxati filtri: Barchasi · Qarzdorlar · Muddati o'tganlar; oraliq (Muddati kelmagan · 1–30 · 31–60 · 60+ kun) paneldagi ko'rsatkich bosilganda tanlanadi — mijozning shu oraliqda qarzi bo'lsa chiqadi, yana bosilsa filtr olinadi; "Jami" — Qarzdorlar; Nasiya hisobotida ko'rsatkich Nasiya sahifasini shu filtr bilan ochadi), bosh sahifadagi nasiya kartasi (qisqa), Nasiya hisoboti (do'kon filtri bilan).
+- Bitta yig'ma so'rov bilan hisoblanadi. API: `GET /api/customers` javobida `aging`, `only=not_due|d1_30|d31_60|d60_plus`; `GET /api/reports/dashboard` da `debt_aging`; `GET /api/reports/credit` da `aging`.
 
 ## Ruxsatlar
 | Amal | Biznes egasi | Omborchi | Sotuvchi |

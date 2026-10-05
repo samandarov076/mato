@@ -1,0 +1,2 @@
+# Har kuni 03:00 (konteyner vaqti — TZ=Asia/Tashkent). Natija /backups/backup.log va /backups/last-status da.
+0 3 * * * /backup.sh >> /backups/backup.log 2>&1

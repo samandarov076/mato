@@ -90,7 +90,9 @@ export type BatchCard = {
   cost_per_m: number | null;
   places: BatchPlace[];
   in_transit: { transfer_id: number; number: string; source: Ref; target: Ref; sent_m: string }[];
+  /** Birinchi sahifa (eng yangilari); `movements_total` — jami, qolgani `/batches/{id}/movements` dan */
   movements: Movement[];
+  movements_total?: number;
 };
 
 // ---------- Ko'chirish ----------

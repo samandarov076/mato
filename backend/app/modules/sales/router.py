@@ -4,11 +4,13 @@ Biznes egalari va sotuvchilar uchun. Sotuvchi faqat o'z do'konida ishlaydi (quri
 tannarx va foyda faqat biznes egasiga qaytadi.
 """
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import AuthContext, require_roles
+from app.modules.reports.export import EXPORT_ROWS, download, local_time
+from app.modules.reports.labels import labels
 from app.modules.sales import service
 from app.modules.sales.schemas import (
     CancelIn,
@@ -60,6 +62,7 @@ async def list_sales(
     status: SaleStatus | None = None,
     customer_id: int | None = None,
     search: str | None = None,
+    sort: Literal["time", "-time", "amount", "-amount"] = "-time",
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> SalePage:
@@ -74,9 +77,59 @@ async def list_sales(
         status=status,
         customer_id=customer_id,
         search=search,
+        sort=sort,
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/export")
+async def export_sales(
+    ctx: SalesAuth,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    store_id: int | None = None,
+    seller_id: int | None = None,
+    mine: bool = False,
+    payment_type: PaymentType | None = None,
+    status: SaleStatus | None = None,
+    customer_id: int | None = None,
+    search: str | None = None,
+    sort: Literal["time", "-time", "amount", "-amount"] = "-time",
+) -> Response:
+    """Sotuvlar ro'yxati Excel faylida — ro'yxatdagi filtrlar bilan. Tannarx va foyda chiqmaydi
+    (sotuvchi ham yuklaydi — faqat o'z do'koni sotuvlari)."""
+    t = labels(ctx.user.language)
+    page = await service.list_sales(
+        ctx,
+        date_from=date_from,
+        date_to=date_to,
+        store_id=store_id,
+        seller_id=seller_id,
+        mine=mine,
+        payment_type=payment_type,
+        status=status,
+        customer_id=customer_id,
+        search=search,
+        sort=sort,
+        limit=EXPORT_ROWS,
+    )
+    keys = ("number", "time", "store", "seller", "customer", "payment_type", "amount", "returned", "status")
+    rows = [
+        [
+            row.number,
+            local_time(row.created_at, ctx.business.timezone),
+            row.store.name,
+            row.seller.name,
+            row.customer.name if row.customer else "",
+            t[f"pay_{row.payment_type}"],
+            row.total,
+            row.returned_total,
+            t[f"status_{row.status}"],
+        ]
+        for row in page.items
+    ]
+    return download("sotuvlar", [(t["sales_list"], [t[key] for key in keys], rows)])
 
 
 @router.get("/{sale_id}")

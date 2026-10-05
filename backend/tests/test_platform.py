@@ -8,6 +8,8 @@ from app.core.config import get_settings
 from app.core.db import system_session
 from app.core.models import AuditLog
 from app.core.security import hash_password
+from app.core.vault import seal, unseal
+from app.modules.auth.models import User
 from tests.conftest import PASSWORD, random_phone
 
 
@@ -31,7 +33,7 @@ def new_platform_owner(new_user):
             role="platform_owner",
             phone=phone,
             password_hash=hash_password(PASSWORD),
-            totp_secret=secret,
+            totp_secret=seal(secret) if secret else None,
         )
         return phone, secret
 
@@ -117,6 +119,29 @@ async def test_owner_turns_two_factor_on_and_off_in_the_profile(client, new_plat
     assert "two_factor" not in (await _login(client, phone)).json()
     status = await client.get("/api/platform/2fa", headers=headers)
     assert status.json() == {"enabled": False, "recovery_left": 0, "required": False}
+
+
+async def test_authenticator_secret_is_stored_encrypted(client, new_platform_owner):
+    """Tasdiqlash ilovasi kaliti bazada ochiq turmaydi (CREDENTIALS_KEY bilan shifrlangan)."""
+    phone, _ = await new_platform_owner(with_2fa=False)
+    headers = _bearer(await _login(client, phone))
+    secret = (await client.post("/api/platform/2fa/setup", headers=headers)).json()["secret"]
+    enabled = await client.post(
+        "/api/platform/2fa/enable", json={"code": pyotp.TOTP(secret).now()}, headers=headers
+    )
+    assert enabled.status_code == 200
+
+    async with system_session() as s:
+        stored = await s.scalar(select(User.totp_secret).where(User.phone == phone))
+    assert stored != secret
+    assert unseal(stored) == secret
+    # Shifrlangan kalit bilan kirish ishlaydi
+    challenge = (await _login(client, phone)).json()["challenge_token"]
+    verified = await client.post(
+        "/api/auth/2fa/verify",
+        json={"challenge_token": challenge, "code": pyotp.TOTP(secret).now()},
+    )
+    assert verified.status_code == 200
 
 
 async def test_required_two_factor_cannot_be_turned_off(client, new_platform_owner, required_2fa):

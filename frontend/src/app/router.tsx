@@ -84,6 +84,15 @@ function GuestOnly() {
   );
 }
 
+/**
+ * Ruxsati yo'q sahifa ochilganda — rolning bosh sahifasiga, manzil bilan birga. Omborchining bosh sahifasi
+ * "/stock": "/" orqali ikki bosqichli yo'naltirishda manzil eski sahifada qolib ketardi.
+ */
+function GoHome() {
+  const { user } = useAuth();
+  return <Navigate to={user?.role === "warehouse" ? "/stock" : "/"} replace />;
+}
+
 function Home() {
   const { user } = useAuth();
   if (user?.role === "seller") return <SalePage />; // sotuvchining bosh sahifasi — sotuv ekrani
@@ -95,13 +104,13 @@ function Home() {
 /** Platforma paneli sahifalari — faqat platforma egasi uchun. */
 function PlatformOnly({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  return user?.role === "platform_owner" ? children : <Navigate to="/" replace />;
+  return user?.role === "platform_owner" ? children : <GoHome />;
 }
 
 /** Faqat biznes egalari ko'radigan sahifalar. (Asosiy himoya serverda — bu faqat interfeys uchun.) */
 function OwnerOnly({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  return user?.role === "owner" ? children : <Navigate to="/" replace />;
+  return user?.role === "owner" ? children : <GoHome />;
 }
 
 /**
@@ -111,13 +120,13 @@ function OwnerOnly({ children }: { children: ReactNode }) {
 function NotForSeller({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const allowed = user?.role === "owner" || user?.role === "warehouse";
-  return allowed ? children : <Navigate to="/" replace />;
+  return allowed ? children : <GoHome />;
 }
 
 /** Biznes xodimlari (ega, omborchi, sotuvchi) uchun sahifalar — platforma egasi biznes ichiga kirmaydi. */
 function StaffOnly({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  return user && user.role !== "platform_owner" ? children : <Navigate to="/" replace />;
+  return user && user.role !== "platform_owner" ? children : <GoHome />;
 }
 
 const staff = (page: ReactNode) => <StaffOnly>{page}</StaffOnly>;
@@ -126,7 +135,7 @@ const staff = (page: ReactNode) => <StaffOnly>{page}</StaffOnly>;
 function SalesStaff({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const allowed = user?.role === "owner" || user?.role === "seller";
-  return allowed ? children : <Navigate to="/" replace />;
+  return allowed ? children : <GoHome />;
 }
 
 /** Marshrutlar. Har modul o'z sahifalarini `Protected` ichiga qo'shadi. */

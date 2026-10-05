@@ -236,6 +236,50 @@ describe("Mijozlar ro'yxati", () => {
     expect(api).toHaveBeenLastCalledWith(expect.stringContaining("only=overdue"));
   });
 
+  it("muddat taqsimoti: besh ko'rsatkich bitta qatorda, 60+ qizil; '60+ kun' filtri serverga boradi", async () => {
+    api.mockReset();
+    api.mockResolvedValue({
+      ...list,
+      aging: { total: 390_000, not_due: 90_000, d1_30: 0, d31_60: 250_000, d60_plus: 50_000 },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+          <CustomersPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const row = await screen.findByLabelText("Muddat taqsimoti");
+    const text = (label: string) =>
+      within(row).getByText(label).nextElementSibling?.textContent?.replace(/\s+/g, " ").trim();
+    expect(text("Jami")).toBe("390 000 so'm");
+    expect(text("Muddati kelmagan")).toBe("90 000 so'm");
+    expect(text("1–30 kun")).toBe("0 so'm");
+    expect(text("31–60 kun")).toBe("250 000 so'm");
+    expect(text("60+ kun")).toBe("50 000 so'm");
+    expect(within(row).getByText("60+ kun").nextElementSibling).toHaveClass("text-madder");
+    expect(within(row).getByText("31–60 kun").nextElementSibling).not.toHaveClass("text-madder");
+
+    // Oraliqning o'zi bosiladi: ro'yxat shu oraliq bo'yicha filtrlanadi; yana bosilsa — filtr olinadi
+    const bucket = (name: RegExp) => within(row).getByRole("button", { name });
+    expect(screen.queryByRole("radio", { name: "60+ kun" })).not.toBeInTheDocument();
+    await userEvent.click(bucket(/60\+ kun/));
+    expect(api).toHaveBeenLastCalledWith(expect.stringContaining("only=d60_plus"));
+    expect(bucket(/60\+ kun/)).toHaveAttribute("aria-pressed", "true");
+    // Oraliq tanlanganda pastdagi filtr qatorida hech biri belgilanmaydi ("Barchasi" ham)
+    expect(screen.getByRole("radio", { name: "Barchasi" })).not.toBeChecked();
+    expect(bucket(/31–60 kun/)).toHaveTextContent("64%");
+    await userEvent.click(bucket(/Muddati kelmagan/));
+    expect(api).toHaveBeenLastCalledWith(expect.stringContaining("only=not_due"));
+    expect(bucket(/Muddati kelmagan/)).toHaveAttribute("aria-pressed", "true");
+    expect(bucket(/60\+ kun/)).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(bucket(/Jami/));
+    expect(api).toHaveBeenLastCalledWith(expect.stringContaining("only=debtors"));
+    await userEvent.click(bucket(/Jami/));
+    expect(api).toHaveBeenLastCalledWith(expect.not.stringContaining("only="));
+  });
+
   it("planshet va kompyuterda — jadval; ustun sarlavhasi bosilsa shu bo'yicha saralanadi", async () => {
     setScreenWidth(1280);
     api.mockReset();
@@ -270,6 +314,25 @@ describe("Mijozlar ro'yxati", () => {
     expect(api).toHaveBeenLastCalledWith(expect.stringContaining("sort=debt"));
     expect((await screen.findByRole("columnheader", { name: "Qarz" }))).toHaveAttribute("aria-sort", "descending");
     setScreenWidth(null);
+  });
+
+  it("to'lovlar tarixi sahifalanadi: 'Yana ko'rsatish' keyingilarini qo'shadi", async () => {
+    const older = {
+      id: 4, created_at: "2026-09-10T06:00:00Z", amount: 77_000, method: "cash" as const, user: "Nodira Sotuvchi",
+      store: "Chorsu do'koni", allocations: [{ sale_id: 1, sale_number: "S-000001", amount: 77_000 }],
+    };
+    renderCard({ ...customer, payments_total: 2, writeoffs_total: 0 });
+    api.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/payments?") ? { items: [older], total: 2 } : { ...customer, payments_total: 2 }),
+    );
+    await screen.findByText("S-000001: 100 000");
+    expect(screen.queryByText("S-000001: 77 000")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Yana ko'rsatish" }));
+
+    expect(await screen.findByText("S-000001: 77 000")).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/customers/7/payments?limit=20&offset=1");
+    expect(screen.queryByRole("button", { name: "Yana ko'rsatish" })).toBeNull(); // hammasi yuklandi
   });
 
   it("mijoz kartochkasida to'lovlar tarixi — keng ekranda ixcham jadval", async () => {

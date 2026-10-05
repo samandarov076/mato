@@ -133,9 +133,16 @@ npm run lint         # ESLint
 npm run build        # tur tekshiruvi + yig'ish
 ```
 
-## Bazaga ulanish — ikki rol
+## Bazaga ulanish — uch rol
 
 | Rol | `.env` kaliti | Nima uchun |
 |-----|---------------|------------|
 | `mato_app` | `DATABASE_URL` | Biznes ichidagi barcha so'rovlar. Row-Level Security ta'sir qiladi: faqat joriy biznes qatorlari ko'rinadi. Kodda `tenant_session(business_id)`. |
-| `mato` (jadvallar egasi) | `DATABASE_OWNER_URL` | Migratsiyalar; kirishda foydalanuvchini topish (biznes hali noma'lum); platforma paneli. Kodda `system_session()`. |
+| `mato_system` | `DATABASE_SYSTEM_URL` | RLS'dan tashqari, lekin DDL va biznes ma'lumotini o'chirish huquqi yo'q: kirishda foydalanuvchini topish (biznes hali noma'lum), platforma paneli, fon vazifalari. Kodda `system_session()`. 15-migratsiya yaratadi. |
+| `mato` (jadvallar egasi) | `DATABASE_OWNER_URL` | Faqat migratsiyalar (`alembic`). |
+
+## Ishga tushirish (ishlab chiqarish)
+
+Bitta VPS, Docker Compose, Caddy (HTTPS avtomatik), kunlik shifrlangan zaxira — to'liq yo'riqnoma, `.env.prod`
+maydonlari, tiklash va avariya holatlari: `docs/07-ishga-tushirish.md`. Qisqacha: `cp .env.prod.example .env.prod`,
+to'ldiring, `./deploy.sh`, so'ng `python -m app.manage create-platform-owner` (backend konteynerida).

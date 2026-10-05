@@ -2,7 +2,7 @@
 
 **Loyiha:** mato-savdo — mato sotuvchilar uchun SaaS (sklad, sotuv, nasiya, analitika)
 **Hujjatlar tili:** o'zbekcha
-**Oxirgi yangilanish:** 2026-10-03
+**Oxirgi yangilanish:** 2026-10-04
 
 ## Bosqichlar
 | # | Bosqich | Holat |
@@ -17,7 +17,7 @@
 Bosqich 5.2 · **barcha modullar (00–10) yozildi.** Qolgan ishlar:
 1. **10-telegram jonli sinovi** — bot tokeni kerak (@BotFather → `.env` ga `TELEGRAM_BOT_TOKEN`); kod soxta Telegram bilan test qilingan.
 2. **Git** — foydalanuvchi aytganda (`git init`, birinchi commit).
-3. **Ishga tushirish (hosting)** — server, HTTPS, fon ishchisi xizmat sifatida, zaxira nusxa, doimiy rasm ombori; "Texnik qarz" ro'yxatidagi ishga tushirishdan oldingi bandlar.
+3. **Ishga tushirish (hosting)** — ishga tushirish qatlami tayyor (`docs/07-ishga-tushirish.md`: Compose, Caddy, zaxira, boshqaruv buyruqlari, xavfsizlik; lokal mashq o'tkazildi). Qolgani: VPS, domen, `.env.prod`, age kaliti, rclone ombori, haqiqiy serverda yo'riqnoma bo'yicha o'tish va tiklashni sinash.
 4. **Pilot** — `docs/biznesdan-savollar.md` dagi ochiq savollar.
 
 Har modulning tafsiloti o'z papkasida: `modules/<NN-modul>/README.md`.
@@ -200,26 +200,50 @@ Har modulning tafsiloti o'z papkasida: `modules/<NN-modul>/README.md`.
 - 2026-10-03 Xodimlar qatori: "Tahrirlash" + "⋯" menyu (`shared/ui/Menu.tsx`: PIN/parolni ko'rish, almashtirish, faolsizlantirish; strelkalar, Esc, fokus qaytishi). Faolsiz xodimda "Qayta faollashtirish" tugma bo'lib qoldi.
 - 2026-10-03 Sotuvchi pastki menyusi: telefonda qisqa nomlar ("Sotuvlarim", "Ko'chirish", "Yopish"), planshetdan boshlab to'liq — bandlarni birlashtirishdan soddaroq (sahifalar joyida qoladi). Sotuvchi qobig'i endi to'liq endan foydalanadi (1760px chegara; avval 768px ustun edi).
 - 2026-10-03 Mayda: SKU'da "standart" o'rniga biznes standartining o'zi kulrang ("700 m", izohi "Biznes standarti" — faqat egaga, sozlamalar unga ochiq); grafikda Y o'qi (eng katta, yarmi, 0) va ustunlar tekis taqsimlangan; sahifa tushuntirishlari yopiladi (`shared/ui/Hint.tsx`, `mato.hint.<id>`).
+- 2026-10-03 Kirim jadvali 1280px da: ustun enlari `<colgroup>` bilan qat'iy (tanlovlar biroz tor, "Tannarx" va "Tavsiya narx" kengroq), sarlavhalar o'ralmaydi (`ReceiptCreatePage.tsx`, commit 9224e44). Sotuv kartochka to'rida uzun nomga `title`.
+
+- 2026-10-04 **Ko'rsatish xatosi tuzatildi:** `formatDecimal` manfiy kasr sonda minusni yo'qotardi (`"-0.13"` → "0.13": butun qismi `-0` matnda "0" bo'ladi) — partiya tarixi, manfiy qoldiq va farqlar musbat ko'rinardi. Belgi endi butun qismdan alohida saqlanadi; regression test bor.
+- 2026-10-04 Tarixlar sahifalanadi (jimgina qirqilmaydi): mijoz kartochkasida to'lovlar va hisobdan chiqarishlar 20 tadan (`/customers/{id}/payments`, `/writeoffs`), partiya tarixi 30 tadan + tur filtri Barchasi · Sotuvlar · Ko'chirishlar · Boshqa (`/batches/{id}/movements?kind=`). Frontend: `shared/useMore.ts`.
+- 2026-10-04 **Nasiya muddat taqsimoti:** Jami · Muddati kelmagan · 1–30 · 31–60 · 60+ kun (kun = bugun − `due_date`; 30-kun "1–30"da, 31- va 60-kun "31–60"da, 61+ — "60+", qizil). Bitta yig'ma so'rov (`credit.debt_summary`); Nasiya sahifasi (ko'rsatkichlar + filtr), bosh sahifa kartasi (qisqa), Nasiya hisoboti. Atamalar `docs/atamalar.md` da.
+- 2026-10-04 Excel eksport beshta ro'yxatga: sotuvlar, mijozlar, qoldiq (matritsa), metr farqi (2 varaq), jurnal — joriy filtr va tartib bilan, 5 000 qatorgacha. Sotuvlar / mijozlar / qoldiq fayllarida tannarx, foyda, qiymat yo'q (sotuvchi va omborchi ham yuklaydi — test va qo'lda tekshirildi); metr farqi va jurnal — faqat ega. Ustunlar: `docs/03-details/08-hisobotlar.md`. Jurnal faylida hodisa matni emas, kodi va ma'lumoti.
+- 2026-10-04 Saralash jadval sarlavhasidan (server tomonda): sotuvlar — vaqt, summa; qoldiq — jami; ko'chirishlar — sana. Har ustunga alohida qiymat-filtri qilinmaydi (qaror: saralash + mavjud filtrlar + Excel yetarli).
+- 2026-10-04 Sotuv ekrani: mato / rang / gul 10 tadan ko'p bo'lsa — chiplar o'rniga qidiruvli tanlov (combobox: yozib qidirish, ↑ ↓, Enter, Esc); takror yozilgan sotuvda izoh ("avval yozilgan edi"). Yuborish mantig'iga tegilmadi.
+- 2026-10-04 Mayda: omborchining "Partiyani yopish" ro'yxatida joy nomi; qoldiq matritsasida tovar ustuni yopishqoq, bitta partiya — to'g'ridan-to'g'ri havola; mijozlar jadvalida oxirgi to'lov summasi; xabarlarda tur filtri (`?kind=`); jurnalda uzun tafsilot bir qatorga qisqaradi; ruxsatsiz sahifada manzil ham rolning bosh sahifasiga o'zgaradi (`GoHome`).
+- 2026-10-04 Ko'rinish (foydalanuvchi fikri: "AI qilgani bilinib qolgan", "o'qish qiyin"): nasiya muddat taqsimoti — rangli chegarali kartochkalar o'rniga `Stat` uslubidagi beshta oddiy kartochka (katta son, ostida ulush chizig'i va foizi; Jami'da oraliqlar bitta chiziqda), kartochka bosilsa mijozlar ro'yxati filtrlanadi (`only=not_due` qo'shildi; filtr almashganda avvalgi javob turadi); sotuv kartochkasida ma'lumot va to'lov — belgili maydonlar o'rniga nom–qiymat jadvali (`InfoTable`/`InfoRow`), keng ekranda yonma-yon. Texnik qarz: `Fact` boshqa kartochkalarda (partiya, kirim, ko'chirish) hali eski ko'rinishda.
+
+- 2026-10-04 **Ishga tushirish va xavfsizlik (Vazifa 4).** Hujjat: `docs/07-ishga-tushirish.md` (arxitektura, noldan serverga, `.env.prod` jadvali, deploy, zaxira/tiklash, avariya holatlari, Telegram sinov ro'yxati, serverga chiqishdan oldingi ro'yxat, mashq natijalari). Infra: `docker-compose.prod.yml` (db, redis, backend ×2 ishchi root emas, worker, caddy, backup; healthcheck, `restart`, jurnal rotatsiyasi, loyiha nomi `mato-prod`), `backend/Dockerfile` ko'p bosqichli (uid 1000), `deploy/Caddyfile` (HTTPS avtomatik, SSE `flush_interval -1`, xavfsizlik sarlavhalari, CSP `script-src 'self'` — `index.html` inline skripti `public/theme.js` ga chiqdi, 10 MB tana), `deploy/caddy.Dockerfile` (frontend build), `.env.prod.example`, `deploy.sh` (pull → build → migratsiya → up → health). Zaxira: `deploy/backup/` (cron 03:00, `pg_dump` + rollar + media → `age` → `rclone`, 7 kun/4 hafta, `last-status`, xato → Telegram `PLATFORM_ALERT_CHAT_ID`), `restore.sh` (`restore` profili). Boshqaruv: `python -m app.manage create-platform-owner` (vaqtinchalik parol; platforma egasi `/auth/me/password` orqali almashtiradi — `AnyAuth`; almashtirmaguncha panel yopiq). Xavfsizlik: `users.totp_secret` shifrlangan (14-migratsiya, `vault.seal`); `mato_system` roli (15-migratsiya: BYPASSRLS, superuser emas, DDL yo'q, DELETE faqat sessions/notifications/recovery_codes, `audit_logs`/`stock_movements` ga UPDATE yo'q) — `DATABASE_SYSTEM_URL`, egasi faqat migratsiyada; IP bo'yicha cheklov (login, do'kon logini, PIN: 15 daqiqada 30 xato → 15 daqiqa, Caddy ortida haqiqiy IP); worker: `reconcile_stock` (02:30, farq → platforma egasiga Telegram/ERROR), `purge_expired_sessions` (haftalik), `purge_read_notifications` (90 kun). Tekshiruvlar: pytest 343, vitest 187, tsc/eslint 0, build OK, pip-audit toza, npm audit — react-router 6.x (faqat 7.x da tuzatiladi, alohida ish). Lokal prod mashqi: build, migratsiya, 6 xizmat healthy, kirish/2FA/parol, sotuv, SSE ~100 ms, rasm, Excel, PWA taklifi, zaxira + tiklash — hammasi o'tdi (tafsilot hujjatning 11-bo'limida).
+
+- 2026-10-04 **Do'kon qurilmasidagi ega sessiyasi (Vazifa 5).** Ega o'z biznesining do'kon planshetida parol bilan kirsa (`POST /auth/login` qurilma cookie'sini o'qiydi), sessiya `device_id` bilan ochiladi: muddati `device_idle_limit` (avto-qulf + 30 daq), qurilma uzilsa darhol tugaydi, jurnalda do'kon bilan. Begona biznes qurilmasida — avvalgidek shaxsiy sessiya. Frontend: avto-qulf umumiy hook'ka chiqdi (`shared/useAutoLock.ts`, `enabled` bilan), `AppShell` uni faqat ega o'z qurilmasida bo'lganda ishlatadi (qulf = chiqish → PIN ekrani); "qurilma bog'langan" eslatmasi ham faqat shu holatda; eganing "Yangi sotuv"ida qurilma do'koni oldindan tanlanadi. Qoida: `docs/03-details/02-tuzilma.md`, chekka holatlar. Yon ta'sir: shu sessiyada ega qabul qilgan qarz to'lovi qurilma do'koniga yoziladi (sotuvchidagidek). Sotuv yuborish mantig'iga tegilmadi. Brauzerda: chorsu plansheti, avto-qulf 1 daqiqa → 78 soniyada PIN ekrani.
+- 2026-10-04 Holat ranglari (foydalanuvchi fikri): **bekor qilingan** sotuv / ko'chirish / kirim yorlig'i va kartochka belgisi kulrang emas, qizil (madder); faolsiz — kulrangligicha. Qoida `docs/06-dizayn-va-sezgi.md` da ("Holat ranglari").
+
+- 2026-10-05 "Bu qurilma bog'langan" eslatmasi (sariq banner) ega panelidan butunlay olib tashlandi (foydalanuvchi qarori): PIN ekraniga qaytish — "Chiqish" yoki avto-qulf, qurilmani uzish — Tuzilma → Qurilmalar. `shell.device_bound` / `shell.unbind` matnlari uch tildan o'chirildi; qoida `docs/03-details/02-tuzilma.md` da. Avto-qulf va qurilmaga bog'langan ega sessiyasi o'zgarmadi.
+
+- 2026-10-05 Xodimlar sahifasi: parol / PIN'ni ko'rish tugmasi "⋯" menyusidan qatorga, "Tahrirlash" yoniga qaytarildi (foydalanuvchi qarori — bir bosishda ko'rinsin); menyuda yangilash va faolsizlantirish qoldi. Istisno `docs/06-dizayn-va-sezgi.md` da yozilgan.
+
+- 2026-10-05 **Sotuv ekrani sotuvchi uchun (foydalanuvchi talabi).** Qidiruv (`sales/search.ts`): yozilishi bilan tovarlar to'ri torayadi (alohida 8 qatorli ro'yxat o'rniga); kirill yozuvi (`шифон оқ`), chiziqchasiz kod (`m10103`), nolsiz partiya (`p12`), bitta harf xatosi (4+ harfli so'zda, faqat nomlarda), `x`=`h`, `q`=`k`; tartib aniqlik bo'yicha, tengida qoldig'i bori oldin; ↓ ↑ + Enter. Rasm: `skuImage` — gul → rang → **mato** (mato rasmi endi SKU javobida: `FabricRef.image_url`), to'rda, tanlangan tovarda (katta, 144px) va savatda; tanlangan tovar yonida tarkibi (mato, rang, gul) o'z rasmi bilan. Ko'rinish: tovar tanlanmaganda butun en (to'r 3–4 ustun, katakchada narx), tanlangach forma o'rtada tor. Qoida `docs/03-details/06-sotuv.md`. Sotuv yuborish mantig'iga tegilmadi.
+
+- 2026-10-05 Sotuv ekrani (davomi): to'r katakchasida rang nuqtasi (rasm gul / matoniki bo'lsa); yopilgan partiya sotuv ekranida chiqmasligi testga olindi (`test_closed_batch_disappears_from_the_sale_screen` — xatti-harakat avvaldan shunday edi). Lokal demo biznesga namuna ma'lumot qo'shildi (12 mato, 6 rang, 4 gul — chizilgan namuna rasmlar bilan; 72 partiya, Chorsu do'konida 62 tovar) — faqat dev bazada, kodga kirmaydi.
+
+- 2026-10-05 Sotuv ekrani: mato → rang → gul — **ketma-ket, bir-biriga bog'liq** (foydalanuvchi qarori; shu kuni sinab ko'rilgan "uchta mustaqil filtr" rad etildi). Rang mato tanlangach, gul rang tanlangach chiqadi (qoldig'i va rasmi bilan); × tanlovni va undan keyingi qadamlarni oladi; rangda bitta tovar bo'lsa o'zi tanlanadi. Keng ekranda mato va rang yonma-yon. Qoida `docs/03-details/06-sotuv.md`.
+
+- 2026-10-05 Sotuv ekrani: tanlangan tovar tarkibida gul doim ko'rinadi — gulsiz tovarda ham "Gul: Gulsiz" (rang bosilganda tovar o'zi tanlansa, guli noma'lum qolardi).
 
 ## Texnik qarz
-- Tasdiqlash ilovasi kaliti (`users.totp_secret`) bazada shifrlanmagan — ishga tushirishdan oldin shifrlash kerak.
-- **Ko'rinadigan parollar xavfi:** `CREDENTIALS_KEY` zaxirasi bazadan alohida saqlansin (kalitning o'zi endi serverda majburiy — usiz ilova ishga tushmaydi). Baza bilan kalit birga o'g'irlansa, barcha xodimlarning parollari ochiladi — zaxira nusxalarni ham shunga qarab himoyalash kerak.
-- Haqiqiy platforma egasini yaratadigan buyruq yo'q (hozir faqat `seed_dev.py`) — ishga tushirish bosqichida.
+- Sotuv ekrani: SKU'ning o'z rasmi yo'q (aynan "shifon + oq + lola" kombinatsiyasi surati) — rasm gul / rang / matodan olinadi; kerak bo'lsa `skus.image_url` ustuni va katalogda yuklash (sxema o'zgarishi — tasdiq bilan). To'rda rasmning 96px varianti ishlatiladi (o'rta o'lcham yo'q). Qidiruv rang nomini boshqa tilda ("красный", "red") tushunmaydi — faqat katalogdagi nom, kirill/lotin yozuvida.
+- Ega planshetda: avto-qulf va qurilmaga bog'langan sessiya faqat ega roliga (omborchi o'sha planshetda parol bilan kirsa — oddiy 30 kunlik sessiya); do'kon standart tanlovi faqat sahifa ochilganda qo'yiladi.
+- Ishga tushirishdan qolganlar (2026-10-04): `npm audit` — `react-router` 6.x ochiq yo'naltirish ogohlantirishi faqat 7.x da tuzatiladi (katta versiya, alohida ish); dev bog'liqliklar (vite 5, vitest 2, tailwind 3) ham katta versiya kutmoqda. Zaxira "jurnali" — `/backups/backup.log` va `last-status` (platforma panelida "Oxirgi zaxira" ko'rsatkichi yo'q). `PLATFORM_ALERT_CHAT_ID` qo'lda olinadi (bot platforma egasini o'zi tanimaydi). Zaxira tiklash haqiqiy serverda hali sinalmagan (lokalda sinaldi). `backup`/`restore` skriptlari uchun avtomatik test yo'q (qo'lda mashq).
+- **Ko'rinadigan parollar xavfi:** `CREDENTIALS_KEY` zaxirasi bazadan alohida saqlansin (`.env.prod` parol menejerida, zaxira `age` bilan shifrlangan, yopiq kalit serverda yo'q — `docs/07`). Baza bilan kalit birga o'g'irlansa, barcha xodimlarning parollari ochiladi.
 - Bizneslar ro'yxati sahifalanmagan — bizneslar ko'payganda kerak bo'ladi.
-- Urinishlar cheklovi raqam bo'yicha: kimdir ataylab 10 marta xato terib, begona raqamni 15 daqiqaga to'xtatib qo'yishi mumkin. Pilotda muammo bo'lsa, IP manzilni ham hisobga olish kerak.
 - Xodimlar va joylar ro'yxati sahifalanmagan — bitta biznesda qatorlar kam, hozircha kerak emas.
-- Rasmlar lokal diskda; formada tanlab keyin bekor qilingan rasm fayli diskda qoladi (tozalash vazifasi yo'q) — hosting tanlanganda doimiy omborga ko'chiriladi.
+- Rasmlar `media` volume'da (zaxiraga kiradi); formada tanlab keyin bekor qilingan rasm fayli diskda qoladi (tozalash vazifasi yo'q). S3'ga o'tish sharti `docs/07`, 5-bo'lim.
 - Mato / rang / gul ro'yxatlari to'liq yuklanadi (SKU ro'yxati sahifalangan) — minglab qator bo'lsa sahifalash kerak.
 - "Kg bilan sotish" o'chiq bo'lsa, katalogdagi narx birligidan "kg" yashirilmaydi (sotuvda kg maydoni yashiriladi) — kerak bo'lsa katalogda ham.
 - Sotuv ekrani do'kondagi barcha ochiq partiyalarni bir so'rovda oladi — minglab partiyada qidiruvni serverga ko'chirish kerak.
 - Soxta qaytarishga qarshi faqat chegara + xabar + jurnal bor; kunlik limit yoki ega tasdig'i yo'q — pilotda kuzatiladi.
 - Kamera skaneri hozircha faqat sotuv ekranida (ko'chirish va partiyani yopishda — qo'l skaneri yoki qidiruv). Etiketka shtrix-kodi partiya raqamini saqlaydi (SKU emas).
-- Kechasi `batch_stock` ni `stock_movements` yig'indisi bilan solishtiradigan fon vazifasi yo'q (sxemada rejalashtirilgan) — navbat (arq) ishga tushirilganda.
 - Mavjud kirimga qator qo'shib bo'lmaydi (yangi kirim ochiladi); etiketka to'g'ridan-to'g'ri printerga emas, brauzer oynasi orqali.
-- Fon ishchisi (`arq app.worker.WorkerSettings`) lokalda qo'lda ishga tushiriladi; serverda alohida xizmat bo'lishi kerak — hosting sozlanganda (usiz Telegram ishlamaydi). Eski xabarlar tozalanmaydi.
-- Telegram haqiqiy bot bilan sinalmagan; bot faqat "/start" ni tushunadi; "zaxira nusxa olinmadi" xabari yo'q.
+- Telegram haqiqiy bot bilan sinalmagan; bot faqat "/start" ni tushunadi. Sinov ro'yxati `docs/07`, 8-bo'lim.
 - Hisobdan chiqarishga limit yoki ega tasdig'i yo'q (himoya: sabab + egaga xabar + jurnal); xato kiritilgan qarz to'lovini bekor qilish amali yo'q — pilotda kuzatiladi.
-- Qoldiq sahifasi 5+ joyli biznesda zich ko'rinadi; partiya tarixi oxirgi 200 harakat.
 - Hisobotlar asl jadvallardan hisoblanadi — hajm oshganda yig'ma jadval kerak bo'ladi; grafiklar oddiy (kutubxonasiz); PDF eksport yo'q.
 - Tebranish iOS Safari'da ishlamaydi (`navigator.vibrate` yo'q) — tovush bilan qoplanadi. Tovushlar sintez qilingan — "jonli" yozuvlar kerak bo'lsa `shared/feedback/audio.ts` dagi `SOUNDS` jadvali fayllarga almashtiriladi.
 - Birliklar (m / kg / so'm) matnlari tarjima faylida bir joyga yig'ilmagan (copy-4) — keyinroq.
@@ -235,9 +259,11 @@ Har modulning tafsiloti o'z papkasida: `modules/<NN-modul>/README.md`.
 - Telefonda mijozlar va ko'chirishlar filtridagi tanlov tugmalari (Segmented) 10–17 px yonga suriladi (avvaldan shunday; sahifa o'zi surilmaydi).
 - SKU ro'yxatida biznes standarti omborchiga ko'rinmaydi ("standart" so'zi qoladi) — sozlamalar API'si faqat egaga ochiq.
 - Jadval ko'rinishlari sahifa ochilganda kenglikka qarab tanlanadi (`matchMedia`): juda eski brauzerda doim telefon ko'rinishi.
+- Eksport bitta faylda 5 000 qator (qoldiqda 2 000 SKU) bilan cheklangan va so'rov ichida yasaladi (fonda emas) — hajm oshsa navbatga ko'chiriladi; chegaradan oshgani haqida faylda belgi yo'q.
+- Partiya tarixi filtri va `useMore` uchun frontend testi yo'q (backend testi va brauzerda tekshirilgan); jurnaldagi "Tafsilot" qisqartirish ham testsiz.
+- Xabarlar filtri guruhlari hodisa kodi boshiga qarab ajratiladi (`stock.`, `transfer.`, `debt.`) — yangi hodisa boshqa nom bilan qo'shilsa "Boshqa"ga tushadi.
 - Three.js ogohlantirishlari (`THREE.Clock`, `PCFSoftShadowMap` eskirgan) konsolda ko'rinadi — drei/R3F yangilanganda yo'qoladi; ishga ta'siri yo'q.
 - `RowAction` va `Button` `forwardRef` qilmaydi — tasdiq panelidan fokus qaytarish uchun 4 sahifada oddiy `<button className={actionClass()}>` ishlatilgan.
-- Ishlab chiqarishda `system_session` uchun jadval egasi emas, alohida cheklangan rol (BYPASSRLS, DDL'siz) ochish kerak — hosting tanlanganda.
 - Bog'lanishlar (FK) biznesni tekshirmaydi: boshqa biznes qatoriga havola qilishdan RLS emas, servis kodi himoya qiladi (qatorni avval `tenant_session` ichida o'qib). Har modulda test bilan tekshiriladi.
 
 ## Ochiq savollar

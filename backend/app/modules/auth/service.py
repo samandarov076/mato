@@ -104,9 +104,37 @@ def _access_token(user: User, session_id: int) -> str:
     )
 
 
-async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
+async def _own_store_device(db: AsyncSession, user: User, token: str | None) -> tuple[Device, Location] | None:
+    """Kirish shu eganing O'Z biznesiga bog'langan do'kon qurilmasida bo'lyaptimi (qurilma cookie'si bo'yicha).
+
+    Begona biznes qurilmasi, uzilgan qurilma yoki faolsiz do'kon — None: ega uchun bu oddiy brauzer.
+    """
+    if not token or user.role != "owner":
+        return None
+    row = (
+        await db.execute(
+            select(Device, Location)
+            .join(Location, Location.id == Device.store_id)
+            .where(
+                Device.token_hash == hash_token(token),
+                Device.revoked_at.is_(None),
+                Device.business_id == user.business_id,
+                Location.is_active,
+            )
+        )
+    ).first()
+    return (row[0], row[1]) if row else None
+
+
+async def login(
+    phone: str, password: str, ip: str | None = None, device_token: str | None = None
+) -> Issued | TwoFactorChallenge:
+    """`device_token` — brauzerdagi do'kon qurilmasi cookie'si: ega o'z do'konining planshetida kirsa, sessiya
+    qurilmaga bog'lanadi (qisqa, avto-qulfli, qurilma uzilsa tugaydi — docs/03-details/02-tuzilma.md)."""
     normalized = normalize_phone(phone)
-    # Cheklov raqam bo'yicha: bitta raqamga 15 daqiqada 10 ta xato → vaqtincha to'xtatiladi
+    # Cheklov IP bo'yicha (barcha kirish yo'llari uchun umumiy) va raqam bo'yicha:
+    # bitta raqamga 15 daqiqada 10 ta xato → vaqtincha to'xtatiladi
+    await ratelimit.reject_if_ip_blocked(ip)
     subject = normalized or phone.strip()
     wait = await ratelimit.blocked_for(ratelimit.LOGIN, subject)
     if wait:
@@ -129,6 +157,7 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
 
         if user is None or not password_ok:
             locked = await ratelimit.record_failure(ratelimit.LOGIN, subject)
+            locked = await ratelimit.record_ip_failure(ip) or locked
             if user is not None and user.business_id is not None:
                 log_event(
                     db,
@@ -138,9 +167,7 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
                     event_code="login.locked" if locked else "login.failed",
                 )
             if locked:
-                error = AppError(
-                    429, "too_many_attempts", retry_after=ratelimit.LOGIN.block_seconds
-                )
+                error = AppError(429, "too_many_attempts", retry_after=locked)
             else:
                 # Telefonmi yoki parol xato — aytilmaydi
                 error = AppError(401, "invalid_credentials")
@@ -162,21 +189,28 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
                 error = AppError(403, "business_blocked")
             else:
                 await ratelimit.clear(ratelimit.LOGIN, subject)
-                lifetime = _personal_lifetime()
+                # Ega o'z do'konining planshetida: sessiya sotuvchinikidek qurilmaga bog'lanadi va qisqa bo'ladi
+                on_device = await _own_store_device(db, user, device_token)
+                device, store = on_device if on_device else (None, None)
+                lifetime = device_idle_limit(business) if device else _personal_lifetime()
                 refresh_token, refresh_hash = new_token()
                 row = UserSession(
                     business_id=user.business_id,
                     user_id=user.id,
+                    device_id=device.id if device else None,
                     refresh_token_hash=refresh_hash,
                     expires_at=_now() + lifetime,
                 )
                 db.add(row)
                 await db.flush()
                 business.last_activity_at = _now()
+                if device:
+                    device.last_seen_at = _now()
                 log_event(
                     db,
                     business_id=user.business_id,
                     user_id=user.id,
+                    location_id=store.id if store else None,
                     category="login",
                     event_code="login.success",
                 )
@@ -186,6 +220,7 @@ async def login(phone: str, password: str) -> Issued | TwoFactorChallenge:
                     access_token=_access_token(user, row.id),
                     refresh_token=refresh_token,
                     refresh_max_age=int(lifetime.total_seconds()),
+                    store=store,
                 )
 
     if error is not None:
@@ -332,10 +367,11 @@ async def change_password(
         )
         .values(revoked_at=_now())
     )
-    log_event(
-        db,
-        business_id=user.business_id,
-        user_id=user.id,
-        category="login",
-        event_code="password.changed",
-    )
+    if user.business_id is not None:  # jurnal biznes bo'yicha; platforma egasida biznes yo'q
+        log_event(
+            db,
+            business_id=user.business_id,
+            user_id=user.id,
+            category="login",
+            event_code="password.changed",
+        )

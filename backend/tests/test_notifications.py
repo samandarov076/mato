@@ -306,3 +306,25 @@ async def test_no_signal_if_the_action_was_rolled_back(shop):
     chunks = [chunk async for chunk in events]
     assert chunks and set(chunks) == {": ping\n\n"}  # faqat "tirikman" belgisi — signal yo'q
     assert await _events(s) == []
+
+
+async def test_inbox_filters_by_kind(shop, new_user):
+    """Xabarlar sahifasidagi tur filtri: kam qoldiq · ko'chirish · nasiya · boshqa."""
+    from app.core.db import tenant_session
+    from app.modules.notifications import service as notifications
+
+    s = await shop()
+    async with tenant_session(s.business_id) as db:
+        for code in ("stock.low", "transfer.diff", "transfer.waiting", "debt.overdue", "sale.returned"):
+            await notifications.notify_owners(db, s.business_id, code, {})
+
+    async def codes(**params) -> set[str]:
+        return {item["event_code"] for item in (await _inbox(s, **params))["items"]}
+
+    assert await codes(kind="low_stock") == {"stock.low"}
+    assert await codes(kind="transfers") == {"transfer.diff", "transfer.waiting"}
+    assert await codes(kind="credit") == {"debt.overdue"}
+    assert await codes(kind="other") == {"sale.returned"}
+    assert len(await codes()) == 5
+    bad = await s.client.get("/api/notifications", params={"kind": "x"}, headers=s.headers)
+    assert bad.status_code == 422

@@ -19,10 +19,21 @@ export type CustomerRow = {
   /** Eng eski yopilmagan qarz necha kunlik */
   oldest_days: number | null;
   last_payment_at: string | null;
+  /** Oxirgi to'lov summasi, so'm */
+  last_payment_amount?: number | null;
 };
 
 /** `debt_total`, `overdue_total` — filtrga mos mijozlar bo'yicha */
-export type CustomerPage = { items: CustomerRow[]; total: number; debt_total: number; overdue_total: number };
+/** Muddat taqsimoti: qarzning qolgani, muddatidan necha kun o'tganiga qarab (so'm) */
+export type Aging = { total: number; not_due: number; d1_30: number; d31_60: number; d60_plus: number };
+
+export type CustomerPage = {
+  items: CustomerRow[];
+  total: number;
+  debt_total: number;
+  overdue_total: number;
+  aging?: Aging;
+};
 
 /** Bitta nasiya sotuvning qarzi */
 export type DebtRow = {
@@ -65,7 +76,14 @@ export type Writeoff = {
   sale_number: string;
 };
 
-export type CustomerCard = CustomerRow & { debts: DebtRow[]; payments: Payment[]; writeoffs: Writeoff[] };
+/** `payments` va `writeoffs` — birinchi sahifa (eng yangilari); `*_total` — jami soni, qolgani alohida so'raladi */
+export type CustomerCard = CustomerRow & {
+  debts: DebtRow[];
+  payments: Payment[];
+  payments_total?: number;
+  writeoffs: Writeoff[];
+  writeoffs_total?: number;
+};
 
 export type PaymentCreated = { id: number; amount: number; debt: number };
 

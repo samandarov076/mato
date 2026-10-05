@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useRef } from "react";
+import { useAutoLock } from "@/shared/useAutoLock";
 import { feedback } from "@/shared/feedback";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -28,33 +29,6 @@ const STORE_NAV: { key: string; icon: LucideIcon; tone: Tone; to: string }[] = [
   { key: "transfers", icon: ArrowLeftRight, tone: "coral", to: "/transfers" },
   { key: "close_batch", icon: PackageCheck, tone: "plum", to: "/close" },
 ];
-
-/** Qurilmaga `minutes` daqiqa tegilmasa — qulflaydi (PIN ekraniga qaytaradi). */
-export function useAutoLock(minutes: number, lock: () => void) {
-  const lastActivity = useRef(Date.now());
-  const fired = useRef(false); // bir marta qulflaydi — har 10 soniyada qayta chaqirmaydi
-  useEffect(() => {
-    const touch = () => {
-      lastActivity.current = Date.now();
-      fired.current = false;
-    };
-    const check = () => {
-      if (fired.current || Date.now() - lastActivity.current < minutes * 60_000) return;
-      fired.current = true;
-      lock();
-    };
-    const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
-    events.forEach((name) => window.addEventListener(name, touch, { passive: true }));
-    // Ekran o'chib-yonganda ham tekshiriladi (planshet uxlab qolgan bo'lishi mumkin)
-    document.addEventListener("visibilitychange", check);
-    const timer = window.setInterval(check, 10_000);
-    return () => {
-      events.forEach((name) => window.removeEventListener(name, touch));
-      document.removeEventListener("visibilitychange", check);
-      window.clearInterval(timer);
-    };
-  }, [minutes, lock]);
-}
 
 /** Do'kon qurilmasidagi qobiq: tepada do'kon va sotuvchi, qulf tugmasi; pastda menyu. */
 export function StoreShell() {

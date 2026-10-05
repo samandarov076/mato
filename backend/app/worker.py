@@ -11,16 +11,19 @@ from zoneinfo import ZoneInfo
 import httpx
 from arq import Retry, cron
 from arq.connections import RedisSettings
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 
 from app import models_registry  # noqa: F401  — barcha modellarni yuklaydi
+from app.core import alerts
 from app.core.config import get_settings
 from app.core.db import system_session
+from app.modules.auth.models import UserSession
 from app.modules.credit.models import Customer, Debt
 from app.modules.credit.service import overdue_key
-from app.modules.inventory.models import Transfer
+from app.modules.inventory.models import BatchStock, StockMovement, Transfer
 from app.modules.inventory.transfers import waiting_key
 from app.modules.notifications import service as notifications
+from app.modules.notifications.models import Notification
 from app.modules.platform.models import Business
 from app.modules.sales.models import Sale
 from app.modules.structure.models import Location
@@ -118,6 +121,73 @@ async def daily_summaries(ctx: dict | None = None) -> int:
     return await telegram.send_daily_summaries()
 
 
+# ---------- Tozalash va kechki solishtiruv (docs/07-ishga-tushirish.md, 6.6) ----------
+
+READ_NOTIFICATION_DAYS = 90
+
+
+async def purge_expired_sessions(ctx: dict | None = None) -> int:
+    """Muddati o'tgan sessiyalarni o'chiradi (ular baribir ishlamaydi). O'chirilganlar sonini qaytaradi."""
+    async with system_session() as db:
+        result = await db.execute(delete(UserSession).where(UserSession.expires_at < func.now()))
+        return result.rowcount
+
+
+async def purge_read_notifications(ctx: dict | None = None) -> int:
+    """90 kundan eski o'qilgan xabarlarni o'chiradi; o'qilmaganlar qoladi."""
+    async with system_session() as db:
+        result = await db.execute(
+            delete(Notification).where(
+                Notification.read_at < datetime.now(UTC) - timedelta(days=READ_NOTIFICATION_DAYS)
+            )
+        )
+        return result.rowcount
+
+
+async def reconcile_stock(ctx: dict | None = None) -> int:
+    """Ledger kafolati: har partiya-joy qoldig'i harakatlar yig'indisiga tengmi. Farqlar sonini qaytaradi.
+
+    Hech narsa tuzatilmaydi — farq bo'lsa, demak qoldiq `move_stock` dan tashqarida o'zgargan (yoki xato bor):
+    platforma egasiga xabar, sababini odam ko'radi.
+    """
+    ledger = (
+        select(
+            StockMovement.batch_id,
+            StockMovement.location_id,
+            func.sum(StockMovement.qty_m).label("moved"),
+        )
+        .group_by(StockMovement.batch_id, StockMovement.location_id)
+        .subquery()
+    )
+    moved = func.coalesce(ledger.c.moved, 0)
+    async with system_session() as db:
+        drifted = (
+            await db.execute(
+                select(BatchStock.business_id, BatchStock.batch_id, BatchStock.location_id, BatchStock.qty_m, moved)
+                .outerjoin(
+                    ledger,
+                    (ledger.c.batch_id == BatchStock.batch_id)
+                    & (ledger.c.location_id == BatchStock.location_id),
+                )
+                .where(BatchStock.qty_m != moved)
+                .order_by(BatchStock.business_id, BatchStock.batch_id)
+            )
+        ).all()
+    if drifted:
+        lines = [
+            f"biznes {business_id}, partiya {batch_id}, joy {location_id}: qoldiq {qty_m}, "
+            f"harakatlar {total}, farq {qty_m - total}"
+            for business_id, batch_id, location_id, qty_m, total in drifted[:20]
+        ]
+        if len(drifted) > 20:
+            lines.append(f"... yana {len(drifted) - 20} ta")
+        await alerts.alert_platform(
+            f"⚠️ Qoldiq solishtiruvi: {len(drifted)} ta farq (batch_stock ≠ stock_movements yig'indisi)\n"
+            + "\n".join(lines)
+        )
+    return len(drifted)
+
+
 class WorkerSettings:
     functions = [  # noqa: RUF012 — arq shu ko'rinishni kutadi
         remind_stale_transfers,
@@ -125,11 +195,19 @@ class WorkerSettings:
         deliver_telegram,
         poll_telegram,
         daily_summaries,
+        purge_expired_sessions,
+        purge_read_notifications,
+        reconcile_stock,
     ]
+    # Soatlar — ishchi konteynerining vaqt mintaqasida (TZ=Asia/Tashkent, docker-compose.prod.yml)
     cron_jobs = [  # noqa: RUF012
         cron(remind_stale_transfers, minute=0),  # har soat boshida
         cron(remind_overdue_debts, minute=5),  # har soatda: yangi kun boshlanishi bilan xabar ketadi
         cron(poll_telegram, second=set(range(0, 60, 3))),  # har 3 soniyada: ulash deyarli darhol ishlaydi
         cron(daily_summaries, minute=set(range(0, 60, 10))),  # har 10 daqiqada: uzilish bo'lsa qayta urinadi
+        cron(reconcile_stock, hour=2, minute=30),  # kechasi, zaxiradan oldin
+        cron(purge_expired_sessions, weekday=0, hour=4, minute=0),  # dushanba
+        cron(purge_read_notifications, hour=4, minute=10),
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
+    health_check_interval = 60  # `arq --check` (konteyner healthcheck) shu kalitga qaraydi

@@ -27,4 +27,5 @@ Kod va baza nomlarida inglizcha atamalar ishlatiladi (masalan shortage / surplus
 | Audit jurnali va partiya tarixi — ikki xil narsa | **Harakatlar jurnali** / **Partiya tarixi** | Activity log / Batch history | Журнал действий / История партии |
 | Minimal uzunlik xatosi — bitta qolip | **Kamida N ta belgi kiriting** | Enter at least N characters | Введите не менее N символов |
 | Ombor bo'limi (sklad — bu alohida joy turi) | **Ombor** (bo'lim), **Sklad** (joy) | Inventory / Warehouse | Запасы / Склад |
+| Nasiya muddat taqsimoti (qarz muddatidan necha kun o'tgani bo'yicha) | **Muddati kelmagan** · **1–30 kun** · **31–60 kun** · **60+ kun** | Not yet due · 1–30 days · 31–60 days · 60+ days | Срок не наступил · 1–30 дней · 31–60 дней · 60+ дней |
 | Tovar kirimi bo'limi (en: "Receipts" sotuv cheki bo'lib tushunilardi) | Kirimlar | **Goods in**, **Goods receipt** | Приход |

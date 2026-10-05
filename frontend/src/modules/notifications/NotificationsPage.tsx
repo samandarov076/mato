@@ -9,20 +9,21 @@ import { feedback } from "@/shared/feedback";
 import { formatDateTime } from "@/shared/format";
 import { Button } from "@/shared/ui/Button";
 import { Alert, Loading } from "@/shared/ui/feedback";
-import { SelectField } from "@/shared/ui/fields";
 import { Empty, IconChip, LoadMore, rowClass } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { focusRing } from "@/shared/ui/tones";
 import {
   describe,
   eventStyle,
-  EVENTS,
   notificationKeys,
   type Notification,
   type NotificationPage,
 } from "./messages";
 
 /** Xabarlar: eng yangisi tepada; bosilsa — o'qilgan bo'ladi va tegishli sahifa ochiladi. */
+/** Tur filtri — server hodisa kodining boshiga qarab ajratadi */
+const KINDS = ["", "low_stock", "transfers", "credit", "other"] as const;
+
 export function NotificationsPage() {
   const { t } = useTranslation();
   const errorText = useErrorText();
@@ -37,7 +38,7 @@ export function NotificationsPage() {
     initialPageParam: null as number | null,
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams();
-      if (event) query.set("event", event);
+      if (event) query.set("kind", event);
       if (pageParam !== null) query.set("cursor", String(pageParam));
       return api<NotificationPage>(`/notifications?${query}`);
     },
@@ -90,15 +91,24 @@ export function NotificationsPage() {
         {t("notifications.title")}
       </PageTitle>
 
-      <div className="mt-5 max-w-sm">
-        <SelectField label={t("notifications.event")} value={event} onChange={setEvent}>
-          <option value="">{t("common.all")}</option>
-          {EVENTS.map((code) => (
-            <option key={code} value={code}>
-              {t(`notifications.events.${code}`)}
-            </option>
-          ))}
-        </SelectField>
+      {/* Tur filtri: Barchasi · Kam qoldiq · Ko'chirish · Nasiya · Boshqa */}
+      <div role="radiogroup" aria-label={t("notifications.event")} className="mt-5 flex flex-wrap gap-1.5">
+        {KINDS.map((kind) => (
+          <button
+            key={kind || "all"}
+            type="button"
+            role="radio"
+            aria-checked={event === kind}
+            onClick={() => setEvent(kind)}
+            className={`pressable inline-flex h-9 items-center rounded-full border px-3 text-sm [@media(pointer:coarse)]:h-11 ${focusRing} ${
+              event === kind
+                ? "border-transparent bg-indigo font-medium text-panel"
+                : "border-line bg-panel text-muted hover:text-ink"
+            }`}
+          >
+            {kind === "" ? t("common.all") : t(`notifications.kinds.${kind}`)}
+          </button>
+        ))}
       </div>
 
       {error && (

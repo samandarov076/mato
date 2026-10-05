@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, HandCoins, Pencil, ShoppingCart, Trash2, WifiOff } from "lucide-react";
-import { useCurrentUser } from "@/modules/auth/AuthProvider";
+import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
 import { Thumb } from "@/modules/catalog/parts";
 import { CustomerPicker } from "@/modules/credit/CustomerPicker";
 import { creditKeys } from "@/modules/credit/types";
@@ -62,7 +62,13 @@ function OwnerSale() {
     queryKey: ["locations", "stores"],
     queryFn: () => api<Ref[]>("/locations?type=store"),
   });
+  const { device, business } = useAuth();
+  // Ega o'z biznesining do'kon planshetida: shu do'kon oldindan tanlangan (o'zgartirish mumkin).
+  // Boshqa hollarda — oxirgi tanlangan do'kon.
+  const deviceStore =
+    device?.bound && business && device.business?.id === business.id ? device.store?.id : undefined;
   const [picked, setPicked] = useState(() => {
+    if (deviceStore) return String(deviceStore);
     try {
       return localStorage.getItem(STORE_KEY) ?? "";
     } catch {
@@ -364,7 +370,7 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
     <div
       className={
         simple
-          ? "mx-auto max-w-2xl space-y-4"
+          ? "mx-auto max-w-5xl space-y-4" // tovar tanlanmaganda to'r butun enni ishlatadi; forma o'zi torayadi
           : "space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-5 xl:space-y-0"
       }
     >
@@ -552,6 +558,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
             <Link to={`/sales/${done.id}`} className="font-medium underline">
               {t("sales.open_sale")}
             </Link>
+            {/* Server shu savatni avval yozgan (javob yo'qolib qayta yuborilgan) — yangidan yozilmagani bilinsin */}
+            {done.duplicate && <span className="mt-1 block text-[13px]">{t("sales.done_duplicate", { number: done.number })}</span>}
           </Alert>
         )}
         {error && <Alert focus>{error}</Alert>}

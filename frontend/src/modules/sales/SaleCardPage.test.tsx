@@ -93,6 +93,11 @@ describe("Sotuv kartochkasi", () => {
     expect(screen.getByText("Qolgan qarz").nextElementSibling).toHaveTextContent("300 000 so'm");
     expect(screen.getByText("Qarz muddati").nextElementSibling).toHaveTextContent("01.11.2026");
     expect(screen.getByRole("link", { name: "P-000012" })).toHaveAttribute("href", "/batches/12");
+    // Ma'lumot va to'lov — jadval ko'rinishida: har qatorda chapda nom, o'ngda qiymat
+    expect(screen.getByText("Do'kon").nextElementSibling).toHaveTextContent("Chorsu do'koni");
+    expect(screen.getByText("Sotuvchi").nextElementSibling).toHaveTextContent("Nodira Sotuvchi");
+    expect(screen.getByText("Boshlang'ich to'lov").nextElementSibling).toHaveTextContent("150 000 so'm · Karta");
+    expect(screen.getByText("Do'kon").closest("dl")).toHaveClass("divide-y");
   });
 
   it("qaytarish: summa avval qarzdan ayriladi, qolgani pul bilan", async () => {

@@ -32,6 +32,7 @@ from app.modules.inventory.schemas import (
     Differences,
     DifferenceTotals,
     MovementOut,
+    MovementPage,
     Place,
     PlaceTotal,
     ReceiptBrief,
@@ -51,7 +52,8 @@ from app.modules.sales.models import Sale
 from app.modules.structure.access import can_act_at, visible_location_ids
 from app.modules.structure.models import Location
 
-MOVEMENTS_LIMIT = 200
+# Kartochkada tarixning birinchi sahifasi; qolgani — "Yana ko'rsatish" bilan
+HISTORY_PAGE = 30
 # Partiya yopilganda farq kirgan metrning shu ulushidan katta bo'lsa — egalarga xabar boradi
 BIG_DIFFERENCE = Decimal("0.10")
 DIFFERENCES_LIMIT = 500
@@ -122,6 +124,7 @@ async def list_stock(
     pattern_id: int | None = None,
     search: str | None = None,
     only: Literal["low", "negative", "in_transit"] | None = None,
+    sort: Literal["total", "-total"] | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> StockPage:
@@ -181,6 +184,12 @@ async def list_stock(
             .where(*conditions)
             .group_by(Sku.id, Fabric.code, Color.code, Pattern.is_plain, Pattern.code)
             .order_by(
+                # Sarlavhadan saralash: jami metr bo'yicha (filtrga mos qoldiq); standart — kod bo'yicha
+                *(
+                    [func.sum(BatchStock.qty_m).desc() if sort == "-total" else func.sum(BatchStock.qty_m)]
+                    if sort
+                    else []
+                ),
                 func.lower(Fabric.code),
                 func.lower(Color.code),
                 Pattern.is_plain.desc(),
@@ -329,6 +338,90 @@ async def _batch(ctx: AuthContext, batch_id: int) -> Batch:
     return batch
 
 
+# Tur filtri: partiya tarixidagi harakatlar uch guruhga bo'linadi (qolgan hammasi — "boshqa")
+MOVEMENT_KINDS: dict[str, tuple[str, ...]] = {
+    "sales": ("sale", "sale_cancel", "return"),
+    "transfers": ("transfer_out", "transfer_in", "transfer_cancel"),
+}
+
+
+async def list_movements(
+    ctx: AuthContext,
+    batch_id: int,
+    *,
+    kind: Literal["sales", "transfers", "other"] | None = None,
+    limit: int = 30,
+    offset: int = 0,
+    known: tuple[Batch, Receipt] | None = None,
+) -> MovementPage:
+    """Partiya tarixi — eng yangisi birinchi, sahifalab; `kind` — tur filtri. Xodim ko'ra olmaydigan
+    joylardagi harakatlar chiqmaydi (kartochkadagi qoida bilan bir xil)."""
+    if known is None:
+        batch = await _batch(ctx, batch_id)
+        receipt = await ctx.db.get(Receipt, batch.receipt_id)
+    else:
+        batch, receipt = known
+    visible = await visible_location_ids(ctx)
+    conditions = [StockMovement.batch_id == batch.id]
+    if visible is not None:
+        conditions.append(StockMovement.location_id.in_(visible))
+    if kind in MOVEMENT_KINDS:
+        conditions.append(StockMovement.type.in_(MOVEMENT_KINDS[kind]))
+    elif kind == "other":
+        grouped = [name for names in MOVEMENT_KINDS.values() for name in names]
+        conditions.append(StockMovement.type.not_in(grouped))
+
+    rows = (
+        await ctx.db.execute(
+            select(StockMovement, User.full_name)
+            .outerjoin(User, User.id == StockMovement.user_id)
+            .where(*conditions)
+            .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    total = await ctx.db.scalar(select(func.count()).select_from(StockMovement).where(*conditions))
+    names = dict((await ctx.db.execute(select(Location.id, Location.name))).all())
+
+    async def numbers(ref_type: str, model: Any) -> dict[int, str]:
+        ids = {m.ref_id for m, _ in rows if m.ref_type == ref_type}
+        if not ids:
+            return {}
+        return dict((await ctx.db.execute(select(model.id, model.number).where(model.id.in_(ids)))).all())
+
+    transfer_numbers = await numbers("transfer", Transfer)
+    sale_numbers = await numbers("sale", Sale)
+
+    def ref_number(movement: StockMovement) -> str | None:
+        if movement.ref_type == "receipt":
+            return receipt.number
+        if movement.ref_type == "transfer":
+            return transfer_numbers.get(movement.ref_id)
+        if movement.ref_type == "sale":
+            return sale_numbers.get(movement.ref_id)
+        return None
+
+    return MovementPage(
+        items=[
+            MovementOut(
+                id=movement.id,
+                created_at=movement.created_at,
+                type=movement.type,
+                location=Ref(id=movement.location_id, name=names[movement.location_id]),
+                qty_m=movement.qty_m,
+                user=user_name,
+                ref_type=movement.ref_type,
+                ref_id=movement.ref_id,
+                ref_number=ref_number(movement),
+                note=movement.note,
+            )
+            for movement, user_name in rows
+        ],
+        total=total or 0,
+    )
+
+
 async def get_batch(ctx: AuthContext, batch_id: int) -> BatchCard:
     batch = await _batch(ctx, batch_id)
     receipt = await ctx.db.get(Receipt, batch.receipt_id)
@@ -407,44 +500,7 @@ async def get_batch(ctx: AuthContext, batch_id: int) -> BatchCard:
         )
     ]
 
-    movement_rows = (
-        await ctx.db.execute(
-            select(StockMovement, User.full_name)
-            .outerjoin(User, User.id == StockMovement.user_id)
-            .where(StockMovement.batch_id == batch.id)
-            .where(*([] if visible is None else [StockMovement.location_id.in_(visible)]))
-            .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
-            .limit(MOVEMENTS_LIMIT)
-        )
-    ).all()
-    transfer_ids = {m.ref_id for m, _ in movement_rows if m.ref_type == "transfer"}
-    transfer_numbers = (
-        dict(
-            (
-                await ctx.db.execute(
-                    select(Transfer.id, Transfer.number).where(Transfer.id.in_(transfer_ids))
-                )
-            ).all()
-        )
-        if transfer_ids
-        else {}
-    )
-
-    sale_ids = {m.ref_id for m, _ in movement_rows if m.ref_type == "sale"}
-    sale_numbers = (
-        dict((await ctx.db.execute(select(Sale.id, Sale.number).where(Sale.id.in_(sale_ids)))).all())
-        if sale_ids
-        else {}
-    )
-
-    def ref_number(movement: StockMovement) -> str | None:
-        if movement.ref_type == "receipt":
-            return receipt.number
-        if movement.ref_type == "transfer":
-            return transfer_numbers.get(movement.ref_id)
-        if movement.ref_type == "sale":
-            return sale_numbers.get(movement.ref_id)
-        return None
+    history = await list_movements(ctx, batch.id, limit=HISTORY_PAGE, known=(batch, receipt))
 
     return BatchCard(
         id=batch.id,
@@ -458,21 +514,8 @@ async def get_batch(ctx: AuthContext, batch_id: int) -> BatchCard:
         cost_per_m=batch.cost_per_m if is_owner else None,  # tannarx sotuvchi va omborchiga ko'rinmaydi
         places=places,
         in_transit=in_transit,
-        movements=[
-            MovementOut(
-                id=movement.id,
-                created_at=movement.created_at,
-                type=movement.type,
-                location=Ref(id=movement.location_id, name=names[movement.location_id]),
-                qty_m=movement.qty_m,
-                user=user_name,
-                ref_type=movement.ref_type,
-                ref_id=movement.ref_id,
-                ref_number=ref_number(movement),
-                note=movement.note,
-            )
-            for movement, user_name in movement_rows
-        ],
+        movements=history.items,
+        movements_total=history.total,
     )
 
 

@@ -13,12 +13,15 @@ import { Alert, Loading } from "@/shared/ui/feedback";
 import { SelectField } from "@/shared/ui/fields";
 import { Hint } from "@/shared/ui/Hint";
 import { Chip, Empty, LoadMore, rowClass } from "@/shared/ui/list";
-import { num, Table, td, Th } from "@/shared/ui/table";
+import { ExportButton } from "@/shared/ui/ExportButton";
+import { num, SortTh, Table, td, Th } from "@/shared/ui/table";
 import { focusRing, type Tone } from "@/shared/ui/tones";
 import { InventoryHeader } from "./InventoryHeader";
 import { inventoryKeys, skuNames, type Place, type StockPage as Page, type StockSku } from "./types";
 
 const PAGE_SIZE = 50;
+// Matritsaning birinchi (tovar) ustuni: gorizontal aylantirganda chapda yopishib turadi
+const stickyCell = "sticky left-0 z-[1]";
 type Only = "" | "low" | "negative" | "in_transit";
 const ONLY: Only[] = ["low", "negative", "in_transit"];
 const NO_LOCATIONS: Page["locations"] = [];
@@ -37,8 +40,15 @@ export function StockPage() {
   // Qidiruv matni SearchInput ichida tinganda keladi (300 ms) — har harfda ro'yxat qayta chizilmaydi
   const [searchText, setSearchText] = useState("");
   const search = searchText.trim();
+  // "" — kod bo'yicha (standart); "Jami" sarlavhasi bosilsa — jami metr bo'yicha
+  const [sort, setSort] = useState<"" | "total" | "-total">("");
 
-  const filters = JSON.stringify({ locationId, only, search });
+  const filters = JSON.stringify({ locationId, only, search, sort });
+  const exportQuery = new URLSearchParams({
+    ...(locationId ? { location_id: locationId } : {}),
+    ...(only ? { only } : {}),
+    ...(search ? { search } : {}),
+  });
   const stock = useInfiniteQuery({
     queryKey: inventoryKeys.stock(filters),
     initialPageParam: 0,
@@ -47,6 +57,7 @@ export function StockPage() {
       if (locationId) query.set("location_id", locationId);
       if (only) query.set("only", only);
       if (search) query.set("search", search);
+      if (sort) query.set("sort", sort);
       return api<Page>(`/stock?${query}`);
     },
     getNextPageParam: (last, pages) => {
@@ -95,7 +106,8 @@ export function StockPage() {
       </div>
 
       {/* Belgilar izohi — bir marta, har qatorda takrorlanmaydi */}
-      <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
         <span className="inline-flex items-center gap-1.5">
           <Warehouse className="size-4 text-sky" aria-hidden="true" />
           {t("inventory.stock.legend_warehouse")}
@@ -109,6 +121,9 @@ export function StockPage() {
           {t("inventory.stock.legend_low")}
         </span>
       </p>
+      {/* Shu filtrdagi qoldiq — Excel faylida (matritsa: tovar × joy) */}
+      {rows.length > 0 && <ExportButton path={`/stock/export?${exportQuery}`} />}
+      </div>
 
       <section className="mt-3 overflow-hidden rounded-card border border-line bg-panel shadow-card">
         {stock.isLoading && <Loading className="px-4 py-6 sm:px-5" />}
@@ -129,9 +144,10 @@ export function StockPage() {
             label={t("inventory.tab_stock")}
             head={
               <tr>
-                <Th>{t("inventory.stock.col_item")}</Th>
+                {/* Tovar ustuni joyida turadi — joylar ko'p bo'lsa (5+) qolgan ustunlar yonga aylanadi */}
+                <Th className={`${stickyCell} bg-page`}>{t("inventory.stock.col_item")}</Th>
                 {columns.map((place) => (
-                  <Th key={place.id} className="text-right">
+                  <Th key={place.id} className="whitespace-nowrap text-right">
                     <span className="inline-flex items-center justify-end gap-1.5">
                       {place.type === "store" ? (
                         <Store className="size-4 shrink-0 text-leaf" aria-hidden="true" />
@@ -142,7 +158,14 @@ export function StockPage() {
                     </span>
                   </Th>
                 ))}
-                <Th className="text-right">{t("common.total")}</Th>
+                <SortTh
+                  active={sort !== ""}
+                  direction={sort === "total" ? "asc" : "desc"}
+                  onSort={() => setSort(sort === "-total" ? "total" : "-total")}
+                  className="text-right"
+                >
+                  {t("common.total")}
+                </SortTh>
               </tr>
             }
           >
@@ -172,6 +195,18 @@ type PlaceOf = (id: number) => Place | undefined;
 /** Partiyalar — kerak bo'lganda ochiladi (har qatorda ochiq tursa, ro'yxat juda zich bo'ladi) */
 function Batches({ row, placeOf }: { row: StockSku; placeOf: PlaceOf }) {
   const { t } = useTranslation();
+  // Bitta partiya bo'lsa ochiladigan ro'yxat ortiqcha — qatorning o'zi yetarli; partiya raqami havola bo'lib turadi
+  if (row.batches.length === 1) {
+    const [batch] = row.batches;
+    return (
+      <p className="mt-1 text-sm">
+        <Link to={`/batches/${batch.id}`} className="font-medium text-indigo hover:underline">
+          {batch.number}
+        </Link>
+        <span className="ml-2 text-[13px] text-muted">{formatDate(`${batch.receipt_date}T12:00:00+05:00`)}</span>
+      </p>
+    );
+  }
   return (
     <details className="group mt-2 text-sm">
       <summary
@@ -218,7 +253,7 @@ const MatrixRow = memo(function MatrixRow({
   const hint = row.threshold ? t("inventory.stock.low_hint", { threshold: formatDecimal(row.threshold) }) : undefined;
   return (
     <tr className="align-top">
-      <td className={td}>
+      <td className={`${td} ${stickyCell} min-w-[13rem] bg-panel`}>
         <div className="flex gap-3">
           <Thumb imageUrl={row.sku.image_url} hex={row.sku.hex} code={row.sku.code} />
           <div className="min-w-0 flex-1">

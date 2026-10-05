@@ -133,5 +133,57 @@ _LABELS: dict[str, dict[str, str]] = {
 }
 
 
+# Ro'yxat eksportlari (sotuvlar, mijozlar, qoldiq, metr farqi, jurnal) — docs/03-details/08-hisobotlar.md
+_LIST_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "sales_list": "Sotuvlar", "customers": "Mijozlar", "differences": "Metr farqi",
+        "transfer_diffs": "Ko'chirish farqlari", "journal": "Harakatlar jurnali",
+        "number": "Raqam", "time": "Vaqt", "payment_type": "To'lov turi", "returned": "Qaytarilgan, so'm",
+        "status": "Holat", "note": "Izoh", "last_payment_amount": "Oxirgi to'lov, so'm", "code": "Kod",
+        "total_m": "Jami, m", "user": "Xodim", "category": "Kategoriya", "event": "Hodisa",
+        "details": "Tafsilot", "batch": "Partiya", "labeled_m": "Yozilgan metr", "out_m": "Chiqqan metr",
+        "diff_m": "Farq, m", "by": "Kim", "when": "Qachon", "transfer": "Ko'chirish", "from": "Qayerdan",
+        "to": "Qayerga", "sent_m": "Jo'natilgan, m", "received_m": "Kelgan, m",
+        "pay_cash": "Naqd", "pay_card": "Karta", "pay_credit": "Nasiya",
+        "status_completed": "Yakunlangan", "status_partially_returned": "Qisman qaytarilgan",
+        "status_returned": "Qaytarilgan", "status_cancelled": "Bekor qilingan",
+        "cat_login": "Kirish", "cat_sale": "Sotuv", "cat_stock": "Ombor", "cat_price": "Narx",
+        "cat_credit": "Nasiya", "cat_staff": "Xodimlar va sozlamalar", "system": "Tizim",
+    },
+    "en": {
+        "sales_list": "Sales", "customers": "Customers", "differences": "Metre difference",
+        "transfer_diffs": "Transfer differences", "journal": "Activity log",
+        "number": "No.", "time": "Time", "payment_type": "Payment", "returned": "Returned, sum",
+        "status": "Status", "note": "Note", "last_payment_amount": "Last payment, sum", "code": "Code",
+        "total_m": "Total, m", "user": "Staff", "category": "Category", "event": "Event",
+        "details": "Details", "batch": "Batch", "labeled_m": "Labelled metres", "out_m": "Metres out",
+        "diff_m": "Difference, m", "by": "By", "when": "When", "transfer": "Transfer", "from": "From",
+        "to": "To", "sent_m": "Sent, m", "received_m": "Received, m",
+        "pay_cash": "Cash", "pay_card": "Card", "pay_credit": "Credit",
+        "status_completed": "Completed", "status_partially_returned": "Partly returned",
+        "status_returned": "Returned", "status_cancelled": "Cancelled",
+        "cat_login": "Sign-in", "cat_sale": "Sales", "cat_stock": "Inventory", "cat_price": "Price",
+        "cat_credit": "Credit", "cat_staff": "Staff and settings", "system": "System",
+    },
+    "ru": {
+        "sales_list": "Продажи", "customers": "Клиенты", "differences": "Разница метров",
+        "transfer_diffs": "Разница при перемещении", "journal": "Журнал действий",
+        "number": "Номер", "time": "Время", "payment_type": "Оплата", "returned": "Возвращено, сум",
+        "status": "Статус", "note": "Примечание", "last_payment_amount": "Последний платёж, сум", "code": "Код",
+        "total_m": "Итого, м", "user": "Сотрудник", "category": "Категория", "event": "Событие",
+        "details": "Подробности", "batch": "Партия", "labeled_m": "Метров по этикетке", "out_m": "Вышло метров",
+        "diff_m": "Разница, м", "by": "Кто", "when": "Когда", "transfer": "Перемещение", "from": "Откуда",
+        "to": "Куда", "sent_m": "Отправлено, м", "received_m": "Получено, м",
+        "pay_cash": "Наличные", "pay_card": "Карта", "pay_credit": "В долг",
+        "status_completed": "Завершена", "status_partially_returned": "Частично возвращена",
+        "status_returned": "Возвращена", "status_cancelled": "Отменена",
+        "cat_login": "Вход", "cat_sale": "Продажи", "cat_stock": "Запасы", "cat_price": "Цена",
+        "cat_credit": "Долги", "cat_staff": "Сотрудники и настройки", "system": "Система",
+    },
+}  # fmt: skip
+for _language, _extra in _LIST_LABELS.items():
+    _LABELS[_language].update(_extra)
+
+
 def labels(language: str) -> dict[str, str]:
     return _LABELS.get(language, _LABELS["uz"])

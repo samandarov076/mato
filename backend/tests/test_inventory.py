@@ -637,6 +637,63 @@ async def test_difference_totals_cover_everything_while_the_lists_are_paged(shop
     assert (board["diff_m"], board["diff_amount"]) == ("74.50", 2_235_000)
 
 
+async def test_batch_history_is_paged_and_filtered_by_kind(shop):
+    """Partiya tarixi sahifalanadi (jimgina qirqilmaydi) va tur bo'yicha filtrlanadi."""
+    s = await shop()
+    batch = await s.in_store(0, "200")  # kirim → jo'natish → qabul: 3 harakat
+    for _ in range(35):
+        assert (await s.sell_to((batch, "1", 45000))).status_code == 201
+
+    card = await _batch_card(s, batch)
+    assert (len(card["movements"]), card["movements_total"]) == (30, 38)
+
+    async def history(**params) -> dict:
+        response = await s.client.get(f"/api/batches/{batch}/movements", params=params, headers=s.headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    rest = await history(offset=30)
+    assert (len(rest["items"]), rest["total"]) == (8, 38)
+    assert [m["type"] for m in rest["items"]][-3:] == ["transfer_in", "transfer_out", "receipt"]  # eng eskisi oxirida
+
+    sales = await history(kind="sales", limit=5)
+    assert (sales["total"], {m["type"] for m in sales["items"]}) == (35, {"sale"})
+    assert sales["items"][0]["ref_number"].startswith("S-")
+    moves = await history(kind="transfers")
+    assert [m["type"] for m in moves["items"]] == ["transfer_in", "transfer_out"]
+    assert [m["type"] for m in (await history(kind="other"))["items"]] == ["receipt"]
+    assert (await s.client.get(f"/api/batches/{batch}/movements", params={"kind": "x"}, headers=s.headers)).status_code == 422
+
+    other = await shop()
+    foreign = await s.client.get(f"/api/batches/{batch}/movements", headers=other.headers)
+    assert foreign.status_code == 404
+
+
+async def test_stock_and_transfer_lists_sort_from_the_header(shop):
+    """Qoldiq — jami metr bo'yicha; ko'chirishlar — sana bo'yicha (standart tartiblar o'zgarmaydi)."""
+    s = await shop()
+    small, big = await s.batch(0, meters="100"), await s.batch(1, meters="900")
+    first = (await s.send((small, 1, "10"))).json()["id"]
+    second = (await s.send((big, 1, "10"))).json()["id"]
+    assert (await s.accept(first)).status_code == 204  # qabul qilingan; ikkinchisi — yo'lda
+
+    async def codes(**params) -> list[str]:
+        return [item["sku"]["code"] for item in (await _stock_page(s, **params))["items"]]
+
+    assert await codes() == ["M101-01", "M101-02"]  # standart — kod bo'yicha
+    assert await codes(sort="-total") == ["M101-02", "M101-01"]
+    assert await codes(sort="total") == ["M101-01", "M101-02"]
+
+    async def ids(**params) -> list[int]:
+        page = await s.client.get("/api/transfers", params=params, headers=s.headers)
+        assert page.status_code == 200, page.text
+        return [row["id"] for row in page.json()["items"]]
+
+    assert await ids() == [second, first]  # standart — yo'ldagisi tepada
+    assert await ids(sort="date") == [first, second]
+    assert await ids(sort="-date") == [second, first]
+
+
 async def test_the_same_transfer_is_recorded_once(shop):
     """Javob yo'qolib "Jo'natish" qayta bosilsa — ko'chirish ikki marta yozilmaydi, metr ikki marta ayrilmaydi."""
     s = await shop()

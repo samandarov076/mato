@@ -72,3 +72,19 @@ Biznes egasi uchun hisobotlar. Faqat biznes egalari ko'radi.
 
 💡 Takliflar
 - Dashboardda shu oydagi kamomad kartochkasi — qabul qilinsa, foyda bilan yonma-yon ko'rinadi.
+
+## Ro'yxatlarni Excel'ga yuklash (2026-10-04)
+
+Hisobotlardan tashqari beshta ro'yxat ham Excel'ga yuklanadi. Naqsh hisobotlardagidek: sarlavhalar foydalanuvchi tilida, sahifadagi joriy filtrlar qo'llanadi, tugma jadval ustida. Bitta faylda ko'pi bilan 5 000 qator (qoldiqda 2 000 SKU). Vaqtlar — biznes vaqt mintaqasida.
+
+| Ro'yxat | Kim yuklaydi | Ustunlar |
+|---|---|---|
+| Sotuvlar (`/api/sales/export`) | ega; sotuvchi — faqat o'z do'koni | Raqam · Vaqt · Do'kon · Sotuvchi · Mijoz · To'lov turi · Summa · Qaytarilgan · Holat |
+| Mijozlar (`/api/customers/export`) | ega, sotuvchi | Mijoz · Telefon · Qarz · Muddati o'tgan · Eng eski qarz (kun) · Oxirgi to'lov sanasi · Oxirgi to'lov summasi · Izoh |
+| Qoldiq (`/api/stock/export`) | ega, omborchi, sotuvchi (har biri o'zi ko'ra oladigan joylar) | Kod · Tovar · har joy uchun bittadan ustun (metr) · Jami — matritsa ko'rinishida |
+| Metr farqi (`/api/stock/differences/export`) | faqat ega | 1-varaq (yopilgan partiyalar): Partiya · Tovar · Joy · Yozilgan metr · Chiqqan metr · Farq (m) · Farq (%) · Farq (so'm) · Kim · Qachon · Izoh; 2-varaq (ko'chirish farqlari): Ko'chirish · Partiya · Tovar · Qayerdan · Qayerga · Jo'natilgan · Kelgan · Farq (m) · Farq (so'm) · Kim · Qachon · Izoh |
+| Harakatlar jurnali (`/api/audit-logs/export`) | faqat ega | Vaqt · Xodim · Joy · Kategoriya · Hodisa (kodi) · Tafsilot (ma'lumot) |
+
+- **Tannarx va foyda:** sotuvlar, mijozlar va qoldiq fayllarida tannarx, foyda yoki qiymat ustuni YO'Q — sotuvchi va omborchi yuklagan faylda ham chiqmaydi (test bilan tekshiriladi). So'mdagi farq (tannarx bo'yicha) faqat egaga ochiq "Metr farqi" faylida.
+- Jurnalda hodisa matni emas, kodi chiqadi (matnlar interfeysda tarjima qilinadi; faylda kod va ma'lumot — tahlil uchun).
+- **Saralash (2026-10-04):** jadval sarlavhasidan — sotuvlar: vaqt va summa (`GET /api/sales?sort=time|-time|amount|-amount`); qoldiq: jami metr (`/api/stock?sort=total|-total`); ko'chirishlar: sana (`/api/transfers?sort=date|-date`); eksport ham shu tartibda. Har ustunga alohida qiymat-filtri qilinmaydi (qaror: saralash + mavjud filtrlar + Excel yetarli — interfeys og'irlashmasin).

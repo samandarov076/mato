@@ -304,6 +304,7 @@ async def test_credit_report(trade, new_location):
     report = (await _get(s, "credit", **_today())).json()
     assert report == {
         "debt_total": 50_000, "debt_overdue": 0, "debtors": 1,
+        "aging": {"total": 50_000, "not_due": 50_000, "d1_30": 0, "d31_60": 0, "d60_plus": 0},
         "given": 100_000, "paid": 40_000, "returned": 0, "written_off": 10_000,
     }  # fmt: skip
 
@@ -363,6 +364,80 @@ async def test_excel_export(trade):
     deviation = await sheet("price-deviation/export", **_today(by="seller"))
     assert deviation[0][0] == "Sotuvchi"
     assert deviation[-1][:1] + deviation[-1][2:5] == ["Jami", 780_000, 790_000, 10_000]
+
+
+async def test_list_exports(trade, keeper):
+    """Ro'yxatlar Excel'ga: sotuvlar, mijozlar, qoldiq (matritsa), metr farqi, jurnal — joriy filtr bilan."""
+    s = trade
+    dilshod = await keeper(s)
+
+    async def book(path: str, headers=None, **params):
+        response = await s.client.get(f"/api{path}", params=params, headers=headers or s.headers)
+        assert response.status_code == 200, response.text
+        assert response.headers["content-type"].startswith("application/vnd.openxmlformats")
+        assert ".xlsx" in response.headers["content-disposition"]
+        return [[list(row) for row in sheet.values] for sheet in load_workbook(BytesIO(response.content)).worksheets]
+
+    async def sheet(path: str, headers=None, **params):
+        return (await book(path, headers, **params))[0]
+
+    # --- Sotuvlar ---
+    sales = await sheet("/sales/export")
+    assert sales[0] == [
+        "Raqam", "Vaqt", "Do'kon", "Sotuvchi", "Mijoz", "To'lov turi", "Summa, so'm", "Qaytarilgan, so'm", "Holat",
+    ]  # fmt: skip
+    assert len(sales) == 6 and all(row[0].startswith("S-") for row in sales[1:])
+    returned = next(row for row in sales[1:] if row[7])
+    assert (returned[2], returned[5], returned[6], returned[7], returned[8]) == (
+        "Chorsu do'koni", "Naqd", 440_000, 88_000, "Qisman qaytarilgan",
+    )  # fmt: skip
+    credit = await sheet("/sales/export", payment_type="credit")
+    assert [(row[4], row[5], row[6]) for row in credit[1:]] == [("Sardor Usta", "Nasiya", 200_000)]
+    assert len(await sheet("/sales/export", date_from=YESTERDAY, date_to=YESTERDAY)) == 2
+
+    # --- Mijozlar (oxirgi to'lov summasi bilan) ---
+    customers = await sheet("/customers/export")
+    assert customers[0] == [
+        "Mijoz", "Telefon", "Qarz, so'm", "Muddati o'tgan, so'm", "Eng eski qarz, kun",
+        "Oxirgi to'lov", "Oxirgi to'lov, so'm", "Izoh",
+    ]  # fmt: skip
+    assert customers[1][:5] == ["Sardor Usta", "+998901234567", 50_000, 0, 0]
+    assert customers[1][6] == 40_000
+    listed = (await s.client.get("/api/customers", headers=s.headers)).json()["items"][0]
+    assert listed["last_payment_amount"] == 40_000
+
+    # --- Qoldiq: matritsa (tovar × joy) ---
+    stock = await sheet("/stock/export")
+    assert stock[0] == ["Kod", "Tovar", "Asosiy sklad", "Chorsu do'koni", "Jami, m"]
+    assert stock[1] == ["M101-01", "Atlas · Rang 01", 300, 186, 486]
+    assert stock[2] == ["M101-02", "Atlas · Rang 02", 400, 95, 495]
+    only_store = await sheet("/stock/export", location_id=s.store)
+    assert only_store[0] == ["Kod", "Tovar", "Chorsu do'koni", "Jami, m"]
+
+    # --- Tannarx, foyda, qiymat sotuvchi va omborchi fayllarida yo'q ---
+    secret = ("tannarx", "foyda", "qiymat")
+    costs = {30_000, 20_000}  # partiyalar tannarxi — hech bir katakda turmasligi kerak
+    for path, who in (
+        ("/sales/export", s.seller_headers), ("/customers/export", s.seller_headers),
+        ("/stock/export", s.seller_headers), ("/stock/export", dilshod),
+    ):  # fmt: skip
+        cells = [cell for rows in await book(path, who) for row in rows for cell in row]
+        text = " ".join(str(cell) for cell in cells).lower()
+        assert not any(word in text for word in secret), (path, text)
+        assert not costs & {cell for cell in cells if isinstance(cell, int | float)}, path
+
+    # --- Metr farqi va jurnal — faqat ega ---
+    diff = await book("/stock/differences/export")
+    assert diff[0][0][:4] == ["Partiya", "Tovar", "Joy", "Yozilgan metr"]
+    assert diff[1][0][:3] == ["Ko'chirish", "Partiya", "Tovar"]
+    journal = await sheet("/audit-logs/export", exclude_category="login")
+    assert journal[0] == ["Vaqt", "Xodim", "Joy", "Kategoriya", "Hodisa", "Tafsilot"]
+    assert {row[3] for row in journal[1:]} >= {"Sotuv", "Nasiya"} and "Kirish" not in {row[3] for row in journal[1:]}
+    assert any(row[4] == "sale.created" and "S-0000" in row[5] for row in journal[1:])
+    for path in ("/stock/differences/export", "/audit-logs/export"):
+        for who in (s.seller_headers, dilshod):
+            assert (await s.client.get(f"/api{path}", headers=who)).status_code == 403
+    assert (await s.client.get("/api/sales/export", headers=dilshod)).status_code == 403
 
 
 # ====================== Ruxsatlar ======================

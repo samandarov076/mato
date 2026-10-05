@@ -1,5 +1,6 @@
 /** Hisobotlar API'sining shakllari (/api/reports) va davr yordamchilari. Pul — butun so'm; metr — matn. */
 import { presetRange, shift } from "@/shared/period";
+import type { Aging } from "@/modules/credit/types";
 
 /** Davr ko'rsatkichlari. Savdo = sotuvlar − qaytarishlar; foyda = savdo − tannarx. */
 export type Money = {
@@ -25,6 +26,7 @@ export type Dashboard = {
   previous: Money;
   debt_total: number;
   debt_overdue: number;
+  debt_aging?: Aging;
   low_stock: number;
   diff_amount: number;
   diff_m: string;
@@ -56,6 +58,7 @@ export type StockReport = { places: StockPlace[]; meters: string; value: number 
 export type CreditReport = {
   debt_total: number;
   debt_overdue: number;
+  aging?: Aging;
   debtors: number;
   given: number;
   paid: number;

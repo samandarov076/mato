@@ -13,13 +13,8 @@
     <meta name="apple-mobile-web-app-title" content="mato-savdo" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>mato-savdo</title>
-    <script>
-      // Tanlangan rejim sahifa chizilishidan oldin qo'llanadi — yorug' fon "lip" etib ko'rinmaydi
-      try {
-        var theme = localStorage.getItem("mato.theme");
-        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
-      } catch (e) {}
-    </script>
+    <!-- Tanlangan rejim (tungi/kunduzgi) sahifa chizilishidan oldin — alohida fayl, CSP inline skriptga ruxsat bermaydi -->
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>

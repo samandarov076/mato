@@ -121,21 +121,48 @@ async def get_platform_auth(
         raise AppError(403, "forbidden")  # biznes xodimi platforma paneliga kira olmaydi
 
     async with system_session() as db:
-        user = await db.scalar(
-            select(User)
-            .join(UserSession, UserSession.user_id == User.id)
-            .where(
-                UserSession.id == int(payload["sid"]),
-                UserSession.revoked_at.is_(None),
-                UserSession.expires_at > func.now(),
-                UserSession.business_id.is_(None),
-                User.is_active,
-                User.role == "platform_owner",
-            )
-        )
-        if user is None:
-            raise AppError(401, "session_expired")
+        user = await _platform_user(db, payload)
+        if user.must_change_password:  # vaqtinchalik parol (create-platform-owner) avval almashtiriladi
+            raise AppError(403, "password_change_required")
         yield PlatformContext(user=user, session_id=int(payload["sid"]), db=db)
 
 
+async def _platform_user(db: AsyncSession, payload: dict) -> User:
+    user = await db.scalar(
+        select(User)
+        .join(UserSession, UserSession.user_id == User.id)
+        .where(
+            UserSession.id == int(payload["sid"]),
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > func.now(),
+            UserSession.business_id.is_(None),
+            User.is_active,
+            User.role == "platform_owner",
+        )
+    )
+    if user is None:
+        raise AppError(401, "session_expired")
+    return user
+
+
 PlatformAuth = Annotated[PlatformContext, Depends(get_platform_auth, scope="function")]
+
+
+async def get_any_auth(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> AsyncIterator[AuthContext | PlatformContext]:
+    """Kim bo'lsa ham kirgan foydalanuvchi (parolini almashtirmagan bo'lsa ham): biznes xodimi — o'z biznesi
+    ichida, platforma egasi — tizim sessiyasida. Faqat parolni almashtirish kabi umumiy amallar uchun."""
+    payload = decode_access_token(credentials.credentials) if credentials else None
+    if payload and payload.get("sid") is not None and payload.get("bid") is None:
+        if payload.get("role") != "platform_owner":
+            raise AppError(401, "not_authenticated")
+        async with system_session() as db:
+            user = await _platform_user(db, payload)
+            yield PlatformContext(user=user, session_id=int(payload["sid"]), db=db)
+        return
+    async for ctx in get_auth_basic(credentials):
+        yield ctx
+
+
+AnyAuth = Annotated[AuthContext | PlatformContext, Depends(get_any_auth, scope="function")]

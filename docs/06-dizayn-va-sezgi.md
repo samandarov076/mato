@@ -10,6 +10,8 @@ Tokenlar `R G B` ko'rinishida (`index.css :root` va tungi bloklar). Har rangning
 indigo — asosiy amal; leaf — pul, sotuv, muvaffaqiyat; saffron — nasiya, ogohlantirish; madder — xato,
 kamomad; sky — ombor; plum — katalog; coral — hisobot; rose — tuzilma.
 
+**Holat ranglari (yorliq, `Chip`):** yakunlangan / qabul qilingan / faol — leaf; kutilayotgan (yo'lda), qaytarilgan — saffron; **bekor qilingan** (sotuv, ko'chirish, kirim), farq bilan qabul qilingan, bloklangan, muddati o'tgan — madder (qizil); faolsiz (o'chirilgan emas, shunchaki ishlatilmayotgan: mato, xodim, joy, mijoz) va "o'chiq" — neytral kulrang. Bekor qilingan hujjat kulrang bo'lmaydi — ro'yxatda darhol ko'zga tashlanishi kerak (2026-10-04).
+
 | Token (kunduz) | Qiymat | oq fonda | sahifa fonida | o'z "soft" fonida |
 |---|---|---|---|---|
 | ink | 24 27 42 | 17.1 | 15.8 | — |
@@ -156,7 +158,9 @@ oldindan keshlaydi, tovar rasmlari `CacheFirst`; backend `GZip` (JSON 6–8 mart
 
 ## Zichlik: jadval va filtrlar (2026-10-03)
 
+- Kartochka sahifasidagi ma'lumot (sana, do'kon, to'lov, qarz…) — **nom–qiymat jadvali** (`InfoTable`/`InfoRow`, `shared/ui/list.tsx`): chapda nom, o'ngda qiymat, qatorlar chiziq bilan ajratilgan; har maydonga alohida rangli belgi qo'yilmaydi (o'qish qiyinlashadi). Hozircha sotuv kartochkasida; `Fact` boshqa kartochkalarda qolgan.
+- Yig'ma ko'rsatkichlar — `Stat` ko'rinishidagi oddiy oq kartochkalar (rangli chegara-chiziqlar, rangli fon yo'q): nom, katta son, ostida ulush chizig'i; rang faqat ma'no tashiydigan joyda (ulush chizig'i, xavfli qiymat). Kartochka bosilsa ro'yxat filtrlanadi — tanlangani ko'k chegara bilan, qolganlari xiralashadi (masalan nasiya muddat taqsimoti, `AgingRow`).
 - Ko'p ustunli ro'yxat ≥768px da **jadval** (`shared/ui/table.tsx`), telefonda kartochka; ikkalasi birga chizilmaydi (`useWide`). Raqam ustunlari o'ngga tekis (`num`); holat va to'lov turi — avvalgi rangli yorliqlar; bo'sh holat xabarlari o'zgarmaydi. Butun qator bosiladi (`LinkRow`), birinchi katakdagi havola — klaviatura uchun. Ustunlari ko'p jadval planshetda biroz kichik matn bilan (`dense`).
 - Davr — tayyor tugmalar (`PeriodFilter`), sana maydonlari faqat "Ixtiyoriy oraliq"da. Qo'shimcha filtrlar — "Filtr" tugmasi ortida (`FilterPanel`), faol filtrlar soni tugmada.
-- Kam ishlatiladigan qator amallari — "⋯" menyuda (`Menu.tsx`): Enter/bo'shliq ochadi, strelkalar yuradi, Esc yopadi, fokus tugmaga qaytadi.
+- Kam ishlatiladigan qator amallari — "⋯" menyuda (`Menu.tsx`): Enter/bo'shliq ochadi, strelkalar yuradi, Esc yopadi, fokus tugmaga qaytadi. Istisno (2026-10-05, foydalanuvchi qarori): xodimning parol/PIN'ini ko'rish — menyuda emas, qatorda "Tahrirlash" yonida, bir bosishda.
 - Sahifa tushuntirish matni — `Hint` (yopilsa qurilmada eslab qolinadi). Xato banneri (`Alert`) ma'lumot yuklanmaganda "Qayta urinish" tugmasini o'zi ko'rsatadi.

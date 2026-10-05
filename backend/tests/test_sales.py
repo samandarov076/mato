@@ -664,3 +664,46 @@ async def test_sales_feed_the_low_stock_alert(shop):
     async with system_session() as db:
         debts = await db.scalars(select(Debt.id).where(Debt.business_id == s.business_id))
         assert debts.all() == []  # naqd sotuv qarz ochmaydi
+
+
+async def test_sales_list_sorts_by_time_and_amount(shop):
+    """Jadval sarlavhasidan saralash: vaqt (standart — yangisi tepada) va summa, ikki yo'nalishda."""
+    s = await shop()
+    batch = await s.in_store(0, "200")
+    for meters in ("5", "20", "10"):  # S-000001: 225 000, S-000002: 900 000, S-000003: 450 000
+        assert (await s.sell_to((batch, meters, 45000))).status_code == 201
+
+    async def numbers(**params) -> list[str]:
+        page = await s.client.get("/api/sales", params=params, headers=s.headers)
+        assert page.status_code == 200, page.text
+        return [row["number"] for row in page.json()["items"]]
+
+    assert await numbers() == ["S-000003", "S-000002", "S-000001"]
+    assert await numbers(sort="time") == ["S-000001", "S-000002", "S-000003"]
+    assert await numbers(sort="-amount") == ["S-000002", "S-000003", "S-000001"]
+    assert await numbers(sort="amount") == ["S-000001", "S-000003", "S-000002"]
+    assert (await s.client.get("/api/sales", params={"sort": "x"}, headers=s.headers)).status_code == 422
+
+
+async def test_closed_batch_disappears_from_the_sale_screen(shop):
+    """Partiya do'konda yopilsa — sotuv ekranida (qidiruv va to'r shu ro'yxatdan) ko'rinmaydi; tovarning boshqa
+    ochiq partiyasi qolmagan bo'lsa, tovarning o'zi ham chiqmaydi. Skladdagi qoldiqqa ta'sir qilmaydi."""
+    s = await shop()
+    closing, staying = await s.in_store(0, "50", 1), await s.in_store(1, "40", 1)
+
+    async def on_screen() -> list[int]:
+        context = await s.client.get("/api/sales/context", params={"store_id": s.store}, headers=s.headers)
+        return sorted(batch["id"] for item in context.json()["items"] for batch in item["batches"])
+
+    assert await on_screen() == sorted([closing, staying])
+
+    closed = await s.client.post(
+        f"/api/batches/{closing}/close", json={"location_id": s.store}, headers=s.headers
+    )
+    assert closed.status_code in (200, 201, 204), closed.text
+
+    assert await on_screen() == [staying]
+    items = (
+        await s.client.get("/api/sales/context", params={"store_id": s.store}, headers=s.headers)
+    ).json()["items"]
+    assert len(items) == 1  # yopilgan partiyaning tovari ro'yxatdan butunlay chiqdi

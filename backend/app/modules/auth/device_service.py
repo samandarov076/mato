@@ -126,7 +126,7 @@ async def revoke_device(ctx: AuthContext, device_id: int) -> None:
 
 
 async def store_login(
-    login: str, password: str, previous_token: str | None
+    login: str, password: str, previous_token: str | None, ip: str | None = None
 ) -> tuple[Device, Location, Business, str]:
     """Do'konning o'z logini va paroli bilan SHU brauzerni do'kon qurilmasiga aylantiradi.
 
@@ -135,6 +135,7 @@ async def store_login(
     qurilma "Qurilmalar" ro'yxatida turadi, ega uni uzishi mumkin. (qurilma, do'kon, biznes, token) qaytaradi.
     """
     login = login.strip().lower()
+    await ratelimit.reject_if_ip_blocked(ip)
     subject = f"store:{login}"
     wait = await ratelimit.blocked_for(ratelimit.LOGIN, subject)
     if wait:
@@ -154,8 +155,10 @@ async def store_login(
             verify_password, password, store.password_hash if store else None
         )
         if store is None or not password_ok:
-            if await ratelimit.record_failure(ratelimit.LOGIN, subject):
-                error = AppError(429, "too_many_attempts", retry_after=ratelimit.LOGIN.block_seconds)
+            locked = await ratelimit.record_failure(ratelimit.LOGIN, subject)
+            locked = await ratelimit.record_ip_failure(ip) or locked
+            if locked:
+                error = AppError(429, "too_many_attempts", retry_after=locked)
             else:
                 error = AppError(401, "invalid_store_credentials")
         elif not store.is_active:
@@ -219,10 +222,11 @@ async def device_status(token: str | None) -> tuple[Device, Location, Business] 
         return await _find_device(db, token)
 
 
-async def pin_login(token: str | None, pin: str) -> Issued:
+async def pin_login(token: str | None, pin: str, ip: str | None = None) -> Issued:
     issued: Issued | None = None
     error: AppError | None = None
 
+    await ratelimit.reject_if_ip_blocked(ip)
     async with system_session() as db:
         found = await _find_device(db, token)
         if found is None:
@@ -258,6 +262,7 @@ async def pin_login(token: str | None, pin: str) -> Issued:
                 if seller is None:
                     store_block = await ratelimit.record_failure(ratelimit.PIN_STORE, str(store.id))
                     device_block = await ratelimit.record_failure(ratelimit.PIN, subject)
+                    ip_block = await ratelimit.record_ip_failure(ip)  # IP hisobi; bloki keyingi urinishda
                     if store_block or device_block:
                         log_event(
                             db,
@@ -278,6 +283,8 @@ async def pin_login(token: str | None, pin: str) -> Issued:
                         error = AppError(
                             429, "pin_locked", retry_after=max(store_block, device_block)
                         )
+                    elif ip_block:
+                        error = AppError(429, "too_many_attempts", retry_after=ip_block)
                     else:
                         error = AppError(401, "invalid_pin")
                 else:

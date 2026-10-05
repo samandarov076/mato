@@ -435,3 +435,88 @@ async def test_the_same_payment_is_recorded_once(shop):
     theirs = await other.customer()
     await _credit(other, theirs, await other.in_store(0, "200"), "10")
     assert (await _pay(other, theirs, 100_000, client_uuid=key)).status_code == 201
+
+
+async def test_customer_history_is_paged(shop):
+    """To'lovlar va hisobdan chiqarishlar tarixi sahifalab beriladi — jimgina qirqilmaydi."""
+    s = await shop()
+    batch = await s.in_store(0, "200")
+    sardor = await s.customer()
+    sale = await _credit(s, sardor, batch, "10")  # 450 000
+    for _ in range(23):
+        assert (await _pay(s, sardor, 1000)).status_code == 201
+    debt = await _debt_id(sale)
+    for _ in range(22):
+        off = await s.client.post(
+            f"/api/debts/{debt}/writeoff", json={"amount": 500, "reason": "Chegirma"}, headers=s.headers
+        )
+        assert off.status_code == 204
+
+    card = await _card(s, sardor)
+    assert (len(card["payments"]), card["payments_total"]) == (20, 23)
+    assert (len(card["writeoffs"]), card["writeoffs_total"]) == (20, 22)
+
+    async def page(kind: str, **params) -> dict:
+        response = await s.client.get(f"/api/customers/{sardor}/{kind}", params=params, headers=s.headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    rest = await page("payments", offset=20)
+    assert (len(rest["items"]), rest["total"]) == (3, 23)
+    seen = [p["id"] for p in card["payments"]] + [p["id"] for p in rest["items"]]
+    assert len(set(seen)) == 23 and seen == sorted(seen, reverse=True)  # eng yangisi birinchi, takrorsiz
+    assert rest["items"][0]["allocations"][0]["amount"] == 1000
+    tail = await page("writeoffs", offset=20, limit=5)
+    assert (len(tail["items"]), tail["total"]) == (2, 22)
+
+    # Boshqa biznes bu mijozning tarixini ko'rmaydi
+    other = await shop()
+    foreign = await s.client.get(f"/api/customers/{sardor}/payments", headers=other.headers)
+    assert foreign.status_code == 404
+
+
+async def test_debt_aging_puts_boundary_days_into_the_right_bucket(shop):
+    """Muddat taqsimoti: kun = bugun − muddat. 30-kun — "1–30", 31-kun va 60-kun — "31–60", 61-kun — "60+"."""
+    s = await shop()
+    batch = await s.in_store(0, "200")
+    # Har mijozga bitta qarz (1 m = 45 000 so'm); muddatidan necha kun o'tgani:
+    late = {"Bugun": 0, "Kecha": 1, "O'ttiz": 30, "O'ttiz bir": 31, "Oltmish": 60, "Oltmish bir": 61, "Kelajak": -5}
+    ids = {}
+    for index, (name, days) in enumerate(late.items()):
+        ids[name] = await s.customer(name=name, phone=f"+99890123450{index}")
+        sale = await _credit(s, ids[name], batch, "1")
+        async with system_session() as db:
+            await db.execute(
+                update(Debt).where(Debt.sale_id == sale).values(due_date=TODAY_DATE - timedelta(days=days))
+            )
+    # Qisman to'langan qarz — qolgani bo'yicha hisoblanadi
+    assert (await _pay(s, ids["Oltmish bir"], 5000)).status_code == 201
+
+    page = (await s.client.get("/api/customers", headers=s.headers)).json()
+    assert page["aging"] == {
+        "total": 310_000, "not_due": 90_000, "d1_30": 90_000, "d31_60": 90_000, "d60_plus": 40_000,
+    }  # fmt: skip
+    assert (page["debt_total"], page["overdue_total"]) == (310_000, 220_000)
+
+    async def names(only: str) -> set[str]:
+        response = await s.client.get("/api/customers", params={"only": only}, headers=s.headers)
+        assert response.status_code == 200, response.text
+        return {row["name"] for row in response.json()["items"]}
+
+    assert await names("not_due") == {"Bugun", "Kelajak"}
+    assert await names("d1_30") == {"Kecha", "O'ttiz"}
+    assert await names("d31_60") == {"O'ttiz bir", "Oltmish"}
+    assert await names("d60_plus") == {"Oltmish bir"}
+    assert await names("overdue") == {"Kecha", "O'ttiz", "O'ttiz bir", "Oltmish", "Oltmish bir"}
+
+    # Bosh sahifa va Nasiya hisoboti — o'sha taqsimot
+    board = (await s.client.get("/api/reports/dashboard", headers=s.headers)).json()
+    assert board["debt_aging"] == page["aging"]
+    assert (board["debt_total"], board["debt_overdue"]) == (310_000, 220_000)
+    period = {"date_from": TODAY_DATE.isoformat(), "date_to": TODAY_DATE.isoformat()}
+    report = (await s.client.get("/api/reports/credit", params=period, headers=s.headers)).json()
+    assert report["aging"] == page["aging"] and report["debtors"] == 7
+    elsewhere = (
+        await s.client.get("/api/reports/credit", params={**period, "store_id": s.warehouse}, headers=s.headers)
+    ).json()
+    assert elsewhere["aging"]["total"] == 0

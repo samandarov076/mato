@@ -31,7 +31,7 @@ const patterns = [
 const sku = (id: number, color: (typeof colors)[number], price: number | null) => ({
   id,
   code: `M101-${color.code}`,
-  fabric: { id: 1, code: "M101", name: "Atlas", default_m_per_kg: null, is_active: true },
+  fabric: { id: 1, code: "M101", name: "Atlas", image_url: null, default_m_per_kg: null, is_active: true },
   color: { id: color.id, code: color.code, name: color.name, hex: color.hex, image_url: null, is_active: true },
   pattern: { id: 21, code: "0", name: "Gulsiz", image_url: null, is_plain: true, is_active: true },
   price,

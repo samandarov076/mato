@@ -12,7 +12,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, distinct, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import log_event
@@ -22,6 +23,7 @@ from app.modules.auth.models import User
 from app.modules.auth.schemas import normalize_phone
 from app.modules.credit.models import Customer, Debt, DebtPayment, DebtWriteoff, PaymentAllocation
 from app.modules.credit.schemas import (
+    Aging,
     AllocationOut,
     CustomerBrief,
     CustomerCard,
@@ -33,14 +35,20 @@ from app.modules.credit.schemas import (
     PaymentCreated,
     PaymentIn,
     PaymentOut,
+    PaymentPage,
     WriteoffIn,
     WriteoffOut,
+    WriteoffPage,
 )
 from app.modules.notifications import service as notifications
 from app.modules.sales.models import Sale
 from app.modules.structure.models import Location
 
 _REMAINING = Debt.amount - Debt.paid - Debt.written_off - Debt.returned
+
+
+# Kartochkada tarixning birinchi sahifasi; qolgani — "Yana ko'rsatish" bilan
+HISTORY_PAGE = 20
 
 
 def overdue_key(debt_id: int) -> str:
@@ -197,6 +205,7 @@ def _row(
     overdue: int | None,
     oldest: datetime | None,
     last_payment: datetime | None,
+    last_amount: int | None = None,
 ) -> CustomerRow:
     zone = ZoneInfo(ctx.business.timezone)
     return CustomerRow(
@@ -209,7 +218,35 @@ def _row(
         overdue=int(overdue or 0),
         oldest_days=(_today(ctx.business.timezone) - oldest.astimezone(zone).date()).days if oldest else None,
         last_payment_at=last_payment,
+        last_payment_amount=last_amount,
     )
+
+
+def aging_buckets(today: date) -> dict[str, Any]:
+    """Muddat oraliqlari sharti (kun = bugun − muddat): 30-kun — "1–30", 31- va 60-kun — "31–60", 61+ — "60+"."""
+    return {
+        "not_due": Debt.due_date >= today,
+        "d1_30": and_(Debt.due_date < today, Debt.due_date >= today - timedelta(days=30)),
+        "d31_60": and_(
+            Debt.due_date < today - timedelta(days=30), Debt.due_date >= today - timedelta(days=60)
+        ),
+        "d60_plus": Debt.due_date < today - timedelta(days=60),
+    }
+
+
+async def debt_summary(ctx: AuthContext, store_id: int | None = None) -> tuple[Aging, int]:
+    """(muddat taqsimoti, qarzdorlar soni) — bitta yig'ma so'rov bilan. Do'kon tanlansa — shu do'kondagi
+    nasiya sotuvlar qarzi."""
+    buckets = aging_buckets(_today(ctx.business.timezone))
+    query = select(
+        func.coalesce(func.sum(_REMAINING), 0),
+        *(func.coalesce(func.sum(_REMAINING).filter(condition), 0) for condition in buckets.values()),
+        func.count(distinct(Debt.customer_id)),
+    ).where(Debt.status == "active", _REMAINING > 0)
+    if store_id is not None:
+        query = query.join(Sale, Sale.id == Debt.sale_id).where(Sale.store_id == store_id)
+    total, *parts, debtors = (await ctx.db.execute(query)).one()
+    return Aging(total=int(total), **dict(zip(buckets, map(int, parts), strict=True))), debtors
 
 
 def _with_totals(ctx: AuthContext):
@@ -220,14 +257,25 @@ def _with_totals(ctx: AuthContext):
             func.sum(_REMAINING).label("debt"),
             func.sum(_REMAINING).filter(Debt.due_date < _today(ctx.business.timezone)).label("overdue"),
             func.min(Debt.created_at).label("oldest"),
+            # Muddat oraliqlari — ro'yxatni "60+ kunlilar" kabi filtrlash uchun
+            *(
+                func.coalesce(func.sum(_REMAINING).filter(condition), 0).label(name)
+                for name, condition in aging_buckets(_today(ctx.business.timezone)).items()
+            ),
         )
         .where(Debt.status == "active", _REMAINING > 0)
         .group_by(Debt.customer_id)
         .subquery()
     )
+    # Har mijozning oxirgi to'lovi: sanasi va summasi (DISTINCT ON — eng yangi to'lov qatori)
     payments = (
-        select(DebtPayment.customer_id.label("customer_id"), func.max(DebtPayment.created_at).label("last"))
-        .group_by(DebtPayment.customer_id)
+        select(
+            DebtPayment.customer_id.label("customer_id"),
+            DebtPayment.created_at.label("last"),
+            DebtPayment.amount.label("last_amount"),
+        )
+        .ext(distinct_on(DebtPayment.customer_id))
+        .order_by(DebtPayment.customer_id, DebtPayment.id.desc())
         .subquery()
     )
     return open_debts, payments
@@ -260,6 +308,8 @@ async def list_customers(
         conditions.append(debt > 0)
     elif only == "overdue":
         conditions.append(overdue > 0)
+    elif only in ("not_due", "d1_30", "d31_60", "d60_plus"):
+        conditions.append(func.coalesce(open_debts.c[only], 0) > 0)
 
     def joined(*columns: Any):
         return (
@@ -276,7 +326,14 @@ async def list_customers(
     }.get(sort, [])
     rows = (
         await ctx.db.execute(
-            joined(Customer, open_debts.c.debt, open_debts.c.overdue, open_debts.c.oldest, payments.c.last)
+            joined(
+                Customer,
+                open_debts.c.debt,
+                open_debts.c.overdue,
+                open_debts.c.oldest,
+                payments.c.last,
+                payments.c.last_amount,
+            )
             .order_by(*order, func.lower(Customer.name), Customer.id)
             .limit(limit)
             .offset(offset)
@@ -285,7 +342,9 @@ async def list_customers(
     total, debt_total, overdue_total = (
         await ctx.db.execute(joined(func.count(), func.sum(debt), func.sum(overdue)))
     ).one()
+    aging, _ = await debt_summary(ctx)
     return CustomerPage(
+        aging=aging,
         items=[_row(ctx, *row) for row in rows],
         total=total,
         debt_total=int(debt_total or 0),
@@ -308,7 +367,13 @@ async def get_customer(ctx: AuthContext, customer_id: int) -> CustomerCard:
     open_debts, payments = _with_totals(ctx)
     totals = (
         await ctx.db.execute(
-            select(open_debts.c.debt, open_debts.c.overdue, open_debts.c.oldest, payments.c.last)
+            select(
+                open_debts.c.debt,
+                open_debts.c.overdue,
+                open_debts.c.oldest,
+                payments.c.last,
+                payments.c.last_amount,
+            )
             .select_from(Customer)
             .outerjoin(open_debts, open_debts.c.customer_id == Customer.id)
             .outerjoin(payments, payments.c.customer_id == Customer.id)
@@ -329,37 +394,8 @@ async def get_customer(ctx: AuthContext, customer_id: int) -> CustomerCard:
             .order_by((_REMAINING == 0), Debt.created_at, Debt.id)
         )
     ).all()
-    paid = (
-        await ctx.db.execute(
-            select(DebtPayment, User.full_name, Location.name)
-            .join(User, User.id == DebtPayment.user_id)
-            .join(Location, Location.id == DebtPayment.store_id)
-            .where(DebtPayment.customer_id == customer.id)
-            .order_by(DebtPayment.id.desc())
-            .limit(200)
-        )
-    ).all()
-    allocations: dict[int, list[AllocationOut]] = {}
-    for allocation, sale_id, number in await ctx.db.execute(
-        select(PaymentAllocation, Sale.id, Sale.number)
-        .join(Debt, Debt.id == PaymentAllocation.debt_id)
-        .join(Sale, Sale.id == Debt.sale_id)
-        .where(PaymentAllocation.payment_id.in_([payment.id for payment, _, _ in paid]))
-        .order_by(PaymentAllocation.id)
-    ):
-        allocations.setdefault(allocation.payment_id, []).append(
-            AllocationOut(sale_id=sale_id, sale_number=number, amount=allocation.amount)
-        )
-    writeoffs = (
-        await ctx.db.execute(
-            select(DebtWriteoff, User.full_name, Sale.id, Sale.number)
-            .join(Debt, Debt.id == DebtWriteoff.debt_id)
-            .join(Sale, Sale.id == Debt.sale_id)
-            .join(User, User.id == DebtWriteoff.user_id)
-            .where(Debt.customer_id == customer.id)
-            .order_by(DebtWriteoff.id.desc())
-        )
-    ).all()
+    payments = await list_payments(ctx, customer.id, limit=HISTORY_PAGE, known=customer)
+    writeoffs = await list_writeoffs(ctx, customer.id, limit=HISTORY_PAGE, known=customer)
 
     return CustomerCard(
         **_row(ctx, customer, *totals).model_dump(),
@@ -384,7 +420,44 @@ async def get_customer(ctx: AuthContext, customer_id: int) -> CustomerCard:
             )
             for debt, sale, store, seller in debts
         ],
-        payments=[
+        payments=payments.items,
+        payments_total=payments.total,
+        writeoffs=writeoffs.items,
+        writeoffs_total=writeoffs.total,
+    )
+
+
+async def list_payments(
+    ctx: AuthContext, customer_id: int, *, limit: int = 20, offset: int = 0, known: Customer | None = None
+) -> PaymentPage:
+    """Mijozdan qabul qilingan to'lovlar — eng yangisi birinchi, sahifalab (tarix jimgina qirqilmaydi)."""
+    customer = known or await _customer(ctx, customer_id)
+    mine = DebtPayment.customer_id == customer.id
+    paid = (
+        await ctx.db.execute(
+            select(DebtPayment, User.full_name, Location.name)
+            .join(User, User.id == DebtPayment.user_id)
+            .join(Location, Location.id == DebtPayment.store_id)
+            .where(mine)
+            .order_by(DebtPayment.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    allocations: dict[int, list[AllocationOut]] = {}
+    for allocation, sale_id, number in await ctx.db.execute(
+        select(PaymentAllocation, Sale.id, Sale.number)
+        .join(Debt, Debt.id == PaymentAllocation.debt_id)
+        .join(Sale, Sale.id == Debt.sale_id)
+        .where(PaymentAllocation.payment_id.in_([payment.id for payment, _, _ in paid]))
+        .order_by(PaymentAllocation.id)
+    ):
+        allocations.setdefault(allocation.payment_id, []).append(
+            AllocationOut(sale_id=sale_id, sale_number=number, amount=allocation.amount)
+        )
+    total = await ctx.db.scalar(select(func.count()).select_from(DebtPayment).where(mine))
+    return PaymentPage(
+        items=[
             PaymentOut(
                 id=payment.id,
                 created_at=payment.created_at,
@@ -396,7 +469,35 @@ async def get_customer(ctx: AuthContext, customer_id: int) -> CustomerCard:
             )
             for payment, user, store in paid
         ],
-        writeoffs=[
+        total=total or 0,
+    )
+
+
+async def list_writeoffs(
+    ctx: AuthContext, customer_id: int, *, limit: int = 20, offset: int = 0, known: Customer | None = None
+) -> WriteoffPage:
+    """Mijoz qarzlaridan hisobdan chiqarilganlari — eng yangisi birinchi, sahifalab."""
+    customer = known or await _customer(ctx, customer_id)
+    rows = (
+        await ctx.db.execute(
+            select(DebtWriteoff, User.full_name, Sale.id, Sale.number)
+            .join(Debt, Debt.id == DebtWriteoff.debt_id)
+            .join(Sale, Sale.id == Debt.sale_id)
+            .join(User, User.id == DebtWriteoff.user_id)
+            .where(Debt.customer_id == customer.id)
+            .order_by(DebtWriteoff.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    total = await ctx.db.scalar(
+        select(func.count())
+        .select_from(DebtWriteoff)
+        .join(Debt, Debt.id == DebtWriteoff.debt_id)
+        .where(Debt.customer_id == customer.id)
+    )
+    return WriteoffPage(
+        items=[
             WriteoffOut(
                 id=item.id,
                 created_at=item.created_at,
@@ -406,8 +507,9 @@ async def get_customer(ctx: AuthContext, customer_id: int) -> CustomerCard:
                 sale_id=sale_id,
                 sale_number=number,
             )
-            for item, user, sale_id, number in writeoffs
+            for item, user, sale_id, number in rows
         ],
+        total=total or 0,
     )
 
 

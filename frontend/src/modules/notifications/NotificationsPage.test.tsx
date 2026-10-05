@@ -85,9 +85,12 @@ suite("Xabarlar sahifasi", () => {
     renderPage();
     await screen.findByText(/K-00007/);
 
-    await userEvent.selectOptions(screen.getByLabelText("Hodisa turi"), "stock.low");
+    expect(screen.getAllByRole("radio").map((chip) => chip.textContent)).toEqual([
+      "Barchasi", "Kam qoldiq", "Ko'chirish", "Nasiya", "Boshqa",
+    ]);
+    await userEvent.click(screen.getByRole("radio", { name: "Kam qoldiq" }));
 
-    expect(String(api.mock.calls.at(-1)?.[0])).toContain("event=stock.low");
+    expect(String(api.mock.calls.at(-1)?.[0])).toContain("kind=low_stock");
   });
 });
 

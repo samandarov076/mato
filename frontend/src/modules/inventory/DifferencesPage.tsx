@@ -15,6 +15,7 @@ import { Stat, statGrid } from "@/shared/ui/Stat";
 import type { Tone } from "@/shared/ui/tones";
 import { InventoryHeader } from "./InventoryHeader";
 import { inventoryKeys, skuNames, type Differences, type StockPage } from "./types";
+import { ExportButton } from "@/shared/ui/ExportButton";
 import { Hint } from "@/shared/ui/Hint";
 
 type Kind = "" | "shortage" | "surplus";
@@ -141,6 +142,13 @@ export function DifferencesPage() {
 
       {data && (
         <>
+          <div className="mt-4 flex justify-end">
+            <ExportButton
+              path={`/stock/differences/export?${new URLSearchParams(
+                Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+              )}`}
+            />
+          </div>
           <div className={`mt-4 ${statGrid} sm:grid-cols-3`}>
             {(
               [

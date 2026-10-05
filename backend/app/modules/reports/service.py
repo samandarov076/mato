@@ -33,6 +33,7 @@ from sqlalchemy import (
 from app.core.deps import AuthContext
 from app.modules.auth.models import User
 from app.modules.catalog.models import Color, Fabric, Pattern, Sku
+from app.modules.credit import service as credit
 from app.modules.credit.models import Debt, DebtPayment, DebtWriteoff
 from app.modules.inventory import service as inventory
 from app.modules.inventory.models import BatchStock
@@ -290,23 +291,10 @@ def period_scope(ctx: AuthContext, period: str, store_id: int | None) -> Scope:
     return Scope(start, end, store_id=store_id)
 
 
-async def _debt_totals(ctx: AuthContext, store_id: int | None) -> tuple[int, int, int]:
-    """(umumiy qarz, muddati o'tgani, qarzdorlar soni). Do'kon tanlansa — shu do'kondagi nasiya sotuvlar."""
-    query = select(
-        func.coalesce(func.sum(_REMAINING), 0),
-        func.coalesce(func.sum(_REMAINING).filter(Debt.due_date < today(ctx)), 0),
-        func.count(distinct(Debt.customer_id)),
-    ).where(Debt.status == "active", _REMAINING > 0)
-    if store_id is not None:
-        query = query.join(Sale, Sale.id == Debt.sale_id).where(Sale.store_id == store_id)
-    total, overdue, debtors = (await ctx.db.execute(query)).one()
-    return int(total), int(overdue), debtors
-
-
 async def dashboard(ctx: AuthContext, period: str = "day", store_id: int | None = None) -> Dashboard:
     scope = period_scope(ctx, period, store_id)
     previous = scope.previous()
-    debt_total, debt_overdue, _ = await _debt_totals(ctx, store_id)
+    aging, _ = await credit.debt_summary(ctx, store_id)
     low_by_place, low_anywhere = await inventory.low_stock_counts(ctx)
     diff = await inventory.difference_totals(
         ctx, date_from=scope.date_from, date_to=scope.date_to, location_id=store_id
@@ -324,8 +312,9 @@ async def dashboard(ctx: AuthContext, period: str = "day", store_id: int | None 
         date_to=scope.date_to,
         current=money(scope),
         previous=money(previous),
-        debt_total=debt_total,
-        debt_overdue=debt_overdue,
+        debt_total=aging.total,
+        debt_overdue=aging.total - aging.not_due,
+        debt_aging=aging,
         low_stock=low_anywhere if store_id is None else low_by_place.get(store_id, 0),
         diff_amount=diff.shortage_amount + diff.transfer_amount,
         diff_m=diff.shortage_m + diff.transfer_m,
@@ -482,7 +471,7 @@ async def stock_report(ctx: AuthContext) -> StockReport:
 
 async def credit_report(ctx: AuthContext, scope: Scope) -> CreditReport:
     """Hozirgi qarz va davr ichidagi harakat: berilgan nasiya, qaytgan qarz, hisobdan chiqarilgan."""
-    debt_total, debt_overdue, debtors = await _debt_totals(ctx, scope.store_id)
+    aging, debtors = await credit.debt_summary(ctx, scope.store_id)
 
     def of_store(query: Select, column: Any) -> Select:
         return query if scope.store_id is None else query.where(column == scope.store_id)
@@ -521,9 +510,10 @@ async def credit_report(ctx: AuthContext, scope: Scope) -> CreditReport:
         )
     )
     return CreditReport(
-        debt_total=debt_total,
-        debt_overdue=debt_overdue,
+        debt_total=aging.total,
+        debt_overdue=aging.total - aging.not_due,
         debtors=debtors,
+        aging=aging,
         given=int(given),
         paid=int(paid),
         returned=int(returned),

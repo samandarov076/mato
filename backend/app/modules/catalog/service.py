@@ -276,6 +276,7 @@ def sku_out(sku: Sku, fabric: Fabric, color: Color, pattern: Pattern) -> SkuOut:
             id=fabric.id,
             code=fabric.code,
             name=fabric.name,
+            image_url=fabric.image_url,
             default_m_per_kg=fabric.default_m_per_kg,
             is_active=fabric.is_active,
         ),

@@ -340,7 +340,8 @@
         "written_off": "Wrote off a debt"
       }
     },
-    "without_login": "Without sign-ins"
+    "without_login": "Without sign-ins",
+    "details_show": "Show in full"
   },
   "twofactor": {
     "title": "Verification code",
@@ -742,7 +743,7 @@
     "rolls_about_one": "≈ {{count}} roll",
     "rolls_about_other": "≈ {{count}} rolls",
     "stock": {
-      "intro": "Stock is kept in metres; the roll count is approximate. Click a batch number to see its whole history.",
+      "intro": "Stock is kept in metres; the roll count is approximate. Click a batch number to see its whole history. A batch is the goods of one receipt; cost and metre difference are tracked per batch.",
       "search_label": "Search",
       "search": "Item or batch number",
       "show": "Show",
@@ -771,7 +772,14 @@
       "reopen": "Reopen",
       "history": "Batch history",
       "reopen_confirm": "Reopen the batch at “{{place}}”?",
-      "reopen_yes": "Yes, reopen"
+      "reopen_yes": "Yes, reopen",
+      "history_kind": "Movement type",
+      "kinds": {
+        "sales": "Sales",
+        "transfers": "Transfers",
+        "other": "Other"
+      },
+      "history_empty": "No movements of this type."
     },
     "diff": {
       "short": "{{meters}} m short",
@@ -952,6 +960,12 @@
       "pin": {
         "store_locked": "The wrong PIN was entered too many times at “{{store}}” — the store's devices are locked for {{minutes}} min. Ask your sellers; if in doubt, change the PINs."
       }
+    },
+    "kinds": {
+      "low_stock": "Low stock",
+      "transfers": "Transfers",
+      "credit": "Credit",
+      "other": "Other"
     }
   },
   "sales": {
@@ -994,7 +1008,11 @@
       "sell_credit": "Choose customer",
       "at_recommended": "At the recommended price",
       "recommended_restore": "Back to recommended: {{price}}",
-      "items": "Items"
+      "items": "Items",
+      "found": "{{count}} found",
+      "search_keys": "↓ ↑ to move, Enter to pick",
+      "parts": "What it is made of",
+      "clear_filter": "{{name}}: clear selection"
     },
     "cart": {
       "title": "Basket",
@@ -1076,7 +1094,8 @@
       "return_refund_cash": "{{amount}} soʻm refunded in cash",
       "return_refund_card": "{{amount}} soʻm refunded to card",
       "cancelled_by": "Cancelled by {{name}} — {{when}}",
-      "reason": "Reason: {{reason}}"
+      "reason": "Reason: {{reason}}",
+      "info": "Details"
     },
     "return": {
       "open": "Return",
@@ -1101,7 +1120,8 @@
       "reason": "Reason for cancelling",
       "reason_required": "Write the reason",
       "yes": "Yes, cancel it"
-    }
+    },
+    "done_duplicate": "This sale was already recorded ({{number}}) — nothing new was written."
   },
   "credit": {
     "intro": "Customers are shared across the business: they can buy on credit and pay at any store.",
@@ -1186,7 +1206,15 @@
       "submit": "Yes, write it off",
       "done": "{{amount}} soʻm written off"
     },
-    "col_debt": "Debt"
+    "col_debt": "Debt",
+    "aging": {
+      "title": "Debt ageing",
+      "total": "Total",
+      "not_due": "Not yet due",
+      "d1_30": "1–30 days",
+      "d31_60": "31–60 days",
+      "d60_plus": "60+ days"
+    }
   },
   "dashboard": {
     "period": {
@@ -1325,10 +1353,6 @@
       "title": "Instant alerts",
       "hint": "When a transfer is received with a difference and when a batch is closed with a large difference."
     }
-  },
-  "shell": {
-    "device_bound": "This device is bound to the store “{{store}}” — sellers log in here with a PIN. You are logged in with your password.",
-    "unbind": "Unbind the device"
   },
   "errors": {
     "invalid_credentials": "Wrong phone number or password",

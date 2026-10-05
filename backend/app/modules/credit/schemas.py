@@ -50,9 +50,22 @@ class CustomerRow(BaseModel):
     overdue: int  # shundan muddati o'tgani
     oldest_days: int | None  # eng eski yopilmagan qarz necha kunlik
     last_payment_at: datetime | None
+    last_payment_amount: int | None = None  # oxirgi to'lov summasi
+
+
+class Aging(BaseModel):
+    """Muddat taqsimoti: yopilmagan qarzlarning qolgani, muddatidan necha kun o'tganiga qarab
+    (kun = bugun − `due_date`, biznes vaqt mintaqasida). docs/03-details/07-nasiya.md."""
+
+    total: int
+    not_due: int  # muddati kelmagan (bugun ham kiradi)
+    d1_30: int  # 1–30 kun o'tgan
+    d31_60: int  # 31–60 kun
+    d60_plus: int  # 61 kun va undan ko'p
 
 
 class CustomerPage(BaseModel):
+    aging: Aging  # butun biznes bo'yicha (ro'yxat filtriga bog'liq emas)
     items: list[CustomerRow]
     total: int
     debt_total: int  # filtrga mos mijozlarning jami qarzi
@@ -106,10 +119,22 @@ class WriteoffOut(BaseModel):
     sale_number: str
 
 
+class PaymentPage(BaseModel):
+    items: list[PaymentOut]
+    total: int
+
+
+class WriteoffPage(BaseModel):
+    items: list[WriteoffOut]
+    total: int
+
+
 class CustomerCard(CustomerRow):
     debts: list[DebtRow]  # eng eskisi birinchi; to'liq yopilganlari oxirida
-    payments: list[PaymentOut]
-    writeoffs: list[WriteoffOut]
+    payments: list[PaymentOut]  # birinchi sahifa (eng yangilari); qolgani — /customers/{id}/payments
+    payments_total: int
+    writeoffs: list[WriteoffOut]  # birinchi sahifa; qolgani — /customers/{id}/writeoffs
+    writeoffs_total: int
 
 
 # ---------- Amallar ----------

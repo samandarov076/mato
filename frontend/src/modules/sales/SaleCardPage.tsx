@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Banknote, CalendarClock, CalendarDays, CheckCheck, Coins, HandCoins, Receipt, Store, TrendingUp, Undo2, UserRound, Users, Wallet } from "lucide-react";
+import { Ban, Banknote, CheckCheck, HandCoins, Receipt, Undo2, Wallet } from "lucide-react";
 import { useCurrentUser } from "@/modules/auth/AuthProvider";
 import { parseDecimal } from "@/modules/catalog/types";
 import { creditKeys } from "@/modules/credit/types";
@@ -15,7 +15,18 @@ import { Card } from "@/shared/ui/Card";
 import { Segmented } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { fieldLabel, TextAreaField } from "@/shared/ui/fields";
-import { BackLink, Chip, Fact, IconChip, RowAction, rowClass, SectionHeader, sectionStrip } from "@/shared/ui/list";
+import {
+  BackLink,
+  Chip,
+  Fact,
+  IconChip,
+  InfoRow,
+  InfoTable,
+  RowAction,
+  rowClass,
+  SectionHeader,
+  sectionStrip,
+} from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { focusRing } from "@/shared/ui/tones";
 import { lineAmount } from "./cart";
@@ -88,7 +99,7 @@ function SaleView({ id }: { id: number }) {
       <div className="mt-3">
         <PageTitle
           icon={Receipt}
-          tone={sale.status === "cancelled" ? "neutral" : "leaf"}
+          tone={sale.status === "cancelled" ? "madder" : "leaf"}
           sub={<SaleStatusChip status={sale.status} />}
           action={
             mode === "view" &&
@@ -151,26 +162,68 @@ function SaleView({ id }: { id: number }) {
           />
         )}
 
-        <Card>
-          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Fact icon={CalendarDays} label={t("sales.card.when")}>
-              {formatDateTime(sale.created_at)}
-            </Fact>
-            <Fact icon={Store} tone="leaf" label={t("sales.store")}>
-              <span className="break-words">{sale.store.name}</span>
-            </Fact>
-            <Fact icon={UserRound} tone="indigo" label={t("sales.list.seller")}>
-              <span className="break-words">{sale.seller.name}</span>
-            </Fact>
-            {sale.customer && (
-              <Fact icon={Users} tone="saffron" label={t("sales.card.customer")}>
-                <Link to={`/customers/${sale.customer.id}`} className="break-words text-indigo hover:underline">
-                  {sale.customer.name}
-                </Link>
-              </Fact>
-            )}
-          </dl>
-        </Card>
+        {/* Ma'lumot va to'lov — jadval ko'rinishida (chapda nom, o'ngda qiymat); keng ekranda yonma-yon */}
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+          <Card title={t("sales.card.info")} icon={Receipt} tone="neutral" className="min-w-0">
+            <InfoTable>
+              <InfoRow label={t("sales.card.when")}>{formatDateTime(sale.created_at)}</InfoRow>
+              <InfoRow label={t("sales.store")}>{sale.store.name}</InfoRow>
+              <InfoRow label={t("sales.list.seller")}>{sale.seller.name}</InfoRow>
+              {sale.customer && (
+                <InfoRow label={t("sales.card.customer")}>
+                  <Link to={`/customers/${sale.customer.id}`} className="text-indigo hover:underline">
+                    {sale.customer.name}
+                  </Link>
+                </InfoRow>
+              )}
+            </InfoTable>
+          </Card>
+
+          <Card title={t("sales.card.payment")} icon={Wallet} tone="leaf" className="min-w-0">
+            <InfoTable>
+              <InfoRow label={t("sales.total")} strong>
+                {money(sale.total)}
+              </InfoRow>
+              <InfoRow label={t("sales.payment.label")}>
+                <PaymentChip type={sale.payment_type} />
+              </InfoRow>
+              {sale.returned_total > 0 && (
+                <InfoRow label={t("sales.card.returned_total")}>
+                  <span className="text-saffron">{money(sale.returned_total)}</span>
+                </InfoRow>
+              )}
+              {sale.debt && (
+                <>
+                  {sale.initial_payment > 0 && (
+                    <InfoRow label={t("sales.credit.initial")}>
+                      {money(sale.initial_payment)}
+                      {sale.initial_payment_method && (
+                        <span className="font-normal text-muted"> · {method(sale.initial_payment_method)}</span>
+                      )}
+                    </InfoRow>
+                  )}
+                  <InfoRow label={t("sales.card.debt")}>{money(sale.debt.amount)}</InfoRow>
+                  <InfoRow label={t("sales.card.debt_remaining")}>
+                    {sale.debt.status === "cancelled" ? (
+                      <span className="font-normal text-muted">{t("sales.card.debt_cancelled")}</span>
+                    ) : (
+                      <span className={sale.debt.remaining > 0 ? "text-madder" : ""}>{money(sale.debt.remaining)}</span>
+                    )}
+                  </InfoRow>
+                  {sale.debt.status === "active" && (
+                    <InfoRow label={t("sales.card.due")}>{formatDate(sale.debt.due_date)}</InfoRow>
+                  )}
+                </>
+              )}
+              {/* Foyda — faqat biznes egasiga keladi (server); to'lov qatorlaridan keyin */}
+              {sale.profit !== null && (
+                <InfoRow label={t("sales.card.profit")}>
+                  <span className={sale.profit < 0 ? "text-madder" : "text-leaf"}>{money(sale.profit)}</span>
+                </InfoRow>
+              )}
+            </InfoTable>
+          </Card>
+        </div>
 
         <section className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
           <div className={`${sectionStrip} hidden items-center gap-x-4 md:grid ${columns}`}>
@@ -228,108 +281,45 @@ function SaleView({ id }: { id: number }) {
           </ul>
         </section>
 
-        {/* Juda keng ekranda to'lov va qaytarishlar tarixi yonma-yon turadi */}
-        <div className={`grid gap-4 ${hasReturns ? "2xl:grid-cols-2 2xl:items-start" : ""}`}>
-          <Card title={t("sales.card.payment")} icon={Wallet} tone="leaf" className="min-w-0">
-            <dl className={`grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4 ${hasReturns ? "2xl:grid-cols-2" : ""}`}>
-              <Fact icon={Banknote} tone="leaf" label={t("sales.total")}>
-                <span className="text-xl font-semibold tabular-nums">{money(sale.total)}</span>
-              </Fact>
-              <Fact icon={Wallet} label={t("sales.payment.label")}>
-                <span className="mt-0.5 inline-block">
-                  <PaymentChip type={sale.payment_type} />
-                </span>
-              </Fact>
-              {sale.returned_total > 0 && (
-                <Fact icon={Undo2} tone="saffron" label={t("sales.card.returned_total")}>
-                  <span className="tabular-nums text-saffron">{money(sale.returned_total)}</span>
-                </Fact>
-              )}
-              {sale.profit !== null && (
-                <Fact icon={TrendingUp} tone={sale.profit < 0 ? "madder" : "leaf"} label={t("sales.card.profit")}>
-                  <span className={`tabular-nums ${sale.profit < 0 ? "text-madder" : "text-leaf"}`}>
-                    {money(sale.profit)}
-                  </span>
-                </Fact>
-              )}
-              {sale.debt && (
-                <>
-                  {sale.initial_payment > 0 && (
-                    <Fact
-                      icon={Wallet}
-                      tone="leaf"
-                      label={t("sales.credit.initial")}
-                      sub={method(sale.initial_payment_method)}
-                    >
-                      <span className="tabular-nums">{money(sale.initial_payment)}</span>
-                    </Fact>
-                  )}
-                  <Fact icon={HandCoins} tone="saffron" label={t("sales.card.debt")}>
-                    <span className="tabular-nums">{money(sale.debt.amount)}</span>
-                  </Fact>
-                  <Fact
-                    icon={Coins}
-                    tone={sale.debt.status !== "cancelled" && sale.debt.remaining > 0 ? "madder" : "neutral"}
-                    label={t("sales.card.debt_remaining")}
-                  >
-                    {sale.debt.status === "cancelled" ? (
-                      <span className="font-normal text-muted">{t("sales.card.debt_cancelled")}</span>
-                    ) : (
-                      <span className={`tabular-nums ${sale.debt.remaining > 0 ? "text-madder" : ""}`}>
-                        {money(sale.debt.remaining)}
-                      </span>
-                    )}
-                  </Fact>
-                  {sale.debt.status === "active" && (
-                    <Fact icon={CalendarClock} tone="saffron" label={t("sales.card.due")}>
-                      {formatDate(sale.debt.due_date)}
-                    </Fact>
-                  )}
-                </>
-              )}
-            </dl>
-          </Card>
-
-          {hasReturns && (
-            <section className="min-w-0 overflow-hidden rounded-card border border-line bg-panel shadow-card">
-              <SectionHeader>{t("sales.card.returns")}</SectionHeader>
-              <ul className="divide-y divide-line">
-                {sale.returns.map((item) => (
-                  <li key={item.id} className={`${rowClass} flex items-start gap-3`}>
-                    <IconChip icon={Undo2} tone="saffron" />
-                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1">
-                      <div className="min-w-0 flex-1 basis-48">
-                        {item.lines.map((line, index) => (
-                          <p key={index} className="text-sm">
-                            {line.sku_label} · {formatDecimal(line.meters)} m
-                          </p>
-                        ))}
-                        <p className="text-[13px] text-muted">
-                          {item.user}, {formatDateTime(item.created_at)}
+        {hasReturns && (
+          <section className="min-w-0 overflow-hidden rounded-card border border-line bg-panel shadow-card">
+            <SectionHeader>{t("sales.card.returns")}</SectionHeader>
+            <ul className="divide-y divide-line">
+              {sale.returns.map((item) => (
+                <li key={item.id} className={`${rowClass} flex items-start gap-3`}>
+                  <IconChip icon={Undo2} tone="saffron" />
+                  <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-1">
+                    <div className="min-w-0 flex-1 basis-48">
+                      {item.lines.map((line, index) => (
+                        <p key={index} className="text-sm">
+                          {line.sku_label} · {formatDecimal(line.meters)} m
                         </p>
-                        <p className="text-sm text-muted">
-                          {[
-                            item.debt_amount > 0 &&
-                              t("sales.card.return_debt", { amount: formatNumber(item.debt_amount) }),
-                            item.refund > 0 &&
-                              t(`sales.card.return_refund_${item.method ?? "cash"}`, {
-                                amount: formatNumber(item.refund),
-                              }),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      <p className="ml-auto whitespace-nowrap text-right font-medium tabular-nums">
-                        {money(item.amount)}
+                      ))}
+                      <p className="text-[13px] text-muted">
+                        {item.user}, {formatDateTime(item.created_at)}
+                      </p>
+                      <p className="text-sm text-muted">
+                        {[
+                          item.debt_amount > 0 &&
+                            t("sales.card.return_debt", { amount: formatNumber(item.debt_amount) }),
+                          item.refund > 0 &&
+                            t(`sales.card.return_refund_${item.method ?? "cash"}`, {
+                              amount: formatNumber(item.refund),
+                            }),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+                    <p className="ml-auto whitespace-nowrap text-right font-medium tabular-nums">
+                      {money(item.amount)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </div>
   );

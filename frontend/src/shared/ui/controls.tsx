@@ -104,7 +104,9 @@ export function Segmented<T extends string | number>({
   disabled?: boolean;
 }) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const index = Math.max(0, options.findIndex((option) => option.value === value));
+  // Qiymat variantlar ichida bo'lmasa (filtr boshqa joydan qo'yilgan) — hech biri tanlangan ko'rinmaydi
+  const chosen = options.findIndex((option) => option.value === value);
+  const index = Math.max(0, chosen);
   const height = size === "sm" ? "h-[30px]" : "h-[38px]";
 
   function choose(next: number, event?: { clientX?: number }) {
@@ -136,11 +138,13 @@ export function Segmented<T extends string | number>({
       {/* Tanlov belgisi: bitta element, variantlar orasida siljiydi */}
       <span
         aria-hidden="true"
-        className="absolute inset-y-[3px] left-[3px] rounded-[7px] bg-indigo transition-transform duration-slow ease-spring-soft"
+        className={`absolute inset-y-[3px] left-[3px] rounded-[7px] bg-indigo transition-[transform,opacity] duration-slow ease-spring-soft ${
+          chosen < 0 ? "opacity-0" : ""
+        }`}
         style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${index * 100}%)` }}
       />
       {options.map((option, i) => {
-        const active = i === index;
+        const active = i === chosen;
         return (
           <button
             key={String(option.value)}
@@ -148,7 +152,7 @@ export function Segmented<T extends string | number>({
             type="button"
             role="radio"
             aria-checked={active}
-            tabIndex={active ? 0 : -1}
+            tabIndex={i === index ? 0 : -1}
             disabled={disabled}
             onClick={(event) => choose(i, event)}
             className={`relative z-10 ${height} whitespace-nowrap rounded-[7px] px-3 text-sm transition-colors duration-base ${focusRing} ${

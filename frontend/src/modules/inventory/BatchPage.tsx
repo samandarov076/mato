@@ -31,10 +31,11 @@ import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { Alert, ConfirmBar, Loading } from "@/shared/ui/feedback";
 import { TextField } from "@/shared/ui/fields";
-import { BackLink, Chip, Fact, IconChip, RowAction, rowClass, rowClassCompact, SectionHeader } from "@/shared/ui/list";
+import { BackLink, Chip, Fact, IconChip, LoadMore, RowAction, rowClass, rowClassCompact, SectionHeader } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
-import type { Tone } from "@/shared/ui/tones";
-import { inventoryKeys, skuNames, type BatchCard, type BatchPlace } from "./types";
+import { focusRing, type Tone } from "@/shared/ui/tones";
+import { useMore } from "@/shared/useMore";
+import { inventoryKeys, skuNames, type BatchCard, type BatchPlace, type Movement } from "./types";
 
 /** Farq shu ulushdan (kirgan metrga nisbatan) katta bo'lsa — yopishdan oldin qo'shimcha ogohlantiriladi */
 const BIG_DIFFERENCE = 0.1;
@@ -328,54 +329,7 @@ function BatchView({ id }: { id: number }) {
             )}
           </section>
 
-          <section className="min-w-0 overflow-hidden rounded-card border border-line bg-panel shadow-card">
-            <SectionHeader>{t("inventory.batch.history")}</SectionHeader>
-            <ul className="divide-y divide-line">
-              {batch.movements.map((movement) => {
-                const qty = Number(movement.qty_m);
-                const [icon, tone] = MOVEMENTS[movement.type] ?? OTHER_MOVEMENT;
-                const link =
-                  movement.ref_type === "transfer"
-                    ? `/transfers/${movement.ref_id}`
-                    : movement.ref_type === "receipt" && staff
-                      ? `/receiving/${movement.ref_id}`
-                      : null;
-                return (
-                  <li key={movement.id} className={`flex items-start gap-3 ${rowClassCompact}`}>
-                    <IconChip icon={icon} tone={tone} size="sm" className="mt-0.5" />
-                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      <span className="min-w-0 flex-1 basis-44">
-                        <span className="font-medium">
-                          {t(`inventory.movement.${movement.type}`, { defaultValue: movement.type })}
-                        </span>
-                        {movement.ref_number &&
-                          (link ? (
-                            <Link to={link} className="ml-2 text-sm text-indigo hover:underline">
-                              {movement.ref_number}
-                            </Link>
-                          ) : (
-                            <span className="ml-2 text-sm text-muted">{movement.ref_number}</span>
-                          ))}
-                        <span className="block break-words text-[13px] text-muted">
-                          {formatDateTime(movement.created_at)} · {movement.location.name}
-                          {movement.user && ` · ${movement.user}`}
-                          {movement.note && ` · ${movement.note}`}
-                        </span>
-                      </span>
-                      <span
-                        className={`whitespace-nowrap font-medium tabular-nums ${
-                          qty > 0 ? "text-leaf" : qty < 0 ? "text-ink" : "text-muted"
-                        }`}
-                      >
-                        {qty > 0 ? "+" : ""}
-                        {formatDecimal(movement.qty_m)} m
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+          <BatchHistory batch={batch} staff={staff} />
         </div>
 
         <LabelPrinter
@@ -491,5 +445,113 @@ function ClosePanel({
         </Button>
       </div>
     </div>
+  );
+}
+
+type Kind = "" | "sales" | "transfers" | "other";
+const KINDS: Kind[] = ["", "sales", "transfers", "other"];
+const HISTORY_PAGE = 30;
+
+/**
+ * Partiya tarixi: eng yangisi tepada, 30 tadan — qolgani "Yana ko'rsatish" bilan (jimgina qirqilmaydi).
+ * Tur filtri: Barchasi · Sotuvlar · Ko'chirishlar · Boshqa (kirim, tuzatish, yopish).
+ */
+function BatchHistory({ batch, staff }: { batch: BatchCard; staff: boolean }) {
+  const { t } = useTranslation();
+  const errorText = useErrorText();
+  const [kind, setKind] = useState<Kind>("");
+  const path = (offset: number) =>
+    `/batches/${batch.id}/movements?limit=${HISTORY_PAGE}&offset=${offset}${kind ? `&kind=${kind}` : ""}`;
+  // "Barchasi" — kartochka bilan kelgan birinchi sahifa; tur tanlansa — alohida so'rov
+  const filtered = useQuery({
+    queryKey: [...inventoryKeys.batch(batch.id), "movements", kind],
+    enabled: kind !== "",
+    queryFn: () => api<{ items: Movement[]; total: number }>(path(0)),
+  });
+  const first = kind === "" ? batch.movements : filtered.data?.items;
+  const total = kind === "" ? batch.movements_total : filtered.data?.total;
+  const history = useMore(first, total, (offset) => api<{ items: Movement[] }>(path(offset)));
+
+  return (
+          <section className="min-w-0 overflow-hidden rounded-card border border-line bg-panel shadow-card">
+            <SectionHeader>{t("inventory.batch.history")}</SectionHeader>
+            <div role="radiogroup" aria-label={t("inventory.batch.history_kind")} className="flex flex-wrap gap-1.5 px-4 pt-3 sm:px-5">
+              {KINDS.map((option) => (
+                <button
+                  key={option || "all"}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === option}
+                  onClick={() => setKind(option)}
+                  className={`pressable inline-flex h-8 items-center rounded-full border px-3 text-[13px] [@media(pointer:coarse)]:h-10 ${focusRing} ${
+                    kind === option
+                      ? "border-transparent bg-indigo font-medium text-panel"
+                      : "border-line bg-panel text-muted hover:text-ink"
+                  }`}
+                >
+                  {option === "" ? t("common.all") : t(`inventory.batch.kinds.${option}`)}
+                </button>
+              ))}
+            </div>
+            {filtered.isLoading && <Loading className="px-4 py-4 sm:px-5" />}
+            {filtered.isError && kind !== "" && (
+              <div className="p-4">
+                <Alert>{errorText(filtered.error)}</Alert>
+              </div>
+            )}
+            {first && history.items.length === 0 && (
+              <p className="px-4 py-5 text-sm text-muted sm:px-5">{t("inventory.batch.history_empty")}</p>
+            )}
+            <ul className="mt-1 divide-y divide-line">
+              {history.items.map((movement) => {
+                const qty = Number(movement.qty_m);
+                const [icon, tone] = MOVEMENTS[movement.type] ?? OTHER_MOVEMENT;
+                const link =
+                  movement.ref_type === "transfer"
+                    ? `/transfers/${movement.ref_id}`
+                    : movement.ref_type === "receipt" && staff
+                      ? `/receiving/${movement.ref_id}`
+                      : null;
+                return (
+                  <li key={movement.id} className={`flex items-start gap-3 ${rowClassCompact}`}>
+                    <IconChip icon={icon} tone={tone} size="sm" className="mt-0.5" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4 gap-y-0.5">
+                      <span className="min-w-0 flex-1 basis-44">
+                        <span className="font-medium">
+                          {t(`inventory.movement.${movement.type}`, { defaultValue: movement.type })}
+                        </span>
+                        {movement.ref_number &&
+                          (link ? (
+                            <Link to={link} className="ml-2 text-sm text-indigo hover:underline">
+                              {movement.ref_number}
+                            </Link>
+                          ) : (
+                            <span className="ml-2 text-sm text-muted">{movement.ref_number}</span>
+                          ))}
+                        <span className="block break-words text-[13px] text-muted">
+                          {formatDateTime(movement.created_at)} · {movement.location.name}
+                          {movement.user && ` · ${movement.user}`}
+                          {movement.note && ` · ${movement.note}`}
+                        </span>
+                      </span>
+                      <span
+                        className={`whitespace-nowrap font-medium tabular-nums ${
+                          qty > 0 ? "text-leaf" : qty < 0 ? "text-ink" : "text-muted"
+                        }`}
+                      >
+                        {qty > 0 ? "+" : ""}
+                        {formatDecimal(movement.qty_m)} m
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {history.hasMore && (
+              <div className="px-4 pb-4 sm:px-5">
+                <LoadMore loading={history.loading} onClick={() => void history.more()} />
+              </div>
+            )}
+          </section>
   );
 }

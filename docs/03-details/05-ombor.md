@@ -31,6 +31,8 @@ Skladda:    60 rulon, 3000 m davom etadi
 - **Harakatlar tarixi:** kirim, jo'natish, qabul, har sotuv, qaytarish, yopish, qayta ochish — sana, joy, metr (+/−), xodim, hujjatga havola
 - Amallar: etiketka chop etish, yopish / qayta ochish (ruxsatga qarab)
 
+- **Tarix sahifalanadi (2026-10-04):** kartochka oxirgi 30 ta harakat bilan ochiladi, qolgani "Yana ko'rsatish" bilan (avval 200 tadan keyingisi jimgina qirqilardi). Tur filtri: Barchasi · Sotuvlar (sotuv, bekor qilish, qaytarish) · Ko'chirishlar (jo'natish, qabul, bekor qilish) · Boshqa (kirim, tuzatish, yopish, qayta ochish). API: `GET /api/batches/{id}/movements?kind=sales|transfers|other&limit=&offset=` → `{items, total}`; kartochka javobida `movements` (birinchi sahifa) va `movements_total`.
+
 ### Ko'chirish yaratish (omborchi, biznes egasi)
 | Maydon | Majburiy | Izoh |
 |--------|----------|------|

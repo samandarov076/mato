@@ -18,8 +18,12 @@ from app.modules.credit.schemas import (
     CustomerUpdate,
     PaymentCreated,
     PaymentIn,
+    PaymentPage,
     WriteoffIn,
+    WriteoffPage,
 )
+from app.modules.reports.export import EXPORT_ROWS, download, local_time
+from app.modules.reports.labels import labels
 
 router = APIRouter(tags=["nasiya"])
 
@@ -46,7 +50,7 @@ async def create_customer(body: CustomerIn, ctx: CreditAuth) -> CustomerBrief:
 async def list_customers(
     ctx: CreditAuth,
     search: str | None = None,
-    only: Literal["debtors", "overdue"] | None = None,
+    only: Literal["debtors", "overdue", "not_due", "d1_30", "d31_60", "d60_plus"] | None = None,
     sort: Literal["name", "debt", "oldest"] = "name",
     include_inactive: bool = False,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -64,9 +68,62 @@ async def list_customers(
     )
 
 
+@router.get("/customers/export")
+async def export_customers(
+    ctx: CreditAuth,
+    search: str | None = None,
+    only: Literal["debtors", "overdue", "not_due", "d1_30", "d31_60", "d60_plus"] | None = None,
+    sort: Literal["name", "debt", "oldest"] = "name",
+    include_inactive: bool = False,
+) -> Response:
+    """Mijozlar ro'yxati Excel faylida — ro'yxatdagi filtr va tartib bilan."""
+    t = labels(ctx.user.language)
+    page = await service.list_customers(
+        ctx, search=search, only=only, sort=sort, include_inactive=include_inactive, limit=EXPORT_ROWS
+    )
+    keys = (
+        "customer", "phone", "debt", "overdue", "oldest_days", "last_payment", "last_payment_amount", "note",
+    )  # fmt: skip
+    rows = [
+        [
+            row.name,
+            row.phone,
+            row.debt,
+            row.overdue,
+            row.oldest_days,
+            local_time(row.last_payment_at, ctx.business.timezone)[:10],
+            row.last_payment_amount,
+            row.note or "",
+        ]
+        for row in page.items
+    ]
+    return download("mijozlar", [(t["customers"], [t[key] for key in keys], rows)])
+
+
 @router.get("/customers/{customer_id}")
 async def get_customer(customer_id: int, ctx: CreditAuth) -> CustomerCard:
     return await service.get_customer(ctx, customer_id)
+
+
+@router.get("/customers/{customer_id}/payments")
+async def list_payments(
+    customer_id: int,
+    ctx: CreditAuth,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PaymentPage:
+    """To'lovlar tarixi — sahifalab (kartochkada faqat birinchi sahifa)."""
+    return await service.list_payments(ctx, customer_id, limit=limit, offset=offset)
+
+
+@router.get("/customers/{customer_id}/writeoffs")
+async def list_writeoffs(
+    customer_id: int,
+    ctx: CreditAuth,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> WriteoffPage:
+    return await service.list_writeoffs(ctx, customer_id, limit=limit, offset=offset)
 
 
 @router.patch("/customers/{customer_id}", status_code=204)

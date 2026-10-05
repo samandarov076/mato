@@ -1,5 +1,5 @@
 """Xabarlar API'si (/api/notifications): har xodim faqat o'z xabarlarini ko'radi."""
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
@@ -15,12 +15,13 @@ router = APIRouter(prefix="/notifications", tags=["xabarlar"])
 async def list_notifications(
     ctx: Auth,
     event: str | None = None,
+    kind: Literal["low_stock", "transfers", "credit", "other"] | None = None,
     unread_only: bool = False,
     cursor: int | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
 ) -> NotificationPage:
     return await service.list_notifications(
-        ctx, event=event, unread_only=unread_only, cursor=cursor, limit=limit
+        ctx, event=event, kind=kind, unread_only=unread_only, cursor=cursor, limit=limit
     )
 
 
