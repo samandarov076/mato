@@ -114,9 +114,14 @@ class PatternRef(BaseModel):
     is_active: bool
 
 
+class SkuImageIn(BaseModel):
+    image_url: str | None = Field(default=None, max_length=200)  # bo'sh — rasm olib tashlanadi
+
+
 class SkuOut(BaseModel):
     id: int
     code: str  # mato-rang[-gul]
+    image_url: str | None = None  # SKU'ning o'z rasmi; bo'sh — gul / rang / mato rasmi ko'rsatiladi
     fabric: FabricRef
     color: ColorRef
     pattern: PatternRef

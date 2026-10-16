@@ -272,6 +272,7 @@ def sku_out(sku: Sku, fabric: Fabric, color: Color, pattern: Pattern) -> SkuOut:
     return SkuOut(
         id=sku.id,
         code=sku_code(fabric, color, pattern),
+        image_url=sku.image_url,
         fabric=FabricRef(
             id=fabric.id,
             code=fabric.code,
@@ -488,6 +489,21 @@ def set_price(
         new_unit=sku.price_unit,
     )
     return True
+
+
+def sku_image(sku: Sku, fabric: Fabric, color: Color, pattern: Pattern) -> str | None:
+    """Tovar rasmi — eng aniqrog'i birinchi: SKU'ning o'zi → gul (gulsiz bo'lmasa) → rang.
+
+    Mato rasmi tovarga o'tmaydi (bir matoning barcha ranglari bir xil rasm bilan chiqardi) — `fabric` shu sabab
+    ishlatilmaydi; imzo chaqiruvchilar uchun bir xil qoldirilgan.
+    """
+    return sku.image_url or (None if pattern.is_plain else pattern.image_url) or color.image_url
+
+
+async def set_sku_image(ctx: AuthContext, sku_id: int, image_url: str | None) -> None:
+    """SKU'ning o'z rasmini qo'yadi yoki olib tashlaydi. Narx va chegaraga tegmaydi."""
+    sku, _, _, _ = await _sku_row(ctx, sku_id)
+    sku.image_url = check_image_url(ctx.business.id, image_url)
 
 
 async def update_sku(ctx: AuthContext, sku_id: int, body: SkuUpdate) -> None:

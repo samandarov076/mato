@@ -48,6 +48,8 @@ class SaleContext(BaseModel):
     sell_by_kg: bool
     credit_enabled: bool
     items: list[SellableSku]
+    # "Ko'p sotiladigan": shu do'konda oxirgi 30 kunda eng ko'p sotilgan (hozir ham sotiladigan) tovarlar, ko'pi oldin
+    popular_sku_ids: list[int] = []
 
 
 class SaleLineIn(BaseModel):

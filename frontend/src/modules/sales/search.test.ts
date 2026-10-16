@@ -90,21 +90,26 @@ describe("sotuv qidiruvi", () => {
   });
 });
 
-describe("tovar rasmi: gul → rang → mato", () => {
+describe("tovar rasmi: SKU → gul → rang (mato rasmi tovarga o'tmaydi)", () => {
   const images = { fabric: "/api/media/1/f.webp", color: "/api/media/1/c.webp", pattern: "/api/media/1/p.webp" };
+
+  it("SKU'ning o'z rasmi bo'lsa — hammasidan oldin", () => {
+    const own = item(shifon, oq, lola, [], images).sku;
+    expect(skuImage({ ...own, image_url: "/api/media/1/s.webp" })).toBe("/api/media/1/s.webp");
+  });
 
   it("gulli tovarda gul rasmi birinchi", () => {
     expect(skuImage(item(shifon, oq, lola, [], images).sku)).toBe(images.pattern);
   });
 
-  it("gul rasmi bo'lmasa — rang, u ham bo'lmasa — mato rasmi", () => {
+  it("gul rasmi bo'lmasa — rang; mato rasmi tovarga o'tmaydi", () => {
     expect(skuImage(item(shifon, oq, lola, [], { fabric: images.fabric, color: images.color }).sku)).toBe(images.color);
-    expect(skuImage(item(shifon, oq, lola, [], { fabric: images.fabric }).sku)).toBe(images.fabric);
+    expect(skuImage(item(shifon, oq, lola, [], { fabric: images.fabric }).sku)).toBeNull();
     expect(skuImage(item(shifon, oq, lola, []).sku)).toBeNull();
   });
 
-  it("gulsiz tovarda 'gulsiz' rasmi ishlatilmaydi — rang yoki mato rasmi", () => {
+  it("gulsiz tovarda 'gulsiz' rasmi ishlatilmaydi — rang rasmi yoki hech narsa", () => {
     expect(skuImage(item(shifon, oq, null, [], images).sku)).toBe(images.color);
-    expect(skuImage(item(shifon, oq, null, [], { fabric: images.fabric, pattern: images.pattern }).sku)).toBe(images.fabric);
+    expect(skuImage(item(shifon, oq, null, [], { fabric: images.fabric, pattern: images.pattern }).sku)).toBeNull();
   });
 });

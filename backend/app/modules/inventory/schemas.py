@@ -75,6 +75,27 @@ class StockPage(BaseModel):
     locations: list[Place]  # foydalanuvchi ko'ra oladigan joylar — ustunlar va filtr uchun
 
 
+# ---------- "Partiyani yopish" sahifasi ----------
+
+
+class ClosablePlace(Place):
+    can_close: bool  # shu xodim shu joyda yopa oladimi
+
+
+class ClosableBatch(BaseModel):
+    id: int
+    number: str
+    sku: SkuBrief
+    cells: list[StockCell]  # faqat partiya ochiq bo'lgan joylar
+    # Tannarx — faqat biznes egasiga (yopishdan oldin farq summasini ko'rsatish uchun)
+    cost_per_m: int | None
+
+
+class ClosablePage(BaseModel):
+    locations: list[ClosablePlace]
+    batches: list[ClosableBatch]
+
+
 # ---------- Partiya kartochkasi ----------
 
 

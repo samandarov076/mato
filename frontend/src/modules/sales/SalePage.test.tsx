@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
+import { setScreenWidth } from "@/test-utils";
 import { kgFromMeters, lineAmount, metersFromKg, overdrawn, type CartLine } from "./cart";
 import { searchItems } from "./search";
 import { SalePage } from "./SalePage";
@@ -125,7 +126,7 @@ describe("Sotuv ekrani", () => {
     expect(screen.getByLabelText("Partiya")).toHaveValue("12");
     await userEvent.type(screen.getByLabelText("Metr"), "2,35");
     expect(screen.getByLabelText("Kg")).toHaveValue("0.588"); // 2.35 m ÷ 4
-    expect(screen.getByText("Tavsiya narx bo'yicha")).toBeInTheDocument(); // narx o'zi qo'yildi
+    expect(screen.getByText("Belgilangan narxda")).toBeInTheDocument(); // narx o'zi qo'yildi
     expect(screen.getByLabelText("1 metr narxi")).toHaveValue("45 000");
     expect(screen.getByLabelText("Metr")).toHaveValue("2,35");
     await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
@@ -188,7 +189,7 @@ describe("Sotuv ekrani", () => {
     await userEvent.click(tiles[0]);
 
     expect(screen.getByLabelText("Partiya")).toHaveValue("12"); // eng eski partiya — hozirgi tanlash oqimi
-    expect(screen.getByText("Tavsiya narx bo'yicha")).toBeInTheDocument(); // narx o'zi qo'yildi
+    expect(screen.getByText("Belgilangan narxda")).toBeInTheDocument(); // narx o'zi qo'yildi
     await waitFor(() => expect(screen.getByLabelText("Metr")).toHaveFocus());
     expect(screen.queryByRole("group", { name: "Tovarlar" })).toBeNull();
     expect(post).not.toHaveBeenCalled();
@@ -223,12 +224,12 @@ describe("Sotuv ekrani", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
-  it("rasm matoniki bo'lsa, katakchada rang nuqtasi ham ko'rinadi (bir matoning ranglari ajralsin)", async () => {
+  it("rasm gulniki bo'lsa, katakchada rang nuqtasi ham ko'rinadi (bir gulning ranglari ajralsin)", async () => {
     const withFabricImage = (item: (typeof context.items)[number], hex: string | null) => ({
       ...item,
       sku: {
         ...item.sku,
-        fabric: { ...item.sku.fabric, image_url: "/api/media/1/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp" },
+        pattern: { ...item.sku.pattern, is_plain: false, image_url: "/api/media/1/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp" },
         color: { ...item.sku.color, hex },
       },
     });
@@ -275,6 +276,7 @@ describe("Sotuv ekrani", () => {
       sku: {
         ...sku(103, { id: 13, code: "05", name: "Oq" }),
         code: "M101-05-G1",
+        image_url: "/api/media/1/cccccccccccccccccccccccccccccccc.webp", // SKU'ning o'z rasmi
         fabric: { id: 1, code: "M101", name: "Atlas", image_url: "/api/media/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp", default_m_per_kg: "4.0000", is_active: true },
         pattern: { id: 22, code: "G1", name: "Lola", image_url: null, is_plain: false, is_active: true },
       },
@@ -291,18 +293,23 @@ describe("Sotuv ekrani", () => {
 
     await userEvent.type(await scanner(), "P-000016{Enter}");
 
-    // Gul va rang rasmi yo'q — mato rasmi (katta, to'liq fayl) ko'rsatiladi
+    // SKU'ning o'z rasmi (katta, to'liq fayl) ko'rsatiladi — mato rasmi emas
     const hero = container.querySelector("img[width='144']");
-    expect(hero).toHaveAttribute("src", "/api/media/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp");
+    expect(hero).toHaveAttribute("src", "/api/media/1/cccccccccccccccccccccccccccccccc.webp");
+
+    // Rasm bosilsa — to'liq ekranda ochiladi; Esc yopadi
+    await userEvent.click(screen.getByRole("button", { name: "Rasmni kattalashtirish" }));
+    const viewer = screen.getByRole("dialog", { name: "Rasmni kattalashtirish" });
+    expect(within(viewer).getByRole("img")).toHaveAttribute("src", "/api/media/1/cccccccccccccccccccccccccccccccc.webp");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
     const parts = screen.getByRole("list", { name: "Tovar tarkibi" });
-    // Rasm yo'q qismda kod harflari belgisi turadi (aria-hidden) — matnga shu ham qo'shiladi
+    // Tarkibda rasm takrorlanmaydi (rasm bitta — yuqoridagi katta rasm) va kod harflari yo'q
     expect(within(parts).getAllByRole("listitem").map((part) => part.textContent)).toEqual([
-      "MatoAtlas", "05RangOq", "G1GulLola",
+      "MatoAtlas", "RangOq", "GulLola",
     ]);
-    expect(within(parts).getAllByRole("listitem")[0].querySelector("img")).toHaveAttribute(
-      "src",
-      "/api/media/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.s.webp",
-    );
+    expect(within(parts).queryByRole("img")).toBeNull();
+    expect(parts.querySelector("img")).toBeNull();
   });
 
   it("mato tanlansa to'r shu matoga torayadi; rang tugmalarida qoldiq, tugagani xira lekin bosiladi", async () => {
@@ -436,6 +443,102 @@ describe("Sotuv ekrani", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("tovar savatga qo'shilgach tanlov boshiga qaytadi (mato ham) va kursor skanerda — ketma-ket skanerlash", async () => {
+    renderPage();
+    await scanner();
+    await userEvent.click(screen.getByRole("button", { name: "M101 · Atlas" }));
+    await userEvent.click(screen.getByRole("button", { name: "01 · Qizil" }));
+    await userEvent.type(screen.getByLabelText("Metr"), "5");
+    await userEvent.click(addButton());
+
+    // Mato tanlovi qolmaydi: yana mato chiplari, rang qadami yo'q
+    expect(screen.getByRole("button", { name: "M101 · Atlas" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mato: tanlovni olib tashlash" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Rang" })).toBeNull();
+    await waitFor(() => expect(scanner()).resolves.toHaveFocus());
+
+    // Ikkinchi tovar darhol skanerlanadi
+    await userEvent.type(await scanner(), "P-000013{Enter}");
+    expect(screen.getByText("M101-02")).toBeInTheDocument();
+  });
+
+  it("× (boshqa tovar tanlash) — mato tanlovi qoladi: noto'g'ri rang bir bosishda almashtiriladi", async () => {
+    renderPage();
+    await scanner();
+    await userEvent.click(screen.getByRole("button", { name: "M101 · Atlas" }));
+    await userEvent.click(screen.getByRole("button", { name: "01 · Qizil" }));
+    await userEvent.click(screen.getByRole("button", { name: "Boshqa tovar tanlash" }));
+
+    expect(screen.getByRole("button", { name: "Mato: tanlovni olib tashlash" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "02 · Ko'k" })).toBeInTheDocument();
+  });
+
+  it("uchta tovar faqat skaner bilan ketma-ket qo'shiladi; o'sha partiya qayta skanerlansa — yangi qator", async () => {
+    renderPage();
+    // 1) P-000012 → 5 m
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    await userEvent.type(screen.getByLabelText("Metr"), "5{Enter}"); // Enter — "Yana qo'shish"
+    // 2) forma boshiga qaytdi, kursor skanerda — P-000013 → 7 m
+    await waitFor(() => expect(scanner()).resolves.toHaveFocus());
+    await userEvent.type(await scanner(), "P-000013{Enter}");
+    expect(screen.getByText("M101-02")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Metr"), "7");
+    await userEvent.type(screen.getByLabelText("1 metr narxi"), "30000{Enter}"); // bu tovarning narxi belgilanmagan
+    // 3) o'sha P-000012 yana skanerlandi — forma yana ochiladi (indamay hech narsa o'zgarmaydi), yangi qator bo'ladi
+    await waitFor(() => expect(scanner()).resolves.toHaveFocus());
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    expect(screen.getByLabelText("Partiya")).toHaveValue("12");
+    expect(screen.getByLabelText("Metr")).toHaveValue("");
+    await userEvent.type(screen.getByLabelText("Metr"), "2{Enter}");
+
+    const cart = screen.getByRole("heading", { name: "Savat" }).closest("section")!;
+    expect(within(cart).getAllByRole("listitem").map((row) => row.textContent?.match(/P-\d+/)?.[0])).toEqual([
+      "P-000012", "P-000013", "P-000012",
+    ]);
+    expect(savedCart().lines.map((line: CartLine) => line.meters)).toEqual(["5", "7", "2"]);
+    expect(post).not.toHaveBeenCalled(); // sotuv faqat "Yakunlash" bilan
+  });
+
+  it("to'rda: tugagan (0) tovar xira; manfiy qoldiq — qizil va xira emas", async () => {
+    const withQty = (item: (typeof context.items)[number], qty: string) => ({
+      ...item,
+      batches: [{ ...item.batches[0], qty_m: qty }],
+    });
+    api.mockResolvedValue({ ...context, items: [withQty(context.items[0], "-3.50"), withQty(context.items[1], "0.00")] });
+    renderPage();
+    await scanner();
+
+    const tile = (code: string) =>
+      within(screen.getByRole("group", { name: "Tovarlar" })).getByRole("button", { name: new RegExp(`^${code} `) });
+    expect(tile("M101-01")).not.toHaveClass("opacity-60");
+    expect(within(tile("M101-01")).getByText("-3.5 m")).toHaveClass("text-madder");
+    expect(tile("M101-02")).toHaveClass("opacity-60");
+    expect(within(tile("M101-02")).getByText("0 m")).not.toHaveClass("text-madder");
+  });
+
+  it("rasm yo'q bo'lsa kod harflari chiqmaydi — neytral belgi; rasm bosilsa kattalashadi, tovar tanlanmaydi", async () => {
+    const pictured = {
+      ...context.items[0],
+      sku: { ...context.items[0].sku, image_url: "/api/media/1/dddddddddddddddddddddddddddddddd.webp" },
+    };
+    api.mockResolvedValue({ ...context, items: [pictured, context.items[1]] });
+    renderPage();
+    await scanner();
+    const tiles = within(screen.getByRole("group", { name: "Tovarlar" })).getAllByRole("button", { name: /^M101-/ });
+
+    // Rasmsiz, rang namunasisiz tovar: harf yo'q, neytral belgi
+    expect(tiles[1].querySelector("[data-thumb='blank']")).not.toBeNull();
+    expect(tiles[1]).not.toHaveTextContent(/^02/);
+
+    // Kichik rasm bosildi — to'liq ochiladi, tovar tanlanmaydi
+    await userEvent.click(within(tiles[0]).getByRole("button", { name: "Rasmni kattalashtirish" }));
+    expect(screen.getByRole("dialog", { name: "Rasmni kattalashtirish" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Metr")).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByLabelText("Metr")).toBeNull();
+  });
+
   it("Enter sotib yubormaydi — qatorni savatga qo'yadi; savat ochilgach oddiy 'Yakunlash'", async () => {
     renderPage();
     await userEvent.type(await scanner(), "P-000012{Enter}");
@@ -444,7 +547,7 @@ describe("Sotuv ekrani", () => {
 
     expect(post).not.toHaveBeenCalled();
     expect(cartHeading()).toBeInTheDocument();
-    expect(screen.getAllByText("450 000")).toHaveLength(2); // qator va jami
+    expect(screen.getAllByText("450 000")).toHaveLength(3); // qator, jami va pastki panel
     expect(screen.queryByRole("button", { name: "Sotish" })).toBeNull();
     await finish();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
@@ -477,7 +580,7 @@ describe("Sotuv ekrani", () => {
     expect(price).toHaveValue("45 000");
     await userEvent.clear(price);
     await userEvent.type(price, "50000");
-    await userEvent.click(screen.getByRole("button", { name: /Tavsiya narxni qaytarish/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Belgilangan narxga qaytarish/ }));
     expect(price).toHaveValue("45 000");
 
     // Narxsiz na qo'shiladi, na sotiladi — sababi qizil matnda
@@ -499,7 +602,7 @@ describe("Sotuv ekrani", () => {
     // Bu partiyada koeffitsient va tavsiya narx yo'q
     expect(screen.getByLabelText("Kg")).toBeDisabled();
     expect(screen.getByText(/kg ↔ metr belgilanmagan/)).toBeInTheDocument();
-    expect(screen.getByText(/Tavsiya narx yo'q/)).toBeInTheDocument();
+    expect(screen.getByText(/Narx belgilanmagan/)).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Metr"), "52"); // do'konda 50 m
     expect(screen.getByText(/Tizimda 50 m qolgan/)).toBeInTheDocument();
@@ -567,17 +670,17 @@ describe("Sotuv ekrani", () => {
   it("savatdagi qator tahrirlanadi va o'chiriladi; savat sahifa yangilansa ham saqlanadi", async () => {
     const first = renderPage();
     await addLine("10");
-    expect(screen.getAllByText("450 000")).toHaveLength(2);
+    expect(screen.getAllByText("450 000")).toHaveLength(3); // qator, jami va pastki panel
 
     await userEvent.click(screen.getByRole("button", { name: "1-qatorni tahrirlash" }));
     await userEvent.clear(screen.getByLabelText("Metr"));
     await userEvent.type(screen.getByLabelText("Metr"), "20");
     await userEvent.click(screen.getByRole("button", { name: "Saqlash" }));
-    expect(screen.getAllByText("900 000")).toHaveLength(2);
+    expect(screen.getAllByText("900 000")).toHaveLength(3);
 
     first.unmount();
     renderPage();
-    expect(await screen.findAllByText("900 000")).toHaveLength(2);
+    expect(await screen.findAllByText("900 000")).toHaveLength(3);
 
     await userEvent.click(screen.getByRole("button", { name: "1-qatorni o'chirish" }));
     expect(cartHeading()).toBeNull(); // savat bo'shadi — yana oddiy (tez sotish) holat
@@ -708,6 +811,91 @@ describe("Sotuv ekrani", () => {
     expect(screen.queryByRole("button", { name: "1-qatorni o'chirish" })).toBeNull();
   });
 
+  describe("bir nechta chek", () => {
+    const tab = (n: number) => screen.getByRole("tab", { name: new RegExp(`^Chek ${n}`) });
+    const newCheck = () => screen.getByRole("button", { name: "Yangi chek" });
+    const cartAt = (key: string) => JSON.parse(localStorage.getItem(key) ?? "null");
+
+    it("bo'sh chekdan yangisi ochilmaydi; tovar qo'shilgach '+' ikkinchi chekni ochadi — birinchisi jami bilan kutadi", async () => {
+      renderPage();
+      await scanner();
+      expect(screen.getAllByRole("tab")).toHaveLength(1);
+      expect(newCheck()).toBeDisabled();
+
+      await addLine();
+      const first = savedCart().uuid;
+      await userEvent.click(newCheck());
+
+      expect(screen.getAllByRole("tab")).toHaveLength(2);
+      expect(tab(2)).toHaveAttribute("aria-selected", "true");
+      expect(tab(1)).toHaveTextContent("450 000");
+      expect(cartHeading()).toBeNull(); // yangi chek bo'sh
+      expect(newCheck()).toBeDisabled();
+
+      // Ikkinchi chekka boshqa tovar; birinchisining savati va identifikatori o'zgarmaydi
+      await addLine("2");
+      expect(cartAt(`${CART_KEY}.2`).lines).toHaveLength(1);
+      expect(cartAt(`${CART_KEY}.2`).uuid).not.toBe(first);
+      expect(savedCart().uuid).toBe(first);
+      expect(savedCart().lines[0].meters).toBe("10");
+
+      await userEvent.click(tab(1));
+      expect(tab(2)).toHaveTextContent("90 000");
+      expect(screen.getByText("10 m")).toBeInTheDocument();
+      expect(savedCart().uuid).toBe(first);
+    });
+
+    it("bo'sh qolgan chek undan chiqilganda yopiladi", async () => {
+      renderPage();
+      await addLine();
+      await userEvent.click(newCheck());
+      expect(screen.getAllByRole("tab")).toHaveLength(2);
+
+      await userEvent.click(tab(1));
+
+      expect(screen.getAllByRole("tab")).toHaveLength(1);
+      expect(localStorage.getItem(`${CART_KEY}.2`)).toBeNull();
+      expect(JSON.parse(localStorage.getItem("mato.checks.9.2") ?? "null")).toEqual({ slots: [1], active: 1 });
+    });
+
+    it("javobi kelmagan chek qulflanadi, boshqa chekda sotuv davom etadi — har biri o'z identifikatori bilan", async () => {
+      localStorage.setItem(CART_KEY, storedCart({ pending: true })); // eski kalitdagi noaniq sotuv yo'qolmaydi
+      renderPage();
+      expect(await pendingBanner()).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Chek 1 — javobi kutilmoqda" })).toBeInTheDocument();
+
+      await userEvent.click(newCheck());
+      expect(screen.queryByText(/Sotuv tasdiqlanmadi/)).toBeNull();
+      await userEvent.type(await scanner(), "P-000012{Enter}");
+      await userEvent.type(screen.getByLabelText("Metr"), "2");
+      await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
+
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+      expect(post.mock.calls[0][1].client_uuid).not.toBe("11111111-1111-4111-8111-111111111111");
+      expect(savedCart().pending).toBe(true);
+      expect(savedCart().uuid).toBe("11111111-1111-4111-8111-111111111111");
+    });
+
+    it("ko'pi bilan 5 ta chek; ro'yxatda yo'q, lekin savati saqlangan chek ham ko'rinadi", async () => {
+      localStorage.setItem(CART_KEY, storedCart());
+      for (const n of [2, 3, 4, 5]) {
+        localStorage.setItem(`${CART_KEY}.${n}`, storedCart({ uuid: `2222222${n}-1111-4111-8111-111111111111` }));
+      }
+      renderPage();
+      await scanner();
+
+      expect(screen.getAllByRole("tab")).toHaveLength(5);
+      expect(newCheck()).toBeDisabled();
+    });
+  });
+
+  it("boshqa sotuvchining boshqa chekdagi (.3) javobi kelmagan sotuvi ham ko'rinadi", async () => {
+    localStorage.setItem("mato.cart.5.2.3", storedCart({ pending: true, seller: "Aziz Sotuvchi" }));
+    renderPage();
+    await scanner();
+    expect(screen.getByText(/Aziz Sotuvchi.*450 000/)).toBeInTheDocument();
+  });
+
   it("boshqa sotuvchining javobi kelmagan sotuvi shu qurilmada ko'rinib turadi", async () => {
     localStorage.setItem("mato.cart.5.2", storedCart({ pending: true, seller: "Aziz Sotuvchi" }));
     localStorage.setItem("mato.cart.6.2", storedCart({ seller: "Bekzod" })); // oddiy to'lmagan savat — xabar yo'q
@@ -768,6 +956,121 @@ describe("Sotuv ekrani", () => {
     await userEvent.type(await scanner(), "P-000012{Enter}"); // to'lov turi tovar tanlangach ko'rinadi
     expect(screen.getByRole("radio", { name: "Naqd" })).toBeChecked();
     expect(screen.queryByRole("radio", { name: "Nasiya" })).toBeNull();
+  });
+});
+
+describe("Sotuv ekrani — keng ekran (planshet): ikki panel", () => {
+  beforeEach(() => {
+    setScreenWidth(1280);
+    localStorage.clear();
+    who.role = "seller";
+    api.mockReset();
+    post.mockReset();
+    api.mockImplementation((path: string) =>
+      path.startsWith("/sales/context")
+        ? Promise.resolve(context)
+        : Promise.reject(new ApiError(404, "batch_not_found", "batch_not_found")),
+    );
+    post.mockResolvedValue({ id: 5, number: "S-000001", total: 540_000, payment_type: "cash", duplicate: false });
+  });
+  afterEach(() => setScreenWidth(null));
+
+  const keypad = () => screen.getByRole("group", { name: "Raqamlar" });
+  const press = async (...keys: string[]) => {
+    for (const key of keys) await userEvent.click(within(keypad()).getByRole("button", { name: key }));
+  };
+
+  it("tovar tanlangach ham chap panel (to'r) joyida; o'ngda forma va ekran raqam klaviaturasi", async () => {
+    renderPage();
+    expect(await screen.findByText("Etiketkani skanerlang yoki chapdan tovarni tanlang")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Raqamlar" })).toBeNull(); // tovar tanlanmaguncha klaviatura yo'q
+
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+
+    expect(screen.getByRole("group", { name: "Tovarlar" })).toBeInTheDocument(); // to'r yo'qolmadi
+    expect(screen.getByLabelText("Metr")).toHaveAttribute("inputmode", "none"); // tizim klaviaturasi ochilmaydi
+    await press("1", "2");
+    expect(screen.getByLabelText("Metr")).toHaveValue("12");
+    expect(screen.getByLabelText("Kg")).toHaveValue("3"); // 12 m ÷ 4
+    await press("Vergul", "5");
+    expect(screen.getByLabelText("Metr")).toHaveValue("12,5");
+    await press("Oxirgi raqamni o'chirish", "Oxirgi raqamni o'chirish");
+    expect(screen.getByLabelText("Metr")).toHaveValue("12");
+
+    // Narx maydoni faollashtirilsa, klaviatura unga yozadi
+    await userEvent.click(screen.getByLabelText("1 metr narxi"));
+    await press("Oxirgi raqamni o'chirish", "Oxirgi raqamni o'chirish", "Oxirgi raqamni o'chirish", "Oxirgi raqamni o'chirish", "Oxirgi raqamni o'chirish");
+    await press("4", "0", "0", "0", "0");
+    // Raqam uzilmaydigan bo'shliq bilan formatlanadi — solishtirishda oddiy bo'shliqqa keltiriladi
+    expect((screen.getByLabelText("1 metr narxi") as HTMLInputElement).value.replace(/\s/g, " ")).toBe("40 000");
+    expect(screen.getByText("tavsiyadan 5 000 so'm arzon")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Sotish" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1].lines).toEqual([
+      { batch_id: 12, meters: "12", kg: "3", price_per_m: 40000, negative_stock_note: null },
+    ]);
+  });
+
+  it("boshqa tovar chapdan bir bosishda almashtiriladi", async () => {
+    renderPage();
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+    expect(screen.getByLabelText("Partiya")).toHaveValue("12");
+
+    await userEvent.click(within(screen.getByRole("group", { name: "Tovarlar" })).getByRole("button", { name: "M101-02 · Atlas · Ko'k" }));
+
+    expect(screen.queryByLabelText("Partiya")).toBeNull(); // Ko'kda bitta partiya — tanlov yo'q
+    expect(screen.getByText("P-000013")).toBeInTheDocument();
+  });
+});
+
+describe("Sotuv ekrani — to'r va mato qatori", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    who.role = "seller";
+    api.mockReset();
+    post.mockReset();
+  });
+
+  it("qoldig'i tugagan tovarlar to'r oxirida", async () => {
+    const empty = { ...context.items[0], batches: context.items[0].batches.map((batch) => ({ ...batch, qty_m: "0.00" })) };
+    api.mockResolvedValue({ ...context, items: [empty, context.items[1]] });
+    renderPage();
+    await scanner();
+
+    const tiles = within(screen.getByRole("group", { name: "Tovarlar" })).getAllByRole("button");
+    expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual([
+      "M101-02 · Atlas · Ko'k", "M101-01 · Atlas · Qizil",
+    ]);
+  });
+
+  it("mato ko'p bo'lsa ham chip bo'lib qoladi (yozib tanlash emas) — yonga suriladigan qator", async () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      sku: {
+        ...sku(400 + index, { id: 11, code: "01", name: "Qizil" }),
+        code: `F${index + 1}-01`,
+        fabric: { id: 50 + index, code: `F${index + 1}`, name: `Mato ${index + 1}`, image_url: null, default_m_per_kg: null, is_active: true },
+      },
+      batches: [
+        { id: 500 + index, number: `P-0005${String(index).padStart(2, "0")}`, receipt_date: "2026-09-20", qty_m: "50.00", m_per_kg: null, recommended_price_per_m: null },
+      ],
+    }));
+    api.mockResolvedValue({ ...context, items: many });
+    renderPage();
+    await scanner();
+
+    expect(screen.queryByRole("combobox", { name: "Mato" })).toBeNull();
+    expect(within(screen.getByRole("group", { name: "Mato" })).getAllByRole("button")).toHaveLength(12);
+  });
+
+  it("tor ekranda ekran raqam klaviaturasi yo'q (tizimniki ochiladi)", async () => {
+    api.mockResolvedValue(context);
+    renderPage();
+    await userEvent.type(await scanner(), "P-000012{Enter}");
+
+    expect(screen.queryByRole("group", { name: "Raqamlar" })).toBeNull();
+    expect(screen.getByLabelText("Metr")).toHaveAttribute("inputmode", "decimal");
+    expect(screen.queryByRole("group", { name: "Tovarlar" })).toBeNull(); // bitta ustun: forma to'r o'rnida
   });
 });
 

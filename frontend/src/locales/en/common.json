@@ -306,7 +306,7 @@
         "created": "Added SKUs",
         "deactivated": "Deactivated a SKU",
         "activated": "Reactivated a SKU",
-        "price_changed": "Changed the recommended price",
+        "price_changed": "Changed the price",
         "price_bulk": "Set a bulk price"
       },
       "receipt": {
@@ -526,7 +526,9 @@
     "choose": "Choose image",
     "replace": "Replace",
     "remove": "Remove",
-    "hint": "Optional. JPG or PNG, up to 8 MB."
+    "hint": "Optional. JPG or PNG, up to 8 MB.",
+    "zoom": "Enlarge picture",
+    "close": "Close"
   },
   "catalog": {
     "title": "Catalogue",
@@ -605,7 +607,7 @@
       "created_some_existing": "{{created}} SKU added, {{existing}} already existed",
       "all_existing": "All chosen SKUs already exist",
       "only_no_price": "Only without a price",
-      "col_price": "Recommended price",
+      "col_price": "Price",
       "col_threshold": "Low-stock threshold",
       "threshold_standard": "default",
       "threshold_value": "{{value}} m",
@@ -635,7 +637,9 @@
       "history": "Price history",
       "history_empty": "The price has not been changed yet.",
       "inactive_note": "An inactive SKU cannot be chosen at receiving, but its remaining stock can still be sold.",
-      "threshold_standard_hint": "Business default"
+      "threshold_standard_hint": "Business default",
+      "image_title": "Item picture",
+      "image_hint": "A photo of exactly this item (fabric + colour + pattern). Without it the pattern or colour picture is shown."
     }
   },
   "receiving": {
@@ -670,7 +674,7 @@
     "price_current": "Now: {{price}}. If you change it, this SKU's price is updated.",
     "price_none": "No price set yet — you can set it here.",
     "warn_coefficient": "This gives 1 kg = {{value}} m, but the fabric's standard is {{standard}} m. Could metres or kg be mistyped?",
-    "warn_cost": "The cost is higher than the recommended price.",
+    "warn_cost": "The cost is higher than the selling price.",
     "warn_duplicate": "This item is also in batch {{n}}.",
     "merge": "Merge",
     "batch_n": "Batch {{n}}",
@@ -802,7 +806,18 @@
       "will_over": "{{meters}} m will be recorded as over.",
       "will_none": "No difference — it came out as labelled.",
       "big": "The difference is large — {{percent}}% of what was received. Could a sale or transfer be missing?",
-      "confirm": "Yes, it ran out — close"
+      "confirm": "Yes, it ran out — close",
+      "empty_title": "Finished (0 m)",
+      "empty_hint": "The system shows 0. If the fabric is really gone, close it in one tap.",
+      "do": "Close",
+      "do_named": "{{number}} — {{place}}: close",
+      "col_batch": "Batch",
+      "preview_short": "In the system: {{qty}} m → metre difference: {{diff}} m short",
+      "preview_over": "In the system: {{qty}} m → metre difference: {{diff}} m over",
+      "preview_amount": "about {{amount}} soʻm",
+      "preview_who": "{{number}} — {{place}}",
+      "confirm_yes": "Yes, close",
+      "closed_done": "{{number}} closed ({{place}})."
     },
     "movement": {
       "receipt": "Receipt",
@@ -912,7 +927,8 @@
         "waiting": "Transfer not received"
       },
       "batch": {
-        "big_diff": "Large metre difference"
+        "big_diff": "Large metre difference",
+        "empty_open": "Finished batch not closed"
       },
       "stock": {
         "low": "Low stock"
@@ -941,7 +957,8 @@
       },
       "batch": {
         "short": "{{number}} closed: {{meters}} m ({{percent}}%) short at “{{location}}” — {{by}}",
-        "over": "{{number}} closed: {{meters}} m ({{percent}}%) over at “{{location}}” — {{by}}"
+        "over": "{{number}} closed: {{meters}} m ({{percent}}%) over at “{{location}}” — {{by}}",
+        "empty_open": "{{number}}: 0 left at “{{location}}” — close the batch"
       },
       "stock": {
         "low": "{{code}}: {{qty}} m left at “{{location}}” (threshold {{threshold}} m)"
@@ -991,7 +1008,7 @@
       "meters": "Metres",
       "kg": "Kg",
       "price": "Price per metre",
-      "no_recommended": "No recommended price — enter the price yourself",
+      "no_recommended": "No price set — enter it yourself",
       "no_coefficient": "No kg ↔ metre ratio for this batch — enter metres",
       "over_stock": "The system shows {{available}} m left. If the fabric is really there, add it — you will write a note in the basket.",
       "line_total": "Line total",
@@ -1006,16 +1023,23 @@
       "add_more": "Add another",
       "sell": "Sell",
       "sell_credit": "Choose customer",
-      "at_recommended": "At the recommended price",
-      "recommended_restore": "Back to recommended: {{price}}",
+      "at_recommended": "At the set price",
+      "recommended_restore": "Back to the set price: {{price}}",
       "items": "Items",
       "found": "{{count}} found",
       "search_keys": "↓ ↑ to move, Enter to pick",
       "parts": "What it is made of",
-      "clear_filter": "{{name}}: clear selection"
+      "clear_filter": "{{name}}: clear selection",
+      "keypad": "Number pad",
+      "keypad_back": "Delete last digit",
+      "keypad_comma": "Decimal comma",
+      "pick_hint": "Scan a label or pick an item on the left",
+      "price_below": "{{amount}} below recommended",
+      "price_above": "{{amount}} above recommended"
     },
     "cart": {
       "title": "Basket",
+      "goto": "Go to basket — {{count}} lines",
       "empty": "The basket is empty. Scan a label or choose an item.",
       "clear": "Empty the basket",
       "clear_confirm": "Remove all {{count}} lines from the basket?",
@@ -1076,7 +1100,7 @@
       "when": "Date and time",
       "customer": "Customer",
       "col_item": "Item",
-      "col_recommended": "Recommended",
+      "col_recommended": "Selling price",
       "col_price": "Price",
       "col_amount": "Total",
       "returned_m": "{{meters}} m returned",
@@ -1121,7 +1145,13 @@
       "reason_required": "Write the reason",
       "yes": "Yes, cancel it"
     },
-    "done_duplicate": "This sale was already recorded ({{number}}) — nothing new was written."
+    "done_duplicate": "This sale was already recorded ({{number}}) — nothing new was written.",
+    "checks": {
+      "label": "Checks",
+      "tab": "Check {{n}}",
+      "tab_pending": "Check {{n}} — waiting for confirmation",
+      "add": "New check"
+    }
   },
   "credit": {
     "intro": "Customers are shared across the business: they can buy on credit and pay at any store.",
@@ -1326,8 +1356,8 @@
     "credit_note": "Written-off debt is not subtracted from profit — it is shown here separately.",
     "by_item": "By item",
     "by_seller": "By seller",
-    "deviation_intro": "How far selling prices were from the recommended price. Sales without a recommended price are not included.",
-    "expected": "At recommended price",
+    "deviation_intro": "How far selling prices were from the set price. Sales of items without a set price are not included.",
+    "expected": "At the set price",
     "actual": "Actual",
     "diff": "Difference",
     "short": {

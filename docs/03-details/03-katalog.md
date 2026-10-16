@@ -37,6 +37,10 @@ Partiya = SKU + sana (04-kirim)
 
 ### Ranglar va gullar
 - Ro'yxat: kod, nom, namuna/rasm (ixtiyoriy), holat
+- **SKU'ning o'z rasmi (2026-10-06, foydalanuvchi qarori):** har SKU (mato + rang + gul) ga alohida rasm qo'yiladi — "Atlas · Qizil · Lola" bir rasm, "Atlas · Oq · Lola" boshqa rasm. SKU ro'yxatida tahrirlashda yuklanadi (`skus.image_url`). Tovar rasmi tartibi hamma joyda: **SKU rasmi → gul → rang** → rang namunasi → kod harflari. **Mato rasmi tovarlarga o'tmaydi** (aks holda bir matoning barcha ranglari bir xil rasm bilan chiqadi) — u faqat mato tanlash chipida va Matolar ro'yxatida ko'rinadi.
+- **Rasmni kattalashtirish:** rasm bosilsa to'liq ekranda ochiladi (Esc yoki tashqarisini bosish yopadi) — kichik rasmlarda ham: sotuvdagi tanlov chiplari va to'r, katalog ro'yxatlari, qoldiq, partiya kartochkasi. Tanlov tugmasida rasm alohida bosiladi: rasm — kattalashtiradi, yozuv — tanlaydi.
+- **Bitta qatorda rasm bir marta (2026-10-06):** qator yoki plitkada faqat eng aniq rasm ko'rsatiladi (SKU → gul → rang); tarkib qismlari (mato, rang, gul) yonida rasm takrorlanmaydi.
+- **Harf-belgi yo'q (2026-10-06):** rasm bo'lmasa — rang namunasi (hex); u ham bo'lmasa — neytral mato belgisi. "AT", "05" kabi kod harflari hech qayerda chiqmaydi.
 - Qo'shish/tahrirlash: kod (noyob), nom, rasm
 - Ro'yxat matolar uchun umumiymi yoki har matoning o'zinikimi — biznesdan aniqlanadi (biznesdan-savollar.md, 2-savol)
 

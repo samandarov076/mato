@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
 import { Chip } from "@/shared/ui/list";
-import { focusRing, TONES, type Tone } from "@/shared/ui/tones";
+import { focusRing } from "@/shared/ui/tones";
 
-const PALETTE: Tone[] = ["plum", "indigo", "sky", "leaf", "saffron", "coral", "rose"];
 
 // IconChip va Avatar bilan bir o'lchovda (32 / 40 / 48); xl — kartochka sarlavhasidagi katta namuna
 const SIZES = {
@@ -22,18 +22,103 @@ function thumbUrl(url: string, size: keyof typeof SIZES) {
   return size === "xl" || size === "hero" ? url : url.replace(/\.webp$/, ".s.webp");
 }
 
+/** Bosilganda to'liq ekranda ochiladigan rasm: Esc, yopish tugmasi yoki tashqarisini bosish yopadi. */
+function ZoomThumb({ imageUrl, size, alt }: { imageUrl: string; size: keyof typeof SIZES; alt: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLSpanElement>(null);
+  const closer = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    closer.current?.focus();
+    const back = opener.current; // yopilganda fokus rasm tugmasiga qaytadi
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setOpen(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      back?.focus({ preventScroll: true });
+    };
+  }, [open]);
+  // Ko'pincha tanlov tugmasi yoki qator havolasi ICHIDA turadi — shuning uchun <button> emas, role="button" li span:
+  // bosish va klaviatura hodisalari ota-elementga o'tkazilmaydi (rasm kattalashadi, tanlov / havola ishlamaydi).
+  // Oyna portalda chizilsa ham React hodisalari ota-komponentga ko'tariladi — u yerda ham to'xtatiladi.
+  const stop = (event: { stopPropagation: () => void; preventDefault: () => void }) => {
+    event.stopPropagation();
+    event.preventDefault();
+  };
+  return (
+    <>
+      <span
+        ref={opener}
+        role="button"
+        tabIndex={0}
+        aria-label={t("image.zoom")}
+        onClick={(event) => (stop(event), setOpen(true))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            stop(event);
+            setOpen(true);
+          }
+        }}
+        className={`pressable inline-block shrink-0 cursor-zoom-in ${SIZES[size].split(" ").filter((name) => name.startsWith("rounded")).join(" ")} ${focusRing}`}
+      >
+        <img
+          src={thumbUrl(imageUrl, size)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          width={PIXELS[size]}
+          height={PIXELS[size]}
+          className={`${SIZES[size]} border border-line object-cover`}
+        />
+      </span>
+      {open &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("image.zoom")}
+            onClick={(event) => (stop(event), setOpen(false))}
+            onKeyDown={(event) => event.stopPropagation()}
+            className="fixed inset-0 z-50 grid cursor-zoom-out place-items-center bg-ink/80 p-4"
+          >
+            <img src={imageUrl} alt={alt} className="max-h-full max-w-full rounded-card object-contain shadow-pop" />
+            <button
+              ref={closer}
+              type="button"
+              onClick={(event) => (stop(event), setOpen(false))}
+              className={`absolute right-4 top-4 rounded-control bg-panel px-3 py-2 text-sm font-medium shadow-pop ${focusRing}`}
+            >
+              {t("image.close")}
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 /** Tovar belgisi: rasm, bo'lmasa rang namunasi, u ham bo'lmasa — kodning bosh harflari. */
 export function Thumb({
   imageUrl,
   hex,
   code,
   size = "md",
+  zoom = true,
 }: {
   imageUrl?: string | null;
   hex?: string | null;
   code: string;
   size?: keyof typeof SIZES;
+  /** Rasm bosilsa to'liq ekranda ochiladi (faqat rasm bo'lsa; standart — ha). Tugma yoki havola ichida ham ishlaydi:
+   *  bosish ota-elementga o'tmaydi — rasm kattalashadi, yozuv esa o'z amalini bajaradi */
+  zoom?: boolean;
 }) {
+  if (imageUrl && zoom) return <ZoomThumb imageUrl={imageUrl} size={size} alt={code} />;
   if (imageUrl) {
     return (
       <img
@@ -56,17 +141,17 @@ export function Thumb({
       />
     );
   }
-  // Rasm ham, rang ham yo'q: kod bosh harflari rangli katakchada. Rang koddan kelib chiqadi —
-  // bir tovar har doim bir xil rangda ko'rinadi va ro'yxatda tez topiladi.
-  let hash = 0;
-  for (const char of code) hash = (hash * 31 + char.codePointAt(0)!) % 997;
+  // Rasm ham, rang ham yo'q: neytral mato belgisi (to'qima chiziqlari). Kod harflari ("AT", "05") ko'rsatilmaydi —
+  // ular rasm yoki rang deb o'qilib, chalg'itardi (docs/03-details/03-katalog.md).
   return (
     <span
       aria-hidden="true"
-      className={`${SIZES[size]} chip-3d grid shrink-0 place-items-center overflow-hidden font-semibold uppercase ${TONES[PALETTE[hash % PALETTE.length]].chip}`}
+      data-thumb="blank"
+      className={`${SIZES[size]} grid shrink-0 place-items-center overflow-hidden border border-line bg-page text-edge`}
     >
-      {/* "B-7" → "B7": belgi ichida tinish belgilari ko'rsatilmaydi */}
-      {(code.replace(/[^\p{L}\p{N}]/gu, "") || code).slice(0, 2)}
+      <svg viewBox="0 0 24 24" className="size-3/5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M5 4v16M12 4v16M19 4v16M4 8h16M4 16h16" />
+      </svg>
     </span>
   );
 }

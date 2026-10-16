@@ -18,6 +18,7 @@ from app.modules.catalog.schemas import (
     SkuCard,
     SkuCreate,
     SkuCreated,
+    SkuImageIn,
     SkuPage,
     SkuUpdate,
 )
@@ -135,6 +136,12 @@ async def get_sku(sku_id: int, ctx: CatalogAuth) -> SkuCard:
 @router.patch("/skus/{sku_id}", status_code=204)
 async def update_sku(sku_id: int, body: SkuUpdate, ctx: CatalogAuth) -> None:
     await service.update_sku(ctx, sku_id, body)
+
+
+@router.put("/skus/{sku_id}/image", status_code=204)
+async def set_sku_image(sku_id: int, body: SkuImageIn, ctx: CatalogAuth) -> None:
+    """SKU'ning o'z rasmi (mato + rang + gul surati). `image_url: null` — olib tashlash."""
+    await service.set_sku_image(ctx, sku_id, body.image_url)
 
 
 @router.post("/skus/{sku_id}/deactivate", status_code=204)

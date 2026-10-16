@@ -743,3 +743,49 @@ async def test_the_same_transfer_is_recorded_once(shop):
 @pytest.mark.parametrize("path", ["/api/stock", "/api/transfers", "/api/batches/1"])
 async def test_inventory_needs_login(client, path):
     assert (await client.get(path)).status_code == 401
+
+
+# ---------- "Partiyani yopish" sahifasi (docs/03-details/05-ombor.md) ----------
+
+
+async def _closable(s, headers=None) -> dict:
+    response = await s.client.get("/api/batches/closable", headers=headers or s.headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_closable_lists_open_batches_per_place_with_what_each_person_may_close(shop, keeper, seller):
+    s = await shop()
+    here = await s.in_store(0, "50", 1)  # skladda 450, do'konda 50
+    empty = await s.in_store(1, "40", 1)
+    assert (await s.sell_to((empty, "40", 45000))).status_code == 201  # do'konda 0 — ochiq qoladi (avto-yopish yo'q)
+    gone = await s.in_store(0, "30", 1)
+    await s.client.post(f"/api/batches/{gone}/close", json={"location_id": s.store}, headers=s.headers)
+
+    page = await _closable(s)
+    places = {place["id"]: place for place in page["locations"]}
+    assert {place["name"]: place["can_close"] for place in places.values()} == {
+        "Asosiy sklad": True, "Chorsu do'koni": True,
+    }  # fmt: skip
+    rows = {row["id"]: row for row in page["batches"]}
+    cells = lambda row: {cell["location_id"]: cell["qty_m"] for cell in row["cells"]}
+    assert cells(rows[here]) == {s.warehouse: "450.00", s.store: "50.00"}
+    assert cells(rows[empty])[s.store] == "0.00"  # tugagan, lekin ochiq — ro'yxatda
+    assert s.store not in cells(rows[gone])  # do'konda yopilgan — u yerda ko'rinmaydi
+    assert rows[here]["cost_per_m"] == 30000  # egaga — farq summasini oldindan ko'rsatish uchun
+
+    # Omborchi: do'konlarni ko'radi, lekin faqat o'z skladida yopa oladi; tannarx ko'rinmaydi
+    warehouse_view = await _closable(s, await keeper(s))
+    assert {place["name"]: place["can_close"] for place in warehouse_view["locations"]} == {
+        "Asosiy sklad": True, "Chorsu do'koni": False,
+    }  # fmt: skip
+    assert all(row["cost_per_m"] is None for row in warehouse_view["batches"])
+    assert "cost" not in str([{k: v for k, v in row.items() if k != "cost_per_m"} for row in warehouse_view["batches"]])
+
+    # Sotuvchi: faqat o'z do'koni, tannarxsiz
+    seller_view = await _closable(s, await seller(s))
+    assert [(place["name"], place["can_close"]) for place in seller_view["locations"]] == [("Chorsu do'koni", True)]
+    assert all(
+        row["cost_per_m"] is None and [cell["location_id"] for cell in row["cells"]] == [s.store]
+        for row in seller_view["batches"]
+    )

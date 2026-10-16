@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -81,6 +81,24 @@ describe("Ko'chirish yaratish", () => {
 
     expect(await screen.findByText("ko'chirish kartochkasi")).toBeInTheDocument();
     expect(post.mock.calls[1][1].client_uuid).toBe(sent.client_uuid);
+  });
+
+  it("qo'shilgan partiya ro'yxat tepasiga tushadi — ko'p partiyada ham ko'rinib turadi", async () => {
+    const other = { ...batch, batch_id: 13, number: "P-000013", sku: { ...batch.sku, id: 102, code: "M101-02", color: "Ko'k" } };
+    api.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.startsWith("/transfers/options")
+          ? { sources: [{ id: 1, name: "Asosiy sklad", type: "warehouse" }], targets: [{ id: 2, name: "Chorsu do'koni", type: "store" }] }
+          : [batch, other],
+      ),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "P-000013 ni qo'shish" }));
+
+    const chosen = screen.getByRole("list", { name: "Jo'natiladigan partiyalar" });
+    const numbers = within(chosen).getAllByRole("listitem").map((item) => within(item).getByText(/^P-\d+$/).textContent);
+    expect(numbers).toEqual(["P-000013", "P-000012"]); // yangisi tepada
   });
 
   it("server aniq rad etsa (4xx) — keyingi urinish yangi identifikator bilan", async () => {

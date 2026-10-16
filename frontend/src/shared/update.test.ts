@@ -34,6 +34,12 @@ describe("ilova yangilanishi — faqat ish yo'qolmaydigan paytda", () => {
     expect(hasUnsavedWork()).toBe(true);
   });
 
+  it("ikkinchi chekdagi to'lmagan savat ham — band", () => {
+    localStorage.setItem("mato.cart.9.2", cart());
+    localStorage.setItem("mato.cart.9.2.2", cart({ lines: [{ id: "l1" }] }));
+    expect(hasUnsavedWork()).toBe(true);
+  });
+
   it("kirim yoki ko'chirish qoralamasi — band", () => {
     localStorage.setItem("mato.receipt.5", JSON.stringify({ note: "yarim yozilgan" }));
     expect(hasUnsavedWork()).toBe(true);

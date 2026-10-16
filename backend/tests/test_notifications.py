@@ -328,3 +328,34 @@ async def test_inbox_filters_by_kind(shop, new_user):
     assert len(await codes()) == 5
     bad = await s.client.get("/api/notifications", params={"kind": "x"}, headers=s.headers)
     assert bad.status_code == 422
+
+
+async def test_reminder_to_close_a_batch_that_sits_empty(shop, seller, co_owner):
+    """Partiya do'konda 0 qoldiq bilan ochiq turibdi — o'sha joy xodimlari va egalarga bitta eslatma (takrorlanmaydi)."""
+    from datetime import timedelta as delta
+
+    from app.worker import remind_empty_batches
+
+    s = await shop()
+    batch = await s.in_store(0, "50", 1)
+    partly = await s.in_store(1, "50", 1)
+    nodira = await seller(s)
+    _, bahrom = await co_owner(s)
+    assert (await s.sell_to((batch, "50", 45000))).status_code == 201  # 0 m, ochiq
+    assert (await s.sell_to((partly, "10", 45000))).status_code == 201  # 40 m qoldi — eslatma yo'q
+
+    assert await remind_empty_batches() == 0  # hali 7 kun o'tmagan
+
+    # Test bazasi umumiy: boshqa testlardan qolgan tugagan partiyalar ham hisobga kirishi mumkin
+    assert await remind_empty_batches(idle=delta(0)) >= 1
+    assert await remind_empty_batches(idle=delta(0)) == 0  # qayta ishga tushsa takrorlanmaydi
+
+    for headers in (nodira, bahrom):
+        rows = (await s.client.get("/api/notifications", headers=headers)).json()["items"]
+        mine = [row for row in rows if row["event_code"] == "batch.empty_open"]
+        assert len(mine) == 1
+        assert mine[0]["data"]["batch_id"] == batch and mine[0]["data"]["location"] == "Chorsu do'koni"
+
+    # Yopilgach — eslatma sababi yo'q; yana tekshirilsa yangi xabar yozilmaydi
+    await s.client.post(f"/api/batches/{batch}/close", json={"location_id": s.store}, headers=s.headers)
+    assert await remind_empty_batches(idle=delta(0)) == 0

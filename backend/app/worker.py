@@ -20,11 +20,13 @@ from app.core.db import system_session
 from app.modules.auth.models import UserSession
 from app.modules.credit.models import Customer, Debt
 from app.modules.credit.service import overdue_key
-from app.modules.inventory.models import BatchStock, StockMovement, Transfer
+from app.modules.inventory.models import BatchStock, StockMovement, Transfer, TransferLine
+from app.modules.inventory.service import empty_key
 from app.modules.inventory.transfers import waiting_key
 from app.modules.notifications import service as notifications
 from app.modules.notifications.models import Notification
 from app.modules.platform.models import Business
+from app.modules.receiving.models import Batch, Receipt
 from app.modules.sales.models import Sale
 from app.modules.structure.models import Location
 from app.modules.telegram import bot as telegram_bot
@@ -188,6 +190,81 @@ async def reconcile_stock(ctx: dict | None = None) -> int:
     return len(drifted)
 
 
+# Partiya shuncha vaqt 0 qoldiq bilan ochiq tursa — "partiyani yoping" eslatmasi (docs/03-details/05-ombor.md)
+EMPTY_AFTER = timedelta(days=7)
+
+
+async def remind_empty_batches(ctx: dict | None = None, *, idle: timedelta = EMPTY_AFTER) -> int:
+    """Tugagan (0 m), lekin yopilmagan partiyalar: o'sha joy xodimlari va egalarga bitta eslatma (har partiya-joyga
+    bir marta). Avto-yopilmaydi — tizimda 0 bo'lsa ham mato qolgan bo'lishi mumkin. Yangi eslatmalar sonini qaytaradi."""
+    last_move = (
+        select(
+            StockMovement.batch_id,
+            StockMovement.location_id,
+            func.max(StockMovement.created_at).label("at"),
+        )
+        .group_by(StockMovement.batch_id, StockMovement.location_id)
+        .subquery()
+    )
+    incoming = (
+        select(TransferLine.id)
+        .join(Transfer, Transfer.id == TransferLine.transfer_id)
+        .where(
+            TransferLine.batch_id == BatchStock.batch_id,
+            Transfer.to_location_id == BatchStock.location_id,
+            Transfer.status == "in_transit",
+        )
+        .exists()
+    )
+    async with system_session() as db:
+        rows = (
+            await db.execute(
+                select(BatchStock, Batch.number, Location)
+                .join(Batch, Batch.id == BatchStock.batch_id)
+                .join(Receipt, Receipt.id == Batch.receipt_id)
+                .join(Location, Location.id == BatchStock.location_id)
+                .join(
+                    last_move,
+                    (last_move.c.batch_id == BatchStock.batch_id)
+                    & (last_move.c.location_id == BatchStock.location_id),
+                )
+                .where(
+                    BatchStock.status == "open",
+                    BatchStock.qty_m == 0,
+                    Receipt.status == "active",
+                    Location.is_active,
+                    last_move.c.at <= datetime.now(UTC) - idle,
+                    ~incoming,
+                )
+            )
+        ).all()
+        sent = 0
+        for stock, number, location in rows:
+            key = empty_key(stock.batch_id, stock.location_id)
+            already = await db.scalar(
+                select(func.count()).select_from(Notification).where(Notification.dedup_key == key)
+            )
+            if already:
+                continue
+            people = set(await notifications.location_staff_ids(db, location))
+            people.update(await notifications.owner_ids(db, stock.business_id))
+            await notifications.notify(
+                db,
+                business_id=stock.business_id,
+                user_ids=people,
+                event_code="batch.empty_open",
+                data={
+                    "batch_id": stock.batch_id,
+                    "number": number,
+                    "location": location.name,
+                    "location_id": location.id,
+                },
+                dedup_key=key,
+            )
+            sent += 1
+        return sent
+
+
 class WorkerSettings:
     functions = [  # noqa: RUF012 — arq shu ko'rinishni kutadi
         remind_stale_transfers,
@@ -198,6 +275,7 @@ class WorkerSettings:
         purge_expired_sessions,
         purge_read_notifications,
         reconcile_stock,
+        remind_empty_batches,
     ]
     # Soatlar — ishchi konteynerining vaqt mintaqasida (TZ=Asia/Tashkent, docker-compose.prod.yml)
     cron_jobs = [  # noqa: RUF012
@@ -208,6 +286,7 @@ class WorkerSettings:
         cron(reconcile_stock, hour=2, minute=30),  # kechasi, zaxiradan oldin
         cron(purge_expired_sessions, weekday=0, hour=4, minute=0),  # dushanba
         cron(purge_read_notifications, hour=4, minute=10),
+        cron(remind_empty_batches, hour=9, minute=0),  # ish kuni boshida
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     health_check_interval = 60  # `arq --check` (konteyner healthcheck) shu kalitga qaraydi

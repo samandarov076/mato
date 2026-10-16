@@ -124,9 +124,5 @@ export const skuTitle = (sku: Sku) =>
     .filter(Boolean)
     .join(" · ");
 
-/**
- * Tovar rasmi — katalogdagi eng aniq rasm: gul (gulsiz bo'lmasa) → rang → mato; hech biri bo'lmasa null
- * (unda rang namunasi yoki kod harflari ko'rsatiladi). docs/03-details/06-sotuv.md, "Rasm".
- */
-export const skuImage = (sku: Sku): string | null =>
-  (sku.pattern.is_plain ? null : sku.pattern.image_url) ?? sku.color.image_url ?? sku.fabric.image_url ?? null;
+// Tovar rasmi tartibi (SKU → gul → rang → mato) katalogda bitta joyda — sotuv ham shuni ishlatadi
+export { skuImage } from "@/modules/catalog/types";

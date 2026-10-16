@@ -16,8 +16,8 @@ Do'kon qurilmasidagi sotuv ekrani, to'lov, qaytarish, bekor qilish. Asosiy mezon
      - tartib: aniq kod / partiya raqami → kod yoki nom shu so'z bilan boshlanadi → so'z ichida uchraydi → xato bilan mos; tengida qoldig'i bori oldin;
      - klaviatura: ↓ ↑ — natijalar bo'ylab, Enter — belgilanganini tanlaydi (belgilanmagan bo'lsa avvalgi qoida: aniq kod, yoki natija bitta bo'lsa o'sha);
      - mato / rang chiplari tanlangan bo'lsa ham qidiruv butun do'kon bo'yicha (chiplar — ko'rib tanlash, qidiruv — yozib topish).
-   - **Rasm (2026-10-05):** tovar rasmi katalogdan olinadi, eng aniqrog'i birinchi: **gul** rasmi (gulsiz bo'lmasa) → **rang** rasmi → **mato** rasmi → rang namunasi (hex) → kod harflari. Mato rasmi (Katalog → Matolar) endi sotuv ekraniga ham keladi. Rasm uch joyda: tovarlar to'rida, tanlangan tovarda (katta) va savat qatorida. Tanlangan tovar yonida uning tarkibi — mato, rang, gul — har biri o'z rasmi/namunasi bilan kichik ko'rinadi. Gul **doim** ko'rsatiladi, gulsiz tovarda ham ("Gul: Gulsiz") — rang bosilganda tovar o'zi tanlangan bo'lsa, guli noma'lum qolmasin. Skaner, qidiruv yoki chiplar — qaysi yo'l bilan tanlanmasin, ko'rinish bir xil. Rasm gul yoki matoniki bo'lsa (rangniki emas), to'r katakchasida rasm burchagida **rang nuqtasi** turadi — bir matoning oq va qorasi bir xil rasm bilan chiqib, adashtirmasin.
-   - **Mato → rang → gul — ketma-ket, bir-biriga bog'liq (2026-10-05, foydalanuvchi qarori):** avval mato tanlanadi; shundan keyin shu matoning ranglari chiqadi (qoldig'i bilan); rang tanlangach — shu mato va rangning gullari ("Gulsiz" ham variant). Keyingi qadam oldingisi tanlanmaguncha ko'rinmaydi. Har qadamda to'r shunga torayadi. Tanlangan qiymat yonidagi × uni va undan keyingi qadamlarni olib tashlaydi (mato × — rang va gul ham tozalanadi). Rang tanlanganda shu rangda bitta tovar bo'lsa (gul varianti yo'q) — tovar o'zi tanlanadi. Qiymat 10 tadan ko'p bo'lsa — chiplar o'rniga qidiruvli tanlov. Sotuvdan keyin mato tanlovi qoladi, rang va gul tozalanadi. (Bir kun "uchta mustaqil filtr" sinab ko'rildi — rad etildi.)
+   - **Rasm (2026-10-05; 2026-10-06 dan SKU rasmi birinchi):** tovar rasmi katalogdan olinadi, eng aniqrog'i birinchi: **SKU'ning o'z rasmi** → **gul** rasmi (gulsiz bo'lmasa) → **rang** rasmi → rang namunasi (hex) → kod harflari. Mato rasmi (Katalog → Matolar) tovarlarga o'tmaydi — faqat mato tanlash chipida. Rasm uch joyda: tovarlar to'rida, tanlangan tovarda (katta) va savat qatorida. Tanlangan tovar yonida uning tarkibi — mato, rang, gul — har biri o'z rasmi/namunasi bilan kichik ko'rinadi. Gul **doim** ko'rsatiladi, gulsiz tovarda ham ("Gul: Gulsiz") — rang bosilganda tovar o'zi tanlangan bo'lsa, guli noma'lum qolmasin. Skaner, qidiruv yoki chiplar — qaysi yo'l bilan tanlanmasin, ko'rinish bir xil. Rasm gul yoki matoniki bo'lsa (rangniki emas), to'r katakchasida rasm burchagida **rang nuqtasi** turadi — bir matoning oq va qorasi bir xil rasm bilan chiqib, adashtirmasin.
+   - **Mato → rang → gul — ketma-ket, bir-biriga bog'liq (2026-10-05, foydalanuvchi qarori):** avval mato tanlanadi; shundan keyin shu matoning ranglari chiqadi (qoldig'i bilan); rang tanlangach — shu mato va rangning gullari ("Gulsiz" ham variant). Keyingi qadam oldingisi tanlanmaguncha ko'rinmaydi. Har qadamda to'r shunga torayadi. Tanlangan qiymat yonidagi × uni va undan keyingi qadamlarni olib tashlaydi (mato × — rang va gul ham tozalanadi). Rang tanlanganda shu rangda bitta tovar bo'lsa (gul varianti yo'q) — tovar o'zi tanlanadi. Qiymat 10 tadan ko'p bo'lsa — chiplar o'rniga qidiruvli tanlov. Tovar savatga qo'shilgach yoki sotilgach tanlov **boshiga qaytadi** (mato ham tozalanadi) va kursor skaner maydonida turadi — ketma-ket skanerlash uchun: skaner → metr → qo'shish → skaner … (2026-10-06, foydalanuvchi qarori; avval mato tanlovi qolardi). (Bir kun "uchta mustaqil filtr" sinab ko'rildi — rad etildi.)
    - **Ko'rinish (sotuvchi, 2026-10-05):** tovar tanlanmaganda ekran butun enni ishlatadi (planshetda to'r 3–4 ustun); tovar tanlangach forma o'rtada, tor — metr / kg / narx bir qarashda. To'r katakchasida: rasm, kod, nom, qoldiq (tugagani qizil va xira), tavsiya narx (bo'lsa).
 2. **Partiya:** skanerda — aniq. Qo'lda tanlanganda shu do'konda bir nechta partiya bo'lsa — avtomatik **eng eskisi**; sotuvchi boshqasini tanlay oladi
 3. **Miqdor:** metr YOKI kg kiritiladi → ikkinchisi partiya koeffitsienti bo'yicha avtomatik
@@ -27,18 +27,57 @@ Do'kon qurilmasidagi sotuv ekrani, to'lov, qaytarish, bekor qilish. Asosiy mezon
    - jami summa avtomatik: metr × narx (do'kon POS'laridagi kabi)
 5. **Tez sotish (2026-10-03, biznes qarori):** savat bo'sh bo'lsa, savat ko'rinmaydi — to'lov turi va **"Sotish"** tovar formasining o'zida: bitta tovar bir bosishda sotiladi. Nasiyada "Mijozni tanlash" — qator savatga tushadi va mijoz so'raladi. Qoldiqdan ko'p bo'lsa — qator savatga tushadi va izoh so'raladi. Enter "Yana qo'shish"ni bosadi (tasodifiy Enter sotib yubormaydi).
 6. **Yana qo'shish** → xaridor bir nechta tovar olsa: qator savatga tushadi, savat ochiladi, 1-4 takrorlanadi; to'lov turi va **Yakunlash** savat ostida
-7. **Natija** → qoldiq kamayadi, ekran yangi sotuvga tayyor (mato tanlovi saqlanadi)
+7. **Natija** → qoldiq kamayadi, ekran yangi sotuvga tayyor (tanlov boshiga qaytadi, kursor skaner maydonida)
 
-### Ekran tuzilishi (eskiz tasdiqlangan ko'rinish)
+### Ekran tuzilishi — keng ekran (planshet yotiq, ≥1024px): ikki panel (2026-10-05, foydalanuvchi qarori)
+Sabab: asosiy yo'l — skaner, undan keyin darhol miqdor va narx yoziladi; sotuvlarning ko'pi bitta qatorli; narx tez-tez
+o'zgartiriladi; tizim klaviaturasi ekranning yarmini yopadi. Shuning uchun joylashuv bitta va o'zgarmas:
+- **"Ko'p sotiladigan" qatori olib tashlandi (2026-10-06, foydalanuvchi qarori)** — ekranda faqat mato → rang → gul va
+  tovarlar to'ri. To'r katakchasida har doim to'liq belgi: rasm yoki rang namunasi (kvadrat); o'ngda tanlangan tovar
+  to'rda ham belgilanadi. Chek bo'sh paytda o'ng panelda belgili ko'rsatma turadi.
+- **Savat o'ng panelda — kassa cheki kabi (2026-10-06):** har qator ikki satr — tovar nomi va partiya / narx, ostida
+  miqdor va summa; tahrirlash va o'chirish tugmalari qator boshida. Jami ostida **Yakunlash** panelning to'liq kengligida.
+  Tovar tanlanmagan paytda o'ng panel tepasida faqat ixcham ko'rsatma turadi — joy savatga qoladi.
+- **Jami-dok (2026-10-11):** jami, to'lov turi va "Yakunlash" bitta dok bo'lib o'ng panelning ko'rinadigan qismi
+  pastiga yopishadi (panel aylantirilsa ham joyidan jilmaydi). Nasiyada mijoz tanlash va boshlang'ich to'lov dok
+  tepasida aylanadi — "Yakunlash" hech qachon ekrandan chiqib ketmaydi.
+- **Bir nechta chek (2026-10-06, foydalanuvchi qarori — kassadagi "1 / 2" kabi):** sotuvchi bir mijozni kutib turganda
+  boshqasiga xizmat qiladi. Cheklar qatori (**1, 2, … +**) savat ochiq bo'lsa savat sarlavhasida turadi (alohida qator
+  egallamaydi, 2026-10-11); savat bo'sh bo'lsa — panel tepasida. Qoidalar:
+  - Ko'pi bilan **5 ta** ochiq chek. "+" faqat joriy chekda tovar bo'lsa ishlaydi (bo'sh chekdan yangisi ochilmaydi).
+  - Chek raqami o'zgarmaydi (2-chek yopilsa, 3-chek 3 bo'lib qoladi); yangi chek eng kichik bo'sh raqamni oladi.
+  - Har chekning o'z savati, to'lov turi, mijozi va **o'z identifikatori** (`client_uuid`) bor — chekdan chekka o'tish
+    identifikatorni o'zgartirmaydi.
+  - Chek belgisida jami summa ko'rinadi; javobi kelmagan (noaniq) chekda — ogohlantirish belgisi. **Faqat o'sha chek
+    qulflanadi**, qolganlarida sotuv davom etadi. Internet tiklanganda har noaniq chek o'zi qayta yuboriladi.
+  - Bo'sh qolgan chek undan chiqilganda o'zi yopiladi (kamida bitta chek doim bor). Sotuv yakunlangan chek bo'shaydi.
+  - Saqlash: 1-chek avvalgi kalitda (`mato.cart.<xodim>.<do'kon>`) — eski savat, jumladan noaniq sotuv, yo'qolmaydi;
+    qolganlari `mato.cart.<xodim>.<do'kon>.<raqam>` kalitida (raqam qo'shimchasi bilan); ochiq cheklar ro'yxati — `mato.checks.<xodim>.<do'kon>`.
+  - Server tomoni o'zgarmaydi: har chek — oddiy sotuv.
+  - Telefonda ham ishlaydi (qator forma tepasida).
+- **Chap panel — topish:** skaner / qidiruv; mato (rasmli chiplar, qatorlarga bo'linadi — hech biri kesilmaydi) → rang → gul; tovarlar to'ri (qoldig'i
+  tugaganlar oxirida). Tovar tanlangandan keyin ham chap panel joyida qoladi — boshqa tovar bir bosishda almashtiriladi.
+- **O'ng panel — sotuv (doim ko'rinadi, yopishib turadi):** tanlangan tovar (rasm, tarkib, partiya, qoldiq); kg / metr /
+  1 metr narxi; **ekran raqam klaviaturasi** (faol maydonga yozadi; tizim klaviaturasi ochilmaydi, tashqi klaviatura
+  ishlayveradi); qator jami — katta; to'lov turi; "Yana qo'shish" va "Sotish". Tovar tanlanmagan bo'lsa — qisqa yo'riq.
+  Savatda qator bo'lsa — savat, jami va "Yakunlash" ham shu panelda, formaning ostida.
+- Narx tavsiyadan farq qilsa — farqi yonida ko'rinadi: "tavsiyadan 5 000 so'm arzon / qimmat".
+- Tor ekranda (telefon, tik planshet) — avvalgidek bitta ustun (quyida); raqam klaviaturasi yo'q (tizimniki ochiladi).
+
+### Ekran tuzilishi — tor ekran (eskiz tasdiqlangan ko'rinish)
 - Bitta ustun: yuqorida tovar kiritish qatori (skaner/tovar, metr, kg, 1 metr narxi + tavsiya tugmasi, "Qo'shish")
 - Ostida kiritilgan tovarlar **ro'yxat** bo'lib tushadi
-- Eng pastda: jami summa, to'lov turi (naqd / karta / nasiya), "Yakunlash"
+- Kontent oqimida: jami summa va to'lov turi (naqd / karta / nasiya)
+- **Pastki savat paneli (2026-10-11):** savatda qator bo'lsa, pastki menyu tepasida doim ko'rinadigan panel —
+  savat belgisi (qator soni bilan), jami summa va "Yakunlash". Belgi bosilsa savatga olib tushadi. Sotuvchi tovar
+  tanlayotganda ham jami ko'z oldida; "Yakunlash" faqat shu panelda (takrorlanmaydi). Noaniq (javobi kutilayotgan)
+  sotuvda panel ko'rinmaydi — qayta yuborish tepadagi ogohlantirishda.
 - Pastki menyu: Sotuv, Bugungi sotuvlarim, Mijozlar, Qoldiq, Ko'chirishlar, Partiyani yopish
 
 ### Savat (ro'yxat)
 - Har qator: tartib raqami, SKU, partiya, metr, kg, 1 metr narxi, summa
 - Qatorni tahrirlash va o'chirish (yakunlashdan oldin)
-- Pastda: jami summa, to'lov turi, "Yakunlash"
+- Pastda: jami summa, to'lov turi; "Yakunlash" — keng ekranda dokda, telefonda pastki savat panelida (2026-10-11)
 
 ### Ekranda doim
 - Sotuvchi ism-familiyasi, qulf tugmasi (00-modul)

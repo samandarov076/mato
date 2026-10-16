@@ -1,6 +1,8 @@
 # Eskizlar (tasdiqlangan)
 
 ## 1. Sotuv ekrani (do'kon qurilmasi)
+> 2026-10-05: keng ekranda (≥1024px) ikki panelli tuzilish qabul qilindi — tafsiloti `docs/03-details/06-sotuv.md`, "Ekran tuzilishi — keng ekran". Quyidagi eskiz tor ekran uchun amal qiladi.
+
 - **Yuqori panel:** do'kon nomi; o'ngda "Sotuvchi: Ism Familiya" (doim ko'rinadi), xabarlar qo'ng'iroqchasi (o'qilmaganlar soni), qulf tugmasi.
 - **Kiritish qatori** (bitta ustun, karta ichida): Tovar (skaner maydoni + skaner tugmasi; yoki mato → rang → gul tanlash) · Metr · Kg · 1 metr narxi + tavsiya narx tugmasi (bosilsa narx qo'yiladi).
   - Ostida: tovar nomi (mato · rang · gul), partiya raqami belgisi, "1 kg = X m · qoldiq Y m", qator jami, "Qo'shish" tugmasi.

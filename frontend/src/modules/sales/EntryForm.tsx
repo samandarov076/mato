@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, Plus, ScanLine, X } from "lucide-react";
+import { Check, Delete, Plus, ScanLine, X } from "lucide-react";
 import { Thumb } from "@/modules/catalog/parts";
 import { fromUnits, parseDecimal, toUnits } from "@/shared/decimal";
 import { ApiError, api } from "@/shared/api/client";
@@ -30,12 +31,14 @@ function OptionChip({
   onClick,
   label,
   stock,
+  className = "",
   children,
 }: {
   onClick: () => void;
   /** Tugma nomi (ekran o'quvchi uchun) — qoldiq alohida tavsif sifatida o'qiladi */
   label?: string;
   stock?: number;
+  className?: string;
   children: ReactNode;
 }) {
   const meters = stock === undefined ? null : `${formatDecimal(fromUnits(stock, 2))} m`;
@@ -47,7 +50,7 @@ function OptionChip({
       aria-description={meters ?? undefined}
       className={`pressable inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-panel px-3.5 py-1.5 text-left text-[15px] hover:border-indigo hover:bg-indigo-soft active:bg-indigo-soft ${focusRing} ${
         stock !== undefined && stock <= 0 ? "opacity-60" : ""
-      }`}
+      } ${className}`}
     >
       {children}
       {meters && <span className="text-sm tabular-nums text-muted">{meters}</span>}
@@ -147,6 +150,36 @@ const stockOf = (candidates: SellableSku[]) =>
 // To'rda bir yo'la shuncha tovar; ko'p bo'lsa — "Yana ko'rsatish" (mato tanlash yoki qidiruv tezroq toraytiradi)
 const GRID_STEP = 24;
 
+// 4 ustun × 3 qator: past (768px) planshetda ham forma, klaviatura va "Sotish" bir ekranga sig'adi
+const PAD_KEYS = ["7", "8", "9", "back", "4", "5", "6", ",", "1", "2", "3", "0"] as const;
+type PadKey = (typeof PAD_KEYS)[number];
+
+/**
+ * Ekran raqam klaviaturasi (planshetdagi ikki panelli sotuv ekrani): faol maydonga yozadi. Tizim klaviaturasi
+ * ekranning yarmini yopib, "Sotish" tugmasini berkitmasligi uchun. Tashqi klaviatura ham ishlayveradi.
+ */
+function NumPad({ onKey }: { onKey: (key: PadKey) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="group" aria-label={t("sales.entry.keypad")} className="mt-2.5 grid grid-cols-4 gap-1.5">
+      {PAD_KEYS.map((key) => (
+        <button
+          key={key}
+          type="button"
+          aria-label={key === "back" ? t("sales.entry.keypad_back") : key === "," ? t("sales.entry.keypad_comma") : key}
+          onClick={(event) => {
+            feedback("tick", event);
+            onKey(key);
+          }}
+          className={`pressable grid h-11 place-items-center rounded-control border border-line bg-page text-xl font-medium tabular-nums hover:border-indigo hover:bg-indigo-soft active:bg-indigo-soft ${focusRing}`}
+        >
+          {key === "back" ? <Delete className="size-5" aria-hidden="true" /> : key}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * To'r katakchasi — ko'rib tanlashda ham, qidiruv natijasida ham bir xil: rasm (yoki rang namunasi / kod harflari),
  * kod, nom, qoldiq va tavsiya narx. `active` — klaviatura bilan belgilangan (↓ ↑), Enter shuni tanlaydi.
@@ -163,11 +196,12 @@ function ItemTile({ item, active, onPick }: { item: SellableSku; active: boolean
       aria-current={active || undefined}
       title={`${item.sku.code} · ${title}`}
       onClick={onPick}
-      className={`pressable flex min-w-0 items-center gap-3 rounded-control border bg-panel p-2.5 text-left hover:border-indigo hover:bg-indigo-soft active:bg-indigo-soft ${focusRing} ${
+      className={`pressable flex min-w-0 items-center gap-3 rounded-card border bg-panel p-3 text-left shadow-card hover:border-indigo hover:bg-indigo-soft active:bg-indigo-soft ${focusRing} ${
         active ? "border-indigo bg-indigo-soft ring-1 ring-indigo" : "border-line"
-      } ${stock <= 0 ? "opacity-60" : ""}`}
+      } ${stock === 0 ? "opacity-60" : ""}`}
     >
-      <span className="relative shrink-0">
+      {/* flex: rang namunasi (rasm yo'q) ham o'z o'lchamida turadi — inline holatda u ingichka chiziqqa aylanardi */}
+      <span className="relative flex shrink-0">
         <Thumb imageUrl={skuImage(item.sku)} hex={item.sku.color.hex} code={item.sku.color.code} size="lg" />
         {/* Rasm gul yoki matoniki bo'lsa, rang ko'rinmay qoladi (bir matoning oq va qorasi bir xil rasm) —
             burchakda rang nuqtasi */}
@@ -181,14 +215,15 @@ function ItemTile({ item, active, onPick }: { item: SellableSku; active: boolean
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium leading-5">{item.sku.code}</span>
+        <span className="block truncate font-semibold leading-5">{item.sku.code}</span>
         <span className="block truncate text-sm text-muted">{title}</span>
         {/* Tor katakchada (telefon) narx qoldiq ostiga tushadi — hech biri kesilmaydi */}
         <span className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2 text-[13px] tabular-nums">
-          <span className={`whitespace-nowrap ${stock <= 0 ? "text-madder" : "text-muted"}`}>
+          {/* Tugagan (0) — xira; manfiy (tizimdagidan ko'p sotilgan) — qizil, e'tibor talab qiladi */}
+          <span className={`whitespace-nowrap ${stock < 0 ? "font-medium text-madder" : "text-muted"}`}>
             {formatDecimal(fromUnits(stock, 2))} m
           </span>
-          {price !== null && <span className="whitespace-nowrap text-ink">{formatPrice(price, "m", t)}</span>}
+          {price !== null && <span className="whitespace-nowrap font-medium text-ink">{formatPrice(price, "m", t)}</span>}
         </span>
       </span>
     </button>
@@ -207,6 +242,8 @@ export function EntryForm({
   onAdd,
   onCancel,
   quick,
+  split = false,
+  pickerSlot = null,
 }: {
   items: SellableSku[];
   sellByKg: boolean;
@@ -218,6 +255,12 @@ export function EntryForm({
   onCancel: () => void;
   /** Savat bo'sh bo'lsa — tez sotish: to'lov turi tanlovi va "Sotish" shu formada */
   quick?: { payment: ReactNode; credit: boolean; busy: boolean; onSell: (line: CartLine) => void };
+  /**
+   * Keng ekran (planshet): ikki panel. Tovar topish qismi `pickerSlot` ga (chap panel) chiziladi va doim ko'rinadi;
+   * forma (o'ng panel) — shu komponent joyida, ekran raqam klaviaturasi bilan. docs/03-details/06-sotuv.md.
+   */
+  split?: boolean;
+  pickerSlot?: HTMLElement | null;
 }) {
   const { t } = useTranslation();
   const errorText = useErrorText();
@@ -241,6 +284,7 @@ export function EntryForm({
   const [looking, setLooking] = useState(false);
   const [gridSize, setGridSize] = useState(GRID_STEP);
   const [active, setActive] = useState(-1); // qidiruv natijalarida ↓ ↑ bilan belgilangan katakcha
+  const [padField, setPadField] = useState<"meters" | "kg" | "price">("meters"); // raqam klaviaturasi yozadigan maydon
 
   const item = items.find((candidate) => candidate.sku.id === skuId) ?? null;
   const batch = item ? (item.batches.find((candidate) => candidate.id === batchId) ?? item.batches[0]) : null;
@@ -263,7 +307,9 @@ export function EntryForm({
   const colors = [...new Map(forColor.map((candidate) => [candidate.sku.color.id, candidate.sku.color])).values()];
   const forPattern = without("pattern");
   const patterns = [...new Map(forPattern.map((candidate) => [candidate.sku.pattern.id, candidate.sku.pattern])).values()];
-  const filtered = items.filter((candidate) => fits(candidate, chosen));
+  // Qoldig'i tugaganlar oxirida (tartib aks holda o'zgarmaydi) — sotiladigani ko'z oldida
+  const matching = items.filter((candidate) => fits(candidate, chosen));
+  const filtered = [...matching.filter((candidate) => stockOf([candidate]) > 0), ...matching.filter((candidate) => stockOf([candidate]) <= 0)];
   const wanted = query.trim();
   const matches = searchItems(items, query);
   // To'rdagi tovarlar: yozilgan bo'lsa — qidiruv natijasi (butun do'kon bo'yicha, eng aniq mos kelgani birinchi);
@@ -273,20 +319,29 @@ export function EntryForm({
 
   function pick(chosen: SellableSku, chosenBatch?: number) {
     const target = chosen.batches.find((row) => row.id === chosenBatch) ?? chosen.batches[0]; // qo'lda — eng eskisi
+    // Mato tanlovi qoladi (xaridor ko'pincha bir matoning bir necha rangini oladi); rang va gul filtri tozalanadi —
+    // ikki panelli ekranda chap tomonda shu matoning boshqa ranglari ko'rinib turadi
     setFabricId(chosen.sku.fabric.id);
-    setColorId(chosen.sku.color.id);
+    setColorId(null);
+    setPatternId(null);
     setSkuId(chosen.sku.id);
     setBatchId(target.id);
     // Narxni ega yoki omborchi belgilagan (katalog / kirim) — o'zi qo'yiladi; sotuvchi kerak bo'lsa o'zgartiradi
     setPrice(target.recommended_price_per_m ? String(target.recommended_price_per_m) : "");
     setQuery("");
     setActive(-1);
+    setPadField("meters");
     setError(null);
     // Maydon keyingi chizishda paydo bo'ladi
     setTimeout(() => metersRef.current?.focus(), 0);
   }
 
-  function clear() {
+  /**
+   * Tanlovni tozalaydi. `fromStart` — tovar savatga qo'shildi yoki sotildi: mato ham tozalanadi, ekran boshidan —
+   * ketma-ket skanerlash uchun. Aks holda (×) mato qoladi: noto'g'ri rang bir bosishda almashtiriladi.
+   */
+  function clear(fromStart = false) {
+    if (fromStart) setFabricId(null);
     setSkuId(null);
     setBatchId(null);
     setColorId(null);
@@ -318,6 +373,8 @@ export function EntryForm({
     selected: { label: string; thumb?: ReactNode; onClear: () => void } | null,
     options: (PickOption & { thumb?: ReactNode })[],
     className = "",
+    /** Ko'p bo'lsa ham chip bo'lib qoladi — bir qatorda, yonga suriladi (mato: rasmiga qarab tanlanadi) */
+    scroll = false,
   ) {
     if (!selected && options.length === 0) return null;
     return (
@@ -337,12 +394,25 @@ export function EntryForm({
               <X className="size-4" aria-hidden="true" />
             </button>
           </span>
-        ) : options.length > CHIP_LIMIT ? (
+        ) : options.length > CHIP_LIMIT && !scroll ? (
           <ComboPick label={legend} options={options} />
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              // Keng ekranda (chap panel) joy bor — chiplar qatorlarga bo'linadi, hech biri kesilmaydi
+              scroll && options.length > CHIP_LIMIT && !split
+                ? "-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]"
+                : "flex flex-wrap gap-2"
+            }
+          >
             {options.map((option) => (
-              <OptionChip key={option.key} label={option.label} stock={option.stock} onClick={option.onPick}>
+              <OptionChip
+                key={option.key}
+                label={option.label}
+                stock={option.stock}
+                onClick={option.onPick}
+                className={scroll && !split ? "shrink-0 whitespace-nowrap" : ""}
+              >
                 {option.thumb}
                 {option.label}
               </OptionChip>
@@ -436,6 +506,23 @@ export function EntryForm({
     setMeters(exact ? metersFromKg(exact, coefficient) : "");
   }
 
+  /** Ekran klaviaturasidan bitta tugma: faol maydonga qo'shadi yoki oxirgi belgini o'chiradi */
+  function padKey(key: PadKey) {
+    const field = padField === "kg" && !(sellByKg && coefficient) ? "meters" : padField;
+    const edit = (value: string) =>
+      key === "back" ? value.slice(0, -1) : key === "," ? (value === "" || /[.,]/.test(value) ? value : `${value},`) : value + key;
+    if (field === "meters") changeMeters(edit(meters));
+    else if (field === "kg") changeKg(edit(kg));
+    else if (key !== ",") {
+      setPrice(edit(price).replace(/^0+/, "").slice(0, 10));
+      setError(null);
+    }
+  }
+  // Ikki panelda amallar qatori (jami, to'lov, tugmalar) o'ng panel pastiga yopishib turadi — past ekranda ham
+  // "Sotish" doim ko'rinadi (panel o'zi suriladi)
+  const dock = "sticky bottom-0 z-10 -mx-4 -mb-4 mt-3 rounded-b-card border-t border-line bg-panel px-4 pb-4 pt-3";
+  const padRing = (field: typeof padField) => (split && padField === field ? "border-indigo ring-2 ring-indigo/40" : "");
+
   function add(event: FormEvent) {
     event.preventDefault();
     // "Sotish" bosilganmi (aks holda — "Qo'shish" / "Yana qo'shish" yoki Enter)
@@ -472,32 +559,31 @@ export function EntryForm({
     };
     if (sell) quick!.onSell(line);
     else onAdd(line);
-    // Mato tanlovi qoladi — xaridor ko'pincha bir matoning bir necha rangini oladi
-    clear();
+    // Tanlov boshiga qaytadi, kursor skaner maydonida — keyingi tovar darhol skanerlanadi (docs/03-details/06-sotuv.md)
+    clear(true);
   }
 
   const lineTotal = (
     <p className="text-muted">
       {t("sales.entry.line_total")}:{" "}
-      <span className="text-[17px] font-semibold tabular-nums text-ink">
+      <span className={`font-semibold tabular-nums text-ink ${split ? "text-2xl" : "text-[17px]"}`}>
         {formatNumber(validMeters && Number(price) ? lineAmount(validMeters, Number(price)) : 0)}
       </span>{" "}
       {t("settings.units.sum")}
     </p>
   );
 
-  return (
-    <form
-      onSubmit={add}
-      noValidate
-      className={`relative rounded-card border border-line bg-panel p-4 shadow-card sm:p-5 ${
-        item && batch ? "mx-auto max-w-2xl" : ""
-      }`}
-    >
-      {/* Doimiy kamera skaneri (yoqilgan bo'lsa): tovar tanlanganda pauza, kamera esa yoqiq qoladi */}
-      <AutoScanStrip paused={Boolean(item && batch)} onCode={scanned} />
-      {!item || !batch ? (
-        <>
+  const scanStrip = (
+    // Doimiy kamera skaneri (yoqilgan bo'lsa): tovar tanlanganda pauza, kamera esa yoqiq qoladi
+    <AutoScanStrip paused={Boolean(item && batch)} onCode={scanned} />
+  );
+  const errorView = error && (
+    <p role="alert" className="mt-3 text-sm text-madder">
+      {error}
+    </p>
+  );
+  const pickerView = (
+    <>
           <div className="relative">
             <ScanLine
               className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-muted"
@@ -562,6 +648,9 @@ export function EntryForm({
                   thumb: fabric.image_url && <Thumb imageUrl={fabric.image_url} code={fabric.code} size="sm" />,
                   onPick: () => (setFabricId(fabric.id), setColorId(null), setPatternId(null), setGridSize(GRID_STEP)),
                 })),
+                // Keng ekranda rang yonida turadi; ko'p mato bo'lsa butun enni oladi va yonga suriladi
+                fabricId === null && fabrics.length > CHIP_LIMIT ? "lg:col-span-2" : "",
+                true,
               )}
               {/* Rang — mato tanlangach */}
               {fabricId !== null &&
@@ -626,7 +715,8 @@ export function EntryForm({
                   <ItemTile
                     key={candidate.sku.id}
                     item={candidate}
-                    active={Boolean(wanted) && index === active}
+                    // Keng ekranda to'r doim ko'rinadi — o'ng paneldagi tanlangan tovar shu yerda ham belgilanadi
+                    active={(Boolean(wanted) && index === active) || (split && item?.sku.id === candidate.sku.id)}
                     onPick={() => pick(candidate)}
                   />
                 ))}
@@ -636,29 +726,41 @@ export function EntryForm({
               )}
             </div>
           )}
-        </>
-      ) : (
-        <>
+    </>
+  );
+  const selectedView = item && batch && (
+    <>
           {/* Tanlangan tovar — katta rasm bilan: skaner, qidiruv yoki mato → rang → gul, qaysi yo'l bo'lmasin,
               sotuvchi qo'lidagi mato shu ekanini rasmdan tekshiradi */}
           <div className="flex items-start gap-3 sm:gap-4">
-            <Thumb imageUrl={skuImage(item.sku)} hex={item.sku.color.hex} code={item.sku.color.code} size="hero" />
+            <Thumb imageUrl={skuImage(item.sku)} hex={item.sku.color.hex} code={item.sku.color.code} size={split ? "xl" : "hero"} />
             <div className="min-w-0 flex-1">
               <p className="text-xl font-semibold leading-7">{item.sku.code}</p>
               {/* Tarkibi: mato, rang, gul — har biri katalogdagi o'z rasmi / namunasi bilan. Gul doim ko'rsatiladi:
                   gulsiz tovarda ham "Gulsiz" deb — rang bosilganda tovar o'zi tanlangan bo'lsa, guli noma'lum qolmasin */}
-              <ul aria-label={t("sales.entry.parts")} className="mt-1.5 flex flex-wrap gap-x-4 gap-y-2">
+              {split && (
+                // O'ng panel tor: tarkib bir qatorda (gul nomi bilan), rasmlar chap paneldagi katakchada ko'rinadi
+                <p aria-label={t("sales.entry.parts")} className="text-muted">
+                  {[item.sku.fabric.name, item.sku.color.name, item.sku.pattern.name].join(" · ")}
+                </p>
+              )}
+              <ul
+                aria-label={t("sales.entry.parts")}
+                className={`mt-1.5 flex-wrap gap-x-4 gap-y-2 ${split ? "hidden" : "flex"}`}
+              >
                 {[
                   { key: "fabric", label: t("catalog.sku.fabric"), name: item.sku.fabric.name, image: item.sku.fabric.image_url, hex: null, code: item.sku.fabric.code, plain: false },
                   { key: "color", label: t("catalog.sku.color"), name: item.sku.color.name, image: item.sku.color.image_url, hex: item.sku.color.hex, code: item.sku.color.code, plain: false },
                   { key: "pattern", label: t("catalog.sku.pattern"), name: item.sku.pattern.name, image: item.sku.pattern.image_url, hex: null, code: item.sku.pattern.code, plain: item.sku.pattern.is_plain },
                 ].map((part) => (
                   <li key={part.key} className="flex min-w-0 items-center gap-2">
-                    {part.plain ? (
-                      // Gulsiz: rasm o'rnida bo'sh katakcha (kod harflari "0" chalg'itadi)
-                      <span aria-hidden="true" className="size-8 shrink-0 rounded-lg border border-dashed border-edge" />
-                    ) : (
-                      <Thumb imageUrl={part.image} hex={part.hex} code={part.code} size="sm" />
+                    {/* Rasm bitta — yuqoridagi katta rasm; bu yerda takrorlanmaydi. Faqat rang namunasi (rasm emas) */}
+                    {part.key === "color" && part.hex && (
+                      <span
+                        aria-hidden="true"
+                        className="size-5 shrink-0 rounded-full border border-ink/20"
+                        style={{ backgroundColor: part.hex }}
+                      />
                     )}
                     <span className="min-w-0 leading-4">
                       <span className="block text-[12px] text-muted">{part.label}</span>
@@ -667,7 +769,7 @@ export function EntryForm({
                   </li>
                 ))}
               </ul>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+              <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm ${split ? "mt-1" : "mt-2.5"}`}>
                 {item.batches.length > 1 ? (
                   <select
                     aria-label={t("sales.entry.batch")}
@@ -695,7 +797,7 @@ export function EntryForm({
             </div>
             <button
               type="button"
-              onClick={initial ? onCancel : clear}
+              onClick={initial ? onCancel : () => clear()}
               aria-label={t(initial ? "common.cancel" : "sales.entry.change_item")}
               className={`pressable grid size-10 shrink-0 place-items-center rounded-control text-muted transition-colors hover:bg-indigo-soft hover:text-ink active:bg-indigo-soft [@media(pointer:coarse)]:size-11 ${focusRing}`}
             >
@@ -708,34 +810,37 @@ export function EntryForm({
               <span className={fieldLabel}>{t("sales.entry.meters")}</span>
               <input
                 ref={metersRef}
-                inputMode="decimal"
+                inputMode={split ? "none" : "decimal"}
                 autoComplete="off"
                 value={meters}
                 aria-describedby={overStock ? overId : undefined}
+                onFocus={() => setPadField("meters")}
                 onChange={(e) => changeMeters(e.target.value)}
-                className={cell}
+                className={`${cell} ${padRing("meters")}`}
               />
             </label>
             {sellByKg && (
               <label>
                 <span className={fieldLabel}>{t("sales.entry.kg")}</span>
                 <input
-                  inputMode="decimal"
+                  inputMode={split ? "none" : "decimal"}
                   autoComplete="off"
                   value={kg}
                   disabled={!coefficient}
+                  onFocus={() => setPadField("kg")}
                   onChange={(e) => changeKg(e.target.value)}
-                  className={cell}
+                  className={`${cell} ${padRing("kg")}`}
                 />
               </label>
             )}
-            <div ref={priceRef} className="col-span-2 sm:col-span-1">
+            <div ref={priceRef} className="col-span-2 sm:col-span-1" onFocus={() => setPadField("price")}>
               <span className={fieldLabel}>{t("sales.entry.price")}</span>
               <MoneyInput
                 label={t("sales.entry.price")}
                 value={price}
                 onChange={(value) => (setPrice(value), setError(null))}
-                className="w-full"
+                inputMode={split ? "none" : "numeric"}
+                className={`w-full ${padRing("price")}`}
               />
             </div>
           </div>
@@ -760,6 +865,14 @@ export function EntryForm({
             ) : (
               <span className="text-muted">{t("sales.entry.no_recommended")}</span>
             )}
+            {/* Narx tavsiyadan farq qilsa — qanchaga: sotuvchi adashib yozganini darhol ko'radi */}
+            {batch.recommended_price_per_m && Number(price) > 0 && Number(price) !== batch.recommended_price_per_m && (
+              <span className={Number(price) < batch.recommended_price_per_m ? "text-saffron" : "text-muted"}>
+                {t(Number(price) < batch.recommended_price_per_m ? "sales.entry.price_below" : "sales.entry.price_above", {
+                  amount: formatNumber(Math.abs(Number(price) - batch.recommended_price_per_m)),
+                })}
+              </span>
+            )}
             {sellByKg && !coefficient && <span className="text-muted">{t("sales.entry.no_coefficient")}</span>}
           </div>
           {overStock && (
@@ -767,14 +880,24 @@ export function EntryForm({
               {t("sales.entry.over_stock", { available: formatDecimal(available.toFixed(2)) })}
             </p>
           )}
+          {split && <NumPad onKey={padKey} />}
 
           {quick && !initial ? (
             // Tez sotish (savat bo'sh): to'lov turi va "Sotish" shu yerda — bitta tovar bir bosishda sotiladi.
             // "Yana qo'shish" — qator savatga tushadi va savat ochiladi. Enter "Yana qo'shish"ni bosadi:
             // sotuv faqat tugma bilan yakunlanadi, tasodifiy Enter sotib yubormaydi.
-            <div className="mt-4 space-y-4 border-t border-line pt-4">
-              {lineTotal}
-              {quick.payment}
+            <div className={split ? `${dock} space-y-3` : "mt-4 space-y-4 border-t border-line pt-4"}>
+              {split ? (
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  {lineTotal}
+                  {quick.payment}
+                </div>
+              ) : (
+                <>
+                  {lineTotal}
+                  {quick.payment}
+                </>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="submit"
@@ -800,7 +923,9 @@ export function EntryForm({
               </div>
             </div>
           ) : (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            <div
+              className={`flex flex-wrap items-center justify-between gap-3 ${split ? dock : "mt-4 border-t border-line pt-4"}`}
+            >
               {lineTotal}
               <Button type="submit">
                 {!initial && <Plus className="size-[18px]" aria-hidden="true" />}
@@ -808,13 +933,53 @@ export function EntryForm({
               </Button>
             </div>
           )}
-        </>
-      )}
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-madder">
-          {error}
-        </p>
-      )}
+    </>
+  );
+
+  // Keng ekran: topish — chap panelda (doim ko'rinadi), forma — shu yerda (o'ng panel). Qidiruv maydoni formadan
+  // tashqarida chiziladi — Enter'ni o'zi ushlaydi (`lookup`), forma yuborilishiga bog'liq emas.
+  if (split) {
+    return (
+      <>
+        {pickerSlot &&
+          createPortal(
+            <div className="relative min-h-[calc(100dvh-12rem)] rounded-card border border-line bg-panel p-4 shadow-card sm:p-5">
+              {scanStrip}
+              {pickerView}
+              {!selectedView && errorView}
+            </div>,
+            pickerSlot,
+          )}
+        <form onSubmit={add} noValidate className="relative rounded-card border border-line bg-panel p-4 shadow-card">
+          {selectedView ||
+            (quick ? (
+              // Chek bo'sh: panel bo'm-bo'sh ko'rinmasin — nima qilish kerakligi belgisi bilan
+              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <span className="grid size-14 place-items-center rounded-full bg-indigo-soft text-indigo" aria-hidden="true">
+                  <ScanLine className="size-7" />
+                </span>
+                <p className="max-w-[16rem] text-muted">{t("sales.entry.pick_hint")}</p>
+              </div>
+            ) : (
+              <p className="px-2 py-2 text-center text-sm text-muted">{t("sales.entry.pick_hint")}</p>
+            ))}
+          {selectedView && errorView}
+        </form>
+      </>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={add}
+      noValidate
+      className={`relative rounded-card border border-line bg-panel p-4 shadow-card sm:p-5 ${
+        item && batch ? "mx-auto max-w-2xl" : ""
+      }`}
+    >
+      {scanStrip}
+      {selectedView || pickerView}
+      {errorView}
     </form>
   );
 }

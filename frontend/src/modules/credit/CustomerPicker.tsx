@@ -14,11 +14,14 @@ import { PhoneField, TextField } from "@/shared/ui/fields";
 import { focusRing } from "@/shared/ui/tones";
 import { creditKeys, phoneText, type CustomerBrief } from "./types";
 
-/** Qarz matni: bor bo'lsa — qizil, yo'q bo'lsa — xira */
+/**
+ * Qarz matni: bor bo'lsa — za'faron (diqqat), yo'q bo'lsa — xira. Qizil emas: qarz limiti yo'q
+ * (docs/03-details/07-nasiya.md), oddiy qarz xato emas; qizil 60+ kunlik muddati o'tgan qarzlarga qoldiriladi.
+ */
 function Debt({ amount }: { amount: number }) {
   const { t } = useTranslation();
   return amount > 0 ? (
-    <span className="text-madder">{t("credit.customer.debt", { amount: formatNumber(amount) })}</span>
+    <span className="text-saffron">{t("credit.customer.debt", { amount: formatNumber(amount) })}</span>
   ) : (
     <span className="text-muted">{t("credit.customer.no_debt")}</span>
   );

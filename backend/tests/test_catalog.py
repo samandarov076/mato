@@ -473,3 +473,38 @@ async def test_upload_rejects_non_images_and_big_files(client, owner, new_accoun
                                   "/api/media/1/" + "a" * 32 + ".webp"])  # fmt: skip
 async def test_media_serves_only_known_files(client, path):
     assert (await client.get(path)).status_code == 404
+
+
+async def test_each_sku_has_its_own_image(client, owner):
+    """SKU'ning o'z rasmi: "Atlas · Qizil" bir rasm, "Atlas · Oq" boshqa (docs/03-details/03-katalog.md)."""
+    _, headers = await owner()
+    fabric = await _add(client, headers, "fabrics", "M101", "Atlas")
+    red, white = await _add(client, headers, "colors", "03", "Qizil"), await _add(client, headers, "colors", "01", "Oq")
+    await client.post("/api/catalog/skus", json={"fabric_id": fabric, "color_ids": [red, white]}, headers=headers)
+    skus = {row["code"]: row for row in (await client.get("/api/catalog/skus", headers=headers)).json()["items"]}
+    assert skus["M101-03"]["image_url"] is None
+
+    url = (await _upload(client, headers, _png((40, 40)))).json()["url"]
+    saved = await client.put(
+        f"/api/catalog/skus/{skus['M101-03']['id']}/image", json={"image_url": url}, headers=headers
+    )
+    assert saved.status_code == 204, saved.text
+
+    skus = {row["code"]: row for row in (await client.get("/api/catalog/skus", headers=headers)).json()["items"]}
+    assert (skus["M101-03"]["image_url"], skus["M101-01"]["image_url"]) == (url, None)  # boshqa rangga o'tmaydi
+    # Narx va chegara o'zgarmaydi (rasm alohida saqlanadi)
+    assert skus["M101-03"]["price"] is None
+
+    # Begona biznes rasmi qabul qilinmaydi; olib tashlash — null
+    _, stranger = await owner()
+    foreign = (await _upload(client, stranger, _png((40, 40)))).json()["url"]
+    refused = await client.put(
+        f"/api/catalog/skus/{skus['M101-03']['id']}/image", json={"image_url": foreign}, headers=headers
+    )
+    assert (refused.status_code, refused.json()["fields"]) == (422, {"image_url": "invalid"})
+    cleared = await client.put(
+        f"/api/catalog/skus/{skus['M101-03']['id']}/image", json={"image_url": None}, headers=headers
+    )
+    assert cleared.status_code == 204
+    skus = {row["code"]: row for row in (await client.get("/api/catalog/skus", headers=headers)).json()["items"]}
+    assert skus["M101-03"]["image_url"] is None

@@ -16,7 +16,7 @@ from app.core.deps import AuthContext
 from app.core.errors import AppError
 from app.modules.auth.models import User
 from app.modules.catalog.models import Color, Fabric, Pattern, Sku
-from app.modules.catalog.service import sku_code
+from app.modules.catalog.service import sku_code, sku_image
 from app.modules.inventory.models import (
     BatchClosure,
     BatchStock,
@@ -27,6 +27,9 @@ from app.modules.inventory.models import (
 from app.modules.inventory.schemas import (
     BatchCard,
     BatchPlace,
+    ClosableBatch,
+    ClosablePage,
+    ClosablePlace,
     ClosureDiff,
     ClosureOut,
     Differences,
@@ -68,7 +71,7 @@ def sku_brief(sku: Sku, fabric: Fabric, color: Color, pattern: Pattern) -> SkuBr
         color_name=color.name,
         pattern_name=None if pattern.is_plain else pattern.name,
         hex=color.hex,
-        image_url=pattern.image_url or color.image_url,
+        image_url=sku_image(sku, fabric, color, pattern),
     )
 
 
@@ -543,6 +546,70 @@ async def _acting_location(ctx: AuthContext, location_id: int) -> Location:
     return location
 
 
+CLOSABLE_LIMIT = 500
+
+
+def empty_key(batch_id: int, location_id: int) -> str:
+    """"Tugagan partiyani yoping" eslatmasi kaliti — har partiya-joy uchun bitta xabar."""
+    return f"batch-empty:{batch_id}:{location_id}"
+
+
+async def closable(ctx: AuthContext) -> ClosablePage:
+    """"Partiyani yopish" sahifasi: ochiq partiyalar, xodim ko'ra oladigan har joydagi qoldiq va yopa olishi.
+
+    Sotuvchi — faqat qurilmasi bog'langan do'kon. Qoldig'i 0 bo'lgan ochiq partiyalar ham kiradi ("Tugagan" bo'limi).
+    Tannarx faqat biznes egasiga qaytadi.
+    """
+    if ctx.user.role == "seller":
+        scope = [BatchStock.location_id == (ctx.store.id if ctx.store else -1)]
+    else:
+        visible = await visible_location_ids(ctx)
+        scope = [] if visible is None else [BatchStock.location_id.in_(visible)]
+    rows = (
+        await ctx.db.execute(
+            _stock_rows(BatchStock.location_id, BatchStock.qty_m, Batch, Sku, Fabric, Color, Pattern)
+            .where(*scope)
+            .order_by(Batch.id, BatchStock.location_id)
+            .limit(CLOSABLE_LIMIT)
+        )
+    ).all()
+    owner = ctx.user.role == "owner"
+    batches: dict[int, ClosableBatch] = {}
+    for location_id, qty_m, batch, sku, fabric, color, pattern in rows:
+        row = batches.setdefault(
+            batch.id,
+            ClosableBatch(
+                id=batch.id,
+                number=batch.number,
+                sku=sku_brief(sku, fabric, color, pattern),
+                cells=[],
+                cost_per_m=batch.cost_per_m if owner else None,
+            ),
+        )
+        row.cells.append(
+            StockCell(location_id=location_id, qty_m=qty_m, rolls=rolls_estimate(batch, qty_m))
+        )
+    used = {cell.location_id for row in batches.values() for cell in row.cells}
+    locations = (
+        (
+            await ctx.db.scalars(
+                select(Location).where(Location.id.in_(used)).order_by(Location.type.desc(), Location.name)
+            )
+        ).all()
+        if used
+        else []
+    )
+    return ClosablePage(
+        locations=[
+            ClosablePlace(
+                id=place.id, name=place.name, type=place.type, can_close=await can_act_at(ctx, place)
+            )
+            for place in locations
+        ],
+        batches=list(batches.values()),
+    )
+
+
 async def close_batch(ctx: AuthContext, batch_id: int, location_id: int, note: str | None) -> None:
     """Partiya shu joyda tugadi: tizimda qolgan metr — metr farqi (+ kam chiqdi, − ortiq chiqdi)."""
     batch = await _batch(ctx, batch_id)
@@ -590,6 +657,8 @@ async def close_batch(ctx: AuthContext, batch_id: int, location_id: int, note: s
         note=note or None,
     )
     _log(ctx, "batch.closed", location.id, name=batch.number, diff=str(diff))
+    # "Tugagan partiyani yoping" eslatmasi kaliti bo'shatiladi — qayta ochilib yana tugasa, yangi xabar keladi
+    await notifications.release(ctx.db, ctx.business.id, empty_key(batch.id, location.id))
     received = closure.received_m
     if received > 0 and abs(diff) / received >= BIG_DIFFERENCE:
         await notifications.notify_owners(

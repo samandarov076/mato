@@ -2,8 +2,8 @@ import { useId, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { History, PackageMinus, Power, RotateCcw, Tag } from "lucide-react";
-import { api, patch, post } from "@/shared/api/client";
+import { History, ImageIcon, PackageMinus, Power, RotateCcw, Tag } from "lucide-react";
+import { api, patch, post, put } from "@/shared/api/client";
 import { useErrorText } from "@/shared/api/errors";
 import { feedback } from "@/shared/feedback";
 import { formatDateTime, formatPrice, trimDecimal } from "@/shared/format";
@@ -13,7 +13,8 @@ import { MoneyInput, Segmented, UnitInput } from "@/shared/ui/controls";
 import { Alert, Loading } from "@/shared/ui/feedback";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { InactiveChip, Thumb } from "./parts";
-import { catalogKeys, parseDecimal, type PriceUnit, type SkuCard } from "./types";
+import { ImageField } from "@/shared/ui/ImageField";
+import { catalogKeys, parseDecimal, skuImage, type PriceUnit, type SkuCard } from "./types";
 import { BackLink, IconChip } from "@/shared/ui/list";
 
 type Form = { price: string; unit: PriceUnit; threshold: string };
@@ -57,6 +58,19 @@ function SkuCardView({ id }: { id: number }) {
     setSaved(false);
   };
   const reload = () => queryClient.invalidateQueries({ queryKey: catalogKeys.all });
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  /** Rasm yuklangach (yoki olib tashlangach) darhol saqlanadi; sotuv ekrani keyingi ochilishda yangisini oladi */
+  async function saveImage(url: string | null) {
+    setImageError(null);
+    try {
+      await put(`/catalog/skus/${id}/image`, { image_url: url });
+      await reload();
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
+    } catch (failure) {
+      setImageError(errorText(failure));
+    }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -141,12 +155,7 @@ function SkuCardView({ id }: { id: number }) {
         <PageTitle
           title={sku.code}
           leading={
-            <Thumb
-              imageUrl={sku.pattern.image_url ?? sku.color.image_url}
-              hex={sku.color.hex}
-              code={sku.color.code}
-              size="lg"
-            />
+            <Thumb imageUrl={skuImage(sku)} hex={sku.color.hex} code={sku.color.code} size="lg" zoom />
           }
           sub={parts.join(" · ")}
           action={
@@ -253,6 +262,17 @@ function SkuCardView({ id }: { id: number }) {
               {t("common.save")}
             </Button>
           </form>
+        </Card>
+
+        {/* SKU'ning o'z rasmi: tanlanishi bilan saqlanadi (narx formasidan alohida) */}
+        <Card title={t("catalog.sku.image_title")} icon={ImageIcon} tone="plum">
+          <ImageField label={t("image.label")} value={sku.image_url ?? null} onChange={(url) => void saveImage(url)} />
+          <p className="mt-2 text-sm text-muted">{t("catalog.sku.image_hint")}</p>
+          {imageError && (
+            <div className="mt-3">
+              <Alert>{imageError}</Alert>
+            </div>
+          )}
         </Card>
 
         <Card title={t("catalog.sku.history")} icon={History} tone="plum">

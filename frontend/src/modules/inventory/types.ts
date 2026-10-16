@@ -218,3 +218,17 @@ export function metersForRolls(rolls: string, rollM: string): string {
   if (!/^\d+$/.test(rolls) || length === null) return "";
   return fromUnits(Number(rolls) * length, 2);
 }
+
+// ---------- "Partiyani yopish" sahifasi ----------
+
+export type ClosablePlace = { id: number; name: string; type: "store" | "warehouse"; can_close: boolean };
+export type ClosableBatch = {
+  id: number;
+  number: string;
+  sku: SkuBrief;
+  /** Faqat partiya ochiq bo'lgan joylar */
+  cells: { location_id: number; qty_m: string; rolls: number }[];
+  /** Tannarx — faqat biznes egasiga (yopishdan oldin farq summasini ko'rsatish uchun) */
+  cost_per_m: number | null;
+};
+export type ClosablePage = { locations: ClosablePlace[]; batches: ClosableBatch[] };

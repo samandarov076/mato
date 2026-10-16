@@ -707,3 +707,34 @@ async def test_closed_batch_disappears_from_the_sale_screen(shop):
         await s.client.get("/api/sales/context", params={"store_id": s.store}, headers=s.headers)
     ).json()["items"]
     assert len(items) == 1  # yopilgan partiyaning tovari ro'yxatdan butunlay chiqdi
+
+
+async def test_sale_screen_knows_what_sells_most_in_this_store(shop, new_location):
+    """"Ko'p sotiladigan" qatori uchun: shu do'konda oxirgi 30 kunda eng ko'p sotilgan tovarlar (SKU id), ko'pi oldin.
+    Bekor qilingan sotuv, boshqa do'kon va hozir sotib bo'lmaydigan (partiyasi yopilgan) tovar hisobga kirmaydi."""
+    s = await shop()
+    red, blue = await s.in_store(0, "200"), await s.in_store(1, "200")
+
+    async def context() -> dict:
+        response = await s.client.get("/api/sales/context", params={"store_id": s.store}, headers=s.headers)
+        return response.json()
+
+    sku_of = {
+        batch["id"]: item["sku"]["id"] for item in (await context())["items"] for batch in item["batches"]
+    }
+    assert (await context())["popular_sku_ids"] == []  # hali sotuv yo'q
+
+    assert (await s.sell_to((red, "1", 45000))).status_code == 201
+    for _ in range(2):
+        assert (await s.sell_to((blue, "1", 45000))).status_code == 201
+    assert (await context())["popular_sku_ids"] == [sku_of[blue], sku_of[red]]
+
+    # Bekor qilingan sotuv hisobga kirmaydi: qizil 2 ta faol (uchinchisi bekor), ko'k ham 2 — tengida oxirgi sotilgani oldin
+    cancelled = (await s.sell_to((red, "1", 45000))).json()["id"]
+    assert (await s.sell_to((red, "1", 45000))).status_code == 201  # qizil: 2 ta faol + 1 bekor qilinadigan
+    assert (await s.client.post(f"/api/sales/{cancelled}/cancel", json={"reason": "xato"}, headers=s.headers)).status_code in (200, 204)
+    assert (await context())["popular_sku_ids"] == [sku_of[red], sku_of[blue]]
+
+    # Partiyasi yopilgan tovar endi sotilmaydi — ro'yxatdan ham chiqadi
+    await s.client.post(f"/api/batches/{red}/close", json={"location_id": s.store}, headers=s.headers)
+    assert (await context())["popular_sku_ids"] == [sku_of[blue]]

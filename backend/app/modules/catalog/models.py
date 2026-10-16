@@ -125,6 +125,8 @@ class Sku(Base):
     price_unit: Mapped[str] = mapped_column(server_default="m")  # narx 1 metr yoki 1 kg uchun
     # Bo'sh bo'lsa — biznes sozlamasidagi standart chegara
     low_stock_threshold: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    # SKU'ning o'z rasmi (aynan shu mato + rang + gul surati); bo'sh — gul / rang / mato rasmi ko'rsatiladi
+    image_url: Mapped[str | None]
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

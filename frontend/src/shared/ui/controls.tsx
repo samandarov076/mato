@@ -18,6 +18,7 @@ export function MoneyInput({
   disabled,
   placeholder,
   describedBy,
+  inputMode = "numeric",
   className = "w-36",
 }: {
   value: string;
@@ -28,6 +29,8 @@ export function MoneyInput({
   placeholder?: string;
   /** Xato yoki izoh matnining id'si — ekran o'quvchi sababini ham o'qiydi */
   describedBy?: string;
+  /** "none" — tizim klaviaturasi ochilmaydi (sotuv ekranidagi ekran raqam klaviaturasi bilan) */
+  inputMode?: "numeric" | "none";
   className?: string;
 }) {
   return (
@@ -35,7 +38,7 @@ export function MoneyInput({
       aria-label={label}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
-      inputMode="numeric"
+      inputMode={inputMode}
       autoComplete="off"
       value={value ? formatNumber(Number(value)) : ""}
       placeholder={placeholder}

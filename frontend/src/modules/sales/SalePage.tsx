@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, HandCoins, Pencil, ShoppingCart, Trash2, WifiOff } from "lucide-react";
+import { Check, HandCoins, Pencil, Plus, ShoppingCart, Trash2, WifiOff } from "lucide-react";
 import { useAuth, useCurrentUser } from "@/modules/auth/AuthProvider";
+import { useWide } from "@/shared/useWide";
 import { Thumb } from "@/modules/catalog/parts";
 import { CustomerPicker } from "@/modules/credit/CustomerPicker";
 import { creditKeys } from "@/modules/credit/types";
@@ -23,14 +24,19 @@ import { BackLink, sectionStrip } from "@/shared/ui/list";
 import { PageTitle } from "@/shared/ui/PageTitle";
 import { focusRing } from "@/shared/ui/tones";
 import {
-  cartKey as cartKeyOf,
+  checkKey,
+  checksKey,
+  dropCart,
   emptyCart,
   lineAmount,
   loadCart,
+  loadChecks,
+  MAX_CHECKS,
   newId,
   overdrawn,
   pendingElsewhere,
   saveCart,
+  saveChecks,
   type Cart,
   type CartLine,
 } from "./cart";
@@ -125,7 +131,7 @@ function OwnerSale() {
         </div>
       )}
       {storeId && (
-        <div className="mt-5 max-w-3xl xl:max-w-none">
+        <div className="mt-5 max-w-3xl lg:max-w-none">
           <SaleScreen key={storeId} storeId={Number(storeId)} />
         </div>
       )}
@@ -133,16 +139,161 @@ function OwnerSale() {
   );
 }
 
+/** Chek belgisida ko'rinadigan qisqa holat */
+type CheckSummary = { count: number; total: number; pending: boolean };
+
+/**
+ * Bir nechta chek (docs/03-details/06-sotuv.md): har chek — alohida savat, o'z identifikatori bilan. Barcha cheklar
+ * yuklangan holda turadi (faqat joriysi chiziladi) — shunda javobi kelmagan chek orqa fonda o'zi qayta yuboriladi.
+ */
 function SaleScreen({ storeId }: { storeId: number | null }) {
+  const { t } = useTranslation();
+  const { user, store } = useCurrentUser();
+  // Savat xodim va do'kon bo'yicha alohida: qurilma qulflansa, uni faqat shu sotuvchi davom ettiradi
+  const cartStore = storeId ?? store?.id ?? 0;
+  const [checks, setChecks] = useState(() => loadChecks(user.id, cartStore));
+  const [summaries, setSummaries] = useState<Record<number, CheckSummary>>({});
+
+  useEffect(() => saveChecks(user.id, cartStore, checks), [user.id, cartStore, checks]);
+
+  // Boshqa oynada chek ochilsa yoki yopilsa — bu oynada ham ro'yxat yangilanadi (joriy chek har oynada o'ziniki)
+  useEffect(() => {
+    const key = checksKey(user.id, cartStore);
+    const sync = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      setChecks((current) => {
+        const next = loadChecks(user.id, cartStore);
+        if (next.slots.join() === current.slots.join()) return current;
+        return { slots: next.slots, active: next.slots.includes(current.active) ? current.active : next.active };
+      });
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [user.id, cartStore]);
+
+  const report = useCallback((slot: number, summary: CheckSummary) => {
+    setSummaries((current) => {
+      const old = current[slot];
+      return old && old.count === summary.count && old.total === summary.total && old.pending === summary.pending
+        ? current
+        : { ...current, [slot]: summary };
+    });
+  }, []);
+
+  const idle = (slot: number) => {
+    const summary = summaries[slot];
+    return !summary || (summary.count === 0 && !summary.pending);
+  };
+
+  /** Chekka o'tish. Bo'sh qolgan boshqa cheklar yopiladi — ro'yxatda keraksiz raqam turmaydi */
+  function go(slot: number) {
+    const slots = checks.slots.filter((other) => other === slot || !idle(other));
+    for (const other of checks.slots) if (!slots.includes(other)) dropCart(checkKey(user.id, cartStore, other));
+    setChecks({ slots, active: slot });
+  }
+
+  const canAdd = checks.slots.length < MAX_CHECKS && !idle(checks.active);
+
+  function add() {
+    if (!canAdd) return;
+    let slot = 1;
+    while (checks.slots.includes(slot)) slot += 1;
+    setChecks({ slots: [...checks.slots, slot].sort((a, b) => a - b), active: slot });
+  }
+
+  const tabs = (
+    <div className="flex items-center gap-2">
+      <div role="tablist" aria-label={t("sales.checks.label")} className="flex min-w-0 items-center gap-2 overflow-x-auto p-0.5">
+        {checks.slots.map((slot) => {
+          const summary = summaries[slot];
+          const on = slot === checks.active;
+          return (
+            <button
+              key={slot}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              aria-label={t(summary?.pending ? "sales.checks.tab_pending" : "sales.checks.tab", { n: slot })}
+              onClick={(event) => {
+                if (on) return;
+                feedback("tap", event);
+                go(slot);
+              }}
+              className={`flex h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-control border px-3 transition-colors ${focusRing} ${
+                on ? "border-indigo bg-indigo-soft text-ink" : "border-line bg-panel text-muted hover:border-indigo hover:text-ink"
+              }`}
+            >
+              <span className="text-[17px] font-semibold tabular-nums">{slot}</span>
+              {summary?.pending ? (
+                <WifiOff className="size-4 text-saffron" aria-hidden="true" />
+              ) : (
+                // Joriy chekning jami pastda turibdi — bu yerda faqat kutib turgan cheklarniki
+                !on &&
+                summary &&
+                summary.count > 0 && <span className="text-sm tabular-nums">{formatNumber(summary.total)}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label={t("sales.checks.add")}
+        title={t("sales.checks.add")}
+        disabled={!canAdd}
+        onClick={(event) => {
+          feedback("tap", event);
+          add();
+        }}
+        className={`flex size-11 shrink-0 items-center justify-center rounded-control border border-dashed border-edge text-muted transition-colors hover:border-indigo hover:text-ink disabled:opacity-40 disabled:hover:border-edge disabled:hover:text-muted ${focusRing}`}
+      >
+        <Plus className="size-5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+
+  return (
+    <>
+      {checks.slots.map((slot) => (
+        <CheckScreen
+          key={slot}
+          storeId={storeId}
+          cartStore={cartStore}
+          cartKey={checkKey(user.id, cartStore, slot)}
+          slot={slot}
+          active={slot === checks.active}
+          tabs={tabs}
+          onSummary={report}
+        />
+      ))}
+    </>
+  );
+}
+
+function CheckScreen({
+  storeId,
+  cartStore,
+  cartKey,
+  slot,
+  active,
+  tabs,
+  onSummary,
+}: {
+  storeId: number | null;
+  cartStore: number;
+  cartKey: string;
+  slot: number;
+  /** Joriy chekmi. Qolganlari chizilmaydi, lekin holati va qayta yuborishi ishlab turadi */
+  active: boolean;
+  tabs: ReactNode;
+  onSummary: (slot: number, summary: CheckSummary) => void;
+}) {
   const { t } = useTranslation();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
-  const { user, store } = useCurrentUser();
+  const { user } = useCurrentUser();
   const seller = user.role === "seller";
   const sum = t("settings.units.sum");
-  // Savat xodim va do'kon bo'yicha alohida: qurilma qulflansa, uni faqat shu sotuvchi davom ettiradi
-  const cartStore = storeId ?? store?.id ?? 0;
-  const cartKey = cartKeyOf(user.id, cartStore);
 
   const context = useQuery({
     queryKey: salesKeys.context(storeId),
@@ -160,11 +311,28 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false); // tez sotish yuborilmoqda — savat ko'rsatilmaydi
   const clearRef = useRef<HTMLButtonElement>(null);
+  const cartRef = useRef<HTMLElement>(null); // telefonda pastki paneldan savatga sakrash uchun
   const sending = useRef(false); // so'rov yo'lda — `finish` ikkinchi marta boshlanmaydi
+  // Keng ekran (yotiq planshet va kattaroq): ikki panel — chapda tovar topish, o'ngda sotuv (docs/03-details/06-sotuv.md)
+  const wide = useWide(1024);
+  const [pickerSlot, setPickerSlot] = useState<HTMLDivElement | null>(null);
   // Boshqa sotuvchining shu qurilmada javobi kelmay qolgan sotuvlari
-  const [others] = useState(() => pendingElsewhere(user.id, cartStore));
+  const [others, setOthers] = useState(() => pendingElsewhere(user.id, cartStore));
 
   useEffect(() => saveCart(cartKey, cart), [cartKey, cart]);
+
+  // O'sha sotuv boshqa oynada yuborilib bo'lsa — ogohlantirish ham o'z-o'zidan yo'qoladi
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key !== null && !event.key.startsWith("mato.cart.")) return;
+      setOthers((current) => {
+        const next = pendingElsewhere(user.id, cartStore);
+        return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+      });
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [user.id, cartStore]);
 
   // Shu savat boshqa oynada ham ochiq bo'lsa — ikkalasi bitta savatni ko'rsatadi: biri yuborsa, ikkinchisi ham
   // qulflanadi. Aks holda ikki oyna bitta identifikator ostida har xil mazmun yuborishi mumkin edi.
@@ -326,6 +494,11 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
     return () => window.removeEventListener("online", resend);
   }, [cart.pending]);
 
+  useEffect(() => {
+    onSummary(slot, { count: cart.lines.length, total, pending: cart.pending });
+  }, [onSummary, slot, cart.lines.length, total, cart.pending]);
+
+  if (!active) return null;
   if (context.isLoading) return <Loading />;
   if (!data) return <Alert>{errorText(context.error)}</Alert>;
 
@@ -360,23 +533,90 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
   // Yakunlash tugmasi: naqd/kartada — jami qatorida; nasiyada — mijoz va boshlang'ich to'lovdan keyin,
   // sotuvchi telefonda yuqoriga qaytib yurmaydi
   const finishButton = !uncertain && (
-    <Button variant="success" size="lg" loading={saving} onClick={() => void finish()}>
+    <Button variant="success" size="lg" block={wide} loading={saving} onClick={() => void finish()}>
       {!saving && <Check className="size-5" aria-hidden="true" />}
       {t("sales.finish")}
     </Button>
   );
 
+  // Savat qatori: keng ekranda savat tor o'ng panelda turadi, shuning uchun u yerda `sm:` ko'rinishi ishlatilmaydi
+  const row = wide
+    ? {
+        grid: "grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1",
+        name: "font-medium",
+        sub: "text-sm text-muted",
+        qty: "col-start-3 row-start-2 tabular-nums",
+        kg: "text-muted",
+        dot: "",
+        amount: "col-start-4 row-start-2 text-right text-[17px] font-semibold tabular-nums",
+        actions: "col-start-4 row-start-1 flex justify-end",
+      }
+    : {
+        grid: "grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[auto_auto_minmax(0,1fr)_6.5rem_7rem_auto]",
+        name: "font-medium sm:truncate",
+        sub: "text-sm text-muted sm:truncate",
+        qty: "col-start-3 row-start-2 tabular-nums sm:col-start-4 sm:row-start-1 sm:text-right",
+        kg: "text-muted sm:block sm:text-[13px]",
+        dot: "sm:hidden",
+        amount: "col-start-4 row-start-2 text-right font-medium tabular-nums sm:col-start-5 sm:row-start-1",
+        actions: "col-start-4 row-start-1 flex justify-end sm:col-start-6",
+      };
+
+  // Telefonda jami va "Yakunlash" pastda qotib turadi (docs/03-details/06-sotuv.md) — kontent ortida qolmasin
+  const minibarShown = !wide && !simple && !uncertain;
+
+  // Jami va to'lov turi. Keng ekranda — o'ng panel pastiga yopishgan dok: "Yakunlash" nasiyada ham doim ko'z oldida
+  const totalSection = !simple && (
+    <section
+      className={`z-10 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-card border border-line bg-panel p-4 shadow-pop ${
+        wide ? "sticky bottom-0" : ""
+      }`}
+    >
+      {/* min-w-0 emas: katta summa qisqarib to'lov tanlovi ostida qolmasin — sig'masa tanlov pastga tushadi */}
+      <div className="flex-1">
+        <p className="text-sm text-muted">{t("sales.total")}</p>
+        {/* key={total}: summa o'zgarganda qisqa "turtki" — qo'shilgani sezildi */}
+        <p
+          key={total}
+          className="origin-left animate-bump whitespace-nowrap text-2xl font-semibold tabular-nums sm:text-[28px] sm:leading-8"
+        >
+          {formatNumber(total)} <span className="text-base font-normal text-muted">{sum}</span>
+        </p>
+      </div>
+      {/* Telefonda to'lov turi — jami ostida; "Yakunlash" pastdagi qotib turgan panelda */}
+      <div className={wide ? "order-2" : "order-3 w-full sm:order-2 sm:w-auto"}>{paymentControl}</div>
+      {wide && <div className="order-3 w-full">{finishButton}</div>}
+    </section>
+  );
+
   return (
     <div
       className={
-        simple
-          ? "mx-auto max-w-5xl space-y-4" // tovar tanlanmaganda to'r butun enni ishlatadi; forma o'zi torayadi
-          : "space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-5 xl:space-y-0"
+        wide
+          ? "grid grid-cols-[minmax(0,1fr)_minmax(21rem,26rem)] items-start gap-5"
+          : `space-y-4${minibarShown ? " pb-20" : ""}`
       }
     >
       {seller && <h1 className="sr-only">{t("store.nav.sale")}</h1>}
 
-      <div className={`space-y-4 ${simple ? "" : "xl:sticky xl:top-20"}`}>
+      {/* Chap panel: tovar topish qismi shu yerga chiziladi (EntryForm, `pickerSlot`) */}
+      {wide && <div ref={setPickerSlot} className="min-w-0" />}
+
+      {/* O'ng panel (keng ekranda yopishib turadi, sig'masa o'zi suriladi); tor ekranda — oddiy ustun */}
+      <div
+        className={
+          // Balandlik: sotuvchi qobig'ida pastda menyu bor (72px), ega qobig'ida yo'q. Klasslar to'liq yoziladi —
+          // Tailwind qismlardan yig'ilgan nomni ko'rmaydi
+          !wide
+            ? "space-y-4"
+            : seller
+              ? "sticky top-20 max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-1"
+              : "sticky top-20 max-h-[calc(100dvh-7rem)] space-y-4 overflow-y-auto pb-1"
+        }
+      >
+      <div className="space-y-4">
+        {/* Savat ochiq bo'lsa, chek tablari savat sarlavhasida — alohida qator egallamaydi */}
+        {simple && tabs}
         {others.map((other, index) => (
           <Alert key={index} tone="info">
             {t("sales.pending_other", { seller: other.seller, amount: formatNumber(other.total) })}
@@ -406,6 +646,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
               initial={editingLine}
               onAdd={put}
               onCancel={() => setEditing(null)}
+              split={wide}
+              pickerSlot={pickerSlot}
               quick={
                 simple
                   ? {
@@ -422,9 +664,12 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
 
       <div className="space-y-4">
         {!simple && (
-        <section className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
+        <section ref={cartRef} className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
           <div className={`${sectionStrip} flex items-center justify-between gap-3`}>
-            <h2>{t("sales.cart.title")}</h2>
+            <div className="flex min-w-0 items-center gap-3">
+              <h2>{t("sales.cart.title")}</h2>
+              {tabs}
+            </div>
             {cart.lines.length > 0 && !locked && (
               <button
                 ref={clearRef}
@@ -470,31 +715,32 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
                     }`}
                   >
                     {/* Telefonda ikki qator: tovar va amallar; ostida miqdor va summa. Keng ekranda — bitta qator */}
-                    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[auto_auto_minmax(0,1fr)_6.5rem_7rem_auto]">
+                    {/* O'ng panel (keng ekran) tor — u yerda ham telefon ko'rinishi: kassa cheki kabi ikki qator */}
+                    <div className={row.grid}>
                       <span className="w-5 text-center text-sm tabular-nums text-muted">{n}</span>
                       <Thumb imageUrl={line.image_url} hex={line.hex} code={line.sku_code} />
                       <div className="min-w-0">
-                        <p className="font-medium sm:truncate">
+                        <p className={row.name}>
                           {line.sku_code} <span className="font-normal text-muted">· {line.sku_name}</span>
                         </p>
-                        <p className="text-sm text-muted sm:truncate">
+                        <p className={row.sub}>
                           {line.batch_number} · {formatPrice(line.price, "m", t)}
                         </p>
                       </div>
-                      <p className="col-start-3 row-start-2 tabular-nums sm:col-start-4 sm:row-start-1 sm:text-right">
+                      <p className={row.qty}>
                         {formatDecimal(line.meters)} m
                         {line.kg && (
-                          <span className="text-muted sm:block sm:text-[13px]">
-                            <span className="sm:hidden"> · </span>
+                          <span className={row.kg}>
+                            <span className={row.dot}> · </span>
                             {formatDecimal(line.kg)} kg
                           </span>
                         )}
                       </p>
-                      <p className="col-start-4 row-start-2 text-right font-medium tabular-nums sm:col-start-5 sm:row-start-1">
+                      <p className={row.amount}>
                         {formatNumber(lineAmount(line.meters, line.price))}
                       </p>
                       {!locked && (
-                        <span className="col-start-4 row-start-1 flex justify-end sm:col-start-6">
+                        <span className={row.actions}>
                           <button
                             type="button"
                             aria-label={t("sales.cart.edit", { n })}
@@ -564,28 +810,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
         )}
         {error && <Alert focus>{error}</Alert>}
 
-        {/* Jami doim ko'z oldida (keng ekranda yopishib turadi); oddiy holatda — formaning o'zida */}
-        {!simple && (
-        <section
-          className={`z-10 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-card border border-line bg-panel p-4 shadow-pop ${
-            seller ? "sm:sticky sm:bottom-[calc(72px+env(safe-area-inset-bottom,0px))]" : "sm:sticky sm:bottom-3"
-          }`}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-muted">{t("sales.total")}</p>
-            {/* key={total}: summa o'zgarganda qisqa "turtki" — qo'shilgani sezildi */}
-            <p
-              key={total}
-              className="origin-left animate-bump whitespace-nowrap text-2xl font-semibold tabular-nums sm:text-[28px] sm:leading-8"
-            >
-              {formatNumber(total)} <span className="text-base font-normal text-muted">{sum}</span>
-            </p>
-          </div>
-          {/* Telefonda: jami va "Yakunlash" bir qatorda, to'lov turi — ostida */}
-          <div className="order-3 w-full sm:order-2 sm:w-auto">{paymentControl}</div>
-          {payment !== "credit" && <div className="order-2 sm:order-3">{finishButton}</div>}
-        </section>
-        )}
+        {/* Jami doim ko'z oldida: telefonda shu yerda (amal — pastki panelda), keng ekranda — panel pastidagi dokda */}
+        {!wide && totalSection}
 
         {payment === "credit" && !simple && (
           <Card title={t("sales.credit.title")} icon={HandCoins} tone="saffron">
@@ -616,7 +842,8 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
                 />
               )}
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            {/* "Yakunlash" bu yerda emas: telefonda pastki panelda, keng ekranda dokda — joyi o'zgarmaydi */}
+            <div className="mt-4 border-t border-line pt-4">
               <p className="text-sm text-muted">
                 {total > 0 && initial === total
                   ? t("sales.credit.paid_in_full")
@@ -624,11 +851,47 @@ function SaleScreen({ storeId }: { storeId: number | null }) {
                     ? t("sales.errors.initial")
                     : t("sales.credit.debt", { amount: formatNumber(total - initial) })}
               </p>
-              {finishButton}
             </div>
           </Card>
         )}
       </div>
+      {/* Keng ekran doki — o'ng panelning ko'rinadigan qismi pastiga yopishadi, nasiya maydonlari tepasida aylanadi */}
+      {wide && totalSection}
+      </div>
+
+      {/* Telefonda doim ko'rinadigan panel: savatga sakrash (soni va jami bilan) va "Yakunlash" */}
+      {minibarShown && (
+        <div
+          className={`fixed inset-x-0 z-30 border-t border-line bg-panel px-4 py-2.5 shadow-pop ${
+            seller
+              ? "bottom-[calc(72px+env(safe-area-inset-bottom,0px))]"
+              : "bottom-0 pb-[max(0.625rem,env(safe-area-inset-bottom,0px))]"
+          }`}
+        >
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              aria-label={t("sales.cart.goto", { count: cart.lines.length })}
+              className={`flex min-w-0 items-center gap-3 rounded-control px-1 py-0.5 text-left ${focusRing}`}
+            >
+              <span className="relative grid size-10 shrink-0 place-items-center rounded-control bg-indigo-soft text-indigo" aria-hidden="true">
+                <ShoppingCart className="size-5" />
+                <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-leaf px-1 text-[12px] font-bold leading-none text-panel">
+                  {cart.lines.length}
+                </span>
+              </span>
+              <span className="min-w-0" aria-hidden="true">
+                <span className="block text-[12px] leading-4 text-muted">{t("sales.total")}</span>
+                <span className="block whitespace-nowrap text-[17px] font-semibold leading-5 tabular-nums">
+                  {formatNumber(total)} <span className="text-[13px] font-normal text-muted">{sum}</span>
+                </span>
+              </span>
+            </button>
+            {finishButton}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

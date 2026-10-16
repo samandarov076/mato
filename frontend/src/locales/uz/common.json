@@ -306,7 +306,7 @@
         "created": "SKU qo'shdi",
         "deactivated": "SKU'ni faolsizlantirdi",
         "activated": "SKU'ni qayta faollashtirdi",
-        "price_changed": "Tavsiya narxni o'zgartirdi",
+        "price_changed": "Narxni o'zgartirdi",
         "price_bulk": "Ommaviy narx qo'ydi"
       },
       "receipt": {
@@ -526,7 +526,9 @@
     "choose": "Rasm tanlash",
     "replace": "Almashtirish",
     "remove": "Olib tashlash",
-    "hint": "Ixtiyoriy. JPG yoki PNG, 8 MB gacha."
+    "hint": "Ixtiyoriy. JPG yoki PNG, 8 MB gacha.",
+    "zoom": "Rasmni kattalashtirish",
+    "close": "Yopish"
   },
   "catalog": {
     "title": "Katalog",
@@ -605,7 +607,7 @@
       "created_some_existing": "{{created}} ta SKU qo'shildi, {{existing}} tasi oldindan bor edi",
       "all_existing": "Tanlangan SKU'larning hammasi oldindan bor",
       "only_no_price": "Faqat narxi belgilanmaganlar",
-      "col_price": "Tavsiya narx",
+      "col_price": "Narx",
       "col_threshold": "Kam qoldiq chegarasi",
       "threshold_standard": "standart",
       "threshold_value": "{{value}} m",
@@ -635,7 +637,9 @@
       "history": "Narx tarixi",
       "history_empty": "Narx hali o'zgartirilmagan.",
       "inactive_note": "Faolsiz SKU yangi kirimda tanlanmaydi, qoldig'i esa sotilaveradi.",
-      "threshold_standard_hint": "Biznes standarti"
+      "threshold_standard_hint": "Biznes standarti",
+      "image_title": "Tovar rasmi",
+      "image_hint": "Aynan shu tovarning (mato + rang + gul) surati. Qo'yilmasa — gul yoki rang rasmi ko'rsatiladi."
     }
   },
   "receiving": {
@@ -670,7 +674,7 @@
     "price_current": "Hozir: {{price}}. O'zgartirsangiz, shu SKU'ning narxi yangilanadi.",
     "price_none": "Narx hali belgilanmagan — shu yerda qo'ysangiz bo'ladi.",
     "warn_coefficient": "1 kg = {{value}} m chiqdi, matoning standarti esa {{standard}} m. Metr yoki kg xato kiritilmaganmi?",
-    "warn_cost": "Tannarx tavsiya narxdan yuqori.",
+    "warn_cost": "Tannarx sotuv narxidan yuqori.",
     "warn_duplicate": "Bu tovar {{n}}-partiyada ham bor.",
     "merge": "Birlashtirish",
     "batch_n": "{{n}}-partiya",
@@ -802,7 +806,18 @@
       "will_over": "{{meters}} m ortiq chiqdi deb yoziladi.",
       "will_none": "Farq yo'q — yozilganicha chiqdi.",
       "big": "Farq katta — kirgan metrning {{percent}}%. Balki sotuv yoki ko'chirish yozilmay qolgandir?",
-      "confirm": "Ha, tugadi — yopish"
+      "confirm": "Ha, tugadi — yopish",
+      "empty_title": "Tugagan (0 m)",
+      "empty_hint": "Tizimda qoldiq 0. Mato haqiqatda ham tugagan bo'lsa — bir bosishda yoping.",
+      "do": "Yopish",
+      "do_named": "{{number}} — {{place}}: yopish",
+      "col_batch": "Partiya",
+      "preview_short": "Tizimda: {{qty}} m → metr farqi: {{diff}} m kam chiqdi",
+      "preview_over": "Tizimda: {{qty}} m → metr farqi: {{diff}} m ortiq chiqdi",
+      "preview_amount": "taxminan {{amount}} so'm",
+      "preview_who": "{{number}} — {{place}}",
+      "confirm_yes": "Ha, yopish",
+      "closed_done": "{{number}} yopildi ({{place}})."
     },
     "movement": {
       "receipt": "Kirim",
@@ -912,7 +927,8 @@
         "waiting": "Qabul qilinmagan ko'chirish"
       },
       "batch": {
-        "big_diff": "Katta metr farqi"
+        "big_diff": "Katta metr farqi",
+        "empty_open": "Tugagan partiya yopilmagan"
       },
       "stock": {
         "low": "Kam qoldiq"
@@ -941,7 +957,8 @@
       },
       "batch": {
         "short": "{{number}} yopildi: «{{location}}»da {{meters}} m ({{percent}}%) kam chiqdi — {{by}}",
-        "over": "{{number}} yopildi: «{{location}}»da {{meters}} m ({{percent}}%) ortiq chiqdi — {{by}}"
+        "over": "{{number}} yopildi: «{{location}}»da {{meters}} m ({{percent}}%) ortiq chiqdi — {{by}}",
+        "empty_open": "{{number}}: «{{location}}»da qoldiq 0 — partiyani yoping"
       },
       "stock": {
         "low": "{{code}}: «{{location}}»da {{qty}} m qoldi (chegara {{threshold}} m)"
@@ -991,7 +1008,7 @@
       "meters": "Metr",
       "kg": "Kg",
       "price": "1 metr narxi",
-      "no_recommended": "Tavsiya narx yo'q — narxni o'zingiz yozing",
+      "no_recommended": "Narx belgilanmagan — o'zingiz yozing",
       "no_coefficient": "Bu partiya uchun kg ↔ metr belgilanmagan, metrda kiriting",
       "over_stock": "Tizimda {{available}} m qolgan. Haqiqatda mato bo'lsa — qo'shing, savatda izoh yozasiz.",
       "line_total": "Qator jami",
@@ -1006,16 +1023,23 @@
       "add_more": "Yana qo'shish",
       "sell": "Sotish",
       "sell_credit": "Mijozni tanlash",
-      "at_recommended": "Tavsiya narx bo'yicha",
-      "recommended_restore": "Tavsiya narxni qaytarish: {{price}}",
+      "at_recommended": "Belgilangan narxda",
+      "recommended_restore": "Belgilangan narxga qaytarish: {{price}}",
       "items": "Tovarlar",
       "found": "{{count}} ta topildi",
       "search_keys": "↓ ↑ — tanlash, Enter — olish",
       "parts": "Tovar tarkibi",
-      "clear_filter": "{{name}}: tanlovni olib tashlash"
+      "clear_filter": "{{name}}: tanlovni olib tashlash",
+      "keypad": "Raqamlar",
+      "keypad_back": "Oxirgi raqamni o'chirish",
+      "keypad_comma": "Vergul",
+      "pick_hint": "Etiketkani skanerlang yoki chapdan tovarni tanlang",
+      "price_below": "tavsiyadan {{amount}} so'm arzon",
+      "price_above": "tavsiyadan {{amount}} so'm qimmat"
     },
     "cart": {
       "title": "Savat",
+      "goto": "Savatga o'tish — {{count}} ta qator",
       "empty": "Savat bo'sh. Etiketkani skaner qiling yoki tovarni tanlang.",
       "clear": "Savatni tozalash",
       "clear_confirm": "Savatdagi {{count}} ta qator o'chirilsinmi?",
@@ -1076,7 +1100,7 @@
       "when": "Sana va vaqt",
       "customer": "Mijoz",
       "col_item": "Tovar",
-      "col_recommended": "Tavsiya narx",
+      "col_recommended": "Sotuv narxi",
       "col_price": "Narx",
       "col_amount": "Jami",
       "returned_m": "{{meters}} m qaytarilgan",
@@ -1121,7 +1145,13 @@
       "reason_required": "Sababni yozing",
       "yes": "Ha, bekor qilish"
     },
-    "done_duplicate": "Bu sotuv avval yozilgan edi ({{number}}) — yangidan yozilmadi."
+    "done_duplicate": "Bu sotuv avval yozilgan edi ({{number}}) — yangidan yozilmadi.",
+    "checks": {
+      "label": "Cheklar",
+      "tab": "Chek {{n}}",
+      "tab_pending": "Chek {{n}} — javobi kutilmoqda",
+      "add": "Yangi chek"
+    }
   },
   "credit": {
     "intro": "Mijoz biznes bo'yicha umumiy: istalgan do'konda nasiya oladi va istalgan do'konda to'laydi.",
@@ -1326,8 +1356,8 @@
     "credit_note": "Hisobdan chiqarilgan qarz foydadan ayrilmaydi — shu yerda alohida ko'rinadi.",
     "by_item": "Tovar bo'yicha",
     "by_seller": "Sotuvchi bo'yicha",
-    "deviation_intro": "Sotuv narxi tavsiya narxdan qancha farq qilgan. Tavsiya narxi bo'lmagan sotuvlar bu yerga kirmaydi.",
-    "expected": "Tavsiya narxda",
+    "deviation_intro": "Sotuv narxi belgilangan narxdan qancha farq qilgan. Narxi belgilanmagan sotuvlar bu yerga kirmaydi.",
+    "expected": "Belgilangan narxda",
     "actual": "Haqiqatda",
     "diff": "Farq",
     "short": {

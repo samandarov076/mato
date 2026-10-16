@@ -20,6 +20,7 @@ import { Chip, Empty, LoadMore, RowAction, rowClass, sectionStrip } from "@/shar
 import { focusRing } from "@/shared/ui/tones";
 import {
   catalogKeys,
+  skuImage,
   type Attribute,
   type Fabric,
   type PriceUnit,
@@ -408,11 +409,7 @@ const SkuRow = memo(function SkuRow({
         className={`group grid min-w-0 flex-1 items-center gap-x-4 gap-y-1 rounded-lg ${columns} ${focusRing}`}
       >
         <span className="flex min-w-0 items-center gap-3">
-          <Thumb
-            imageUrl={sku.pattern.image_url ?? sku.color.image_url}
-            hex={sku.color.hex}
-            code={sku.color.code}
-          />
+          <Thumb imageUrl={skuImage(sku)} hex={sku.color.hex} code={sku.color.code} />
           <span className="min-w-0">
             <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className={`font-medium group-hover:text-indigo ${sku.is_active ? "" : "text-muted"}`}>

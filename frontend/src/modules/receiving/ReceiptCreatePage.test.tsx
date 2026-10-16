@@ -110,7 +110,7 @@ describe("Kirim yaratish", () => {
     await userEvent.click(screen.getByRole("button", { name: "Qator qo'shish" }));
     await fill(batch(2), "12", "4", "200,5", "10000");
     expect(await within(batch(2)).findByText(/Bunday SKU hali yo'q/)).toBeInTheDocument();
-    await userEvent.type(within(batch(2)).getByLabelText("Tavsiya narx"), "25000");
+    await userEvent.type(within(batch(2)).getByLabelText("Narx"), "25000");
 
     // Jami: 2 partiya, 700.5 m, 15 000 000 + 2 005 000
     expect(screen.getByText("700.5 m")).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe("Kirim yaratish", () => {
     await screen.findByRole("heading", { name: "1-partiya" });
     await fill(batch(1), "11", "10", "500", "45000"); // tavsiya narx 40 000
 
-    expect(await within(batch(1)).findByText("Tannarx tavsiya narxdan yuqori.")).toBeInTheDocument();
+    expect(await within(batch(1)).findByText("Tannarx sotuv narxidan yuqori.")).toBeInTheDocument();
   });
 
   it("bir xil tovar ikki qatorda bo'lsa — birlashtirishni taklif qiladi", async () => {
@@ -259,7 +259,7 @@ describe("Kirim yaratish — kompyuterda (≥1024px) qatorli jadval", () => {
     renderPage();
     const table = await screen.findByRole("table", { name: "Partiyalar" });
     expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "№", "Mato", "Rang", "Gul", "Rulon", "Metr", "Kg", "1 kg = m", "Tannarx", "Tavsiya narx", "",
+      "№", "Mato", "Rang", "Gul", "Rulon", "Metr", "Kg", "1 kg = m", "Tannarx", "Narx", "",
     ]);
     expect(screen.queryByRole("heading", { name: "1-partiya" })).toBeNull(); // kartochka ko'rinishi chizilmaydi
 
@@ -268,7 +268,7 @@ describe("Kirim yaratish — kompyuterda (≥1024px) qatorli jadval", () => {
 
     // Tab tartibi — ustunlar tartibida
     within(row(1)).getByLabelText("Mato").focus();
-    const order = ["Rang", "Gul", "Rulonlar soni", "Metr (rulonlar jami)", "Jami kg", "1 kg necha metr", "Tannarx, 1 metr uchun", "Tavsiya narx"];
+    const order = ["Rang", "Gul", "Rulonlar soni", "Metr (rulonlar jami)", "Jami kg", "1 kg necha metr", "Tannarx, 1 metr uchun", "Narx"];
     for (const label of order) {
       await userEvent.tab();
       expect(within(row(1)).getByLabelText(label)).toHaveFocus();
@@ -276,7 +276,7 @@ describe("Kirim yaratish — kompyuterda (≥1024px) qatorli jadval", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Qator qo'shish" }));
     await fill(row(2), "12", "4", "200,5", "10000");
-    await userEvent.type(within(row(2)).getByLabelText("Tavsiya narx"), "25000");
+    await userEvent.type(within(row(2)).getByLabelText("Narx"), "25000");
     expect(screen.getByText("700.5 m")).toBeInTheDocument();
     expect(screen.getByText("17 005 000 so'm")).toBeInTheDocument();
 

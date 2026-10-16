@@ -12,6 +12,7 @@ from app.core.deps import Auth, AuthContext, OwnerAuth, require_roles
 from app.modules.inventory import service, transfers
 from app.modules.inventory.schemas import (
     BatchCard,
+    ClosablePage,
     CloseIn,
     Differences,
     MovementPage,
@@ -192,6 +193,12 @@ async def differences(
 
 
 # ---------- Partiya ----------
+
+
+@router.get("/batches/closable")
+async def closable_batches(ctx: Auth) -> ClosablePage:
+    """"Partiyani yopish" sahifasi: ochiq partiyalar, joylar bo'yicha qoldiq va kim qayerda yopa olishi."""
+    return await service.closable(ctx)
 
 
 @router.get("/batches/by-number/{number}")

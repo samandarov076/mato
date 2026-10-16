@@ -53,6 +53,8 @@ Skladda:    60 rulon, 3000 m davom etadi
 - Ustunlar: sana, qayerdan → qayerga, partiyalar soni, metr, holat (yo'lda / qabul qilindi / bekor qilindi), jo'natuvchi, qabul qiluvchi
 - Filtr: holat, joy, davr
 
+- **Ko'chirish formasi (2026-10-06):** qo'shilgan partiya ro'yxatning **tepasiga** tushadi va ko'rinib turadi (avval eng pastga tushib, ko'rinmay qolardi); nomzodlar ro'yxati o'z ichida suriladi; keng ekranda nomzodlar chapda, tanlanganlar o'ngda.
+
 ### Partiyani yopish (sotuvchi — o'z do'konida; omborchi — o'z skladida; biznes egasi — har qanday)
 - Partiya skaner qilinadi yoki tanlanadi → ekranda: yozilgan metr, sotilgan/chiqqan metr, tizimdagi qoldiq
 - "Haqiqatda tugadimi?" → tasdiqlash
@@ -69,6 +71,11 @@ Skladda:    60 rulon, 3000 m davom etadi
 - Yo'ldagi ko'chirishni jo'natuvchi yoki biznes egasi bekor qila oladi — metr jo'natuvchi joyga qaytadi.
 - **Manfiy qoldiq:** tizimda qoldiq tugagan, lekin haqiqatda mato bor (masalan 50 m o'rniga 52 m chiqdi) — sotuvchi sotishda davom etadi, **izoh yozish majburiy**. Partiya yopilganda manfiy qoldiq "ortiqcha" bo'ladi.
 - Partiya har joyda alohida yopiladi. Yopilgan joyda bu partiyani sotib bo'lmaydi.
+- **Avto-yopish yo'q (2026-10-06, qayta ko'rib chiqildi):** qoldiq 0 ga tushsa ham partiya o'zi yopilmaydi — tizim 0 ko'rsatsa ham haqiqatda mato qolgan bo'lishi mumkin (ortiqcha), buni faqat odam biladi. (Shu kuni avto-yopish qo'shilib, o'sha kuni olib tashlandi.) O'rniga:
+  - **"Tugagan (0 m)" bo'limi** — "Partiyani yopish" sahifasining tepasida: qoldig'i aynan 0 bo'lgan ochiq partiyalar alohida turadi va **bir bosishda** yopiladi (izoh ixtiyoriy, metr farqi 0 — tasdiq so'ralmaydi).
+  - **Eslatma:** partiya biror joyda **7 kun** davomida 0 qoldiq bilan ochiq tursa (oxirgi harakatidan beri), o'sha joyning xodimlariga (va egalarga) bitta xabar boradi: "P-000123 «Chorsu»da tugagan — partiyani yoping". Har partiya-joy uchun bir marta (dedup); partiya yopilgach kalit bo'shatiladi — qayta ochilib yana tugasa, yangi xabar keladi. Shu joyga yo'lda kelayotgan ko'chirish bo'lsa eslatilmaydi. Fon ishchisi kuniga bir marta tekshiradi.
+- **"Partiyani yopish" sahifasi ko'rinishi (2026-10-06):** bir nechta joyni ko'ra oladigan xodimga (ega, omborchi) — **jadval**: qator — partiya (rasm, raqam, tovar), ustunlar — u ko'ra oladigan joylar, katakda shu joydagi qoldiq va "Yopish" (ruxsati bo'lsa). Sotuvchida bitta do'kon — ro'yxat ko'rinishi, sarlavhada do'kon nomi.
+- **Yopish tasdig'ida natija oldindan ko'rinadi:** "Tizimda: 15 m → Metr farqi: 15 m kam chiqdi" (manfiy qoldiqda — "ortiq chiqdi"); egaga — taxminiy summa ham (tannarx bo'yicha; sotuvchi va omborchiga summa ko'rsatilmaydi). Farq 0 bo'lsa — oddiy tasdiq.
 - Partiya barcha joylarda yopilgan va yo'lda hech narsa yo'q bo'lsa — butunlay yopilgan hisoblanadi.
 - **Qayta ochish:** xato yopilgan partiyani biznes egasi yoki omborchi qayta ochadi; kamomad yozuvi bekor qilinadi. Jurnalga yoziladi.
 - Barcha harakatlar jurnalga ("Ombor" kategoriyasi).

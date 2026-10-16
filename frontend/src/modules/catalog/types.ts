@@ -35,6 +35,8 @@ export type Sku = {
   id: number;
   /** mato-rang[-gul] */
   code: string;
+  /** SKU'ning o'z rasmi (aynan shu mato + rang + gul); yo'q bo'lsa gul / rang / mato rasmi ko'rsatiladi */
+  image_url?: string | null;
   fabric: { id: number; code: string; name: string; image_url: string | null; default_m_per_kg: string | null; is_active: boolean };
   color: { id: number; code: string; name: string; hex: string | null; image_url: string | null; is_active: boolean };
   pattern: { id: number; code: string; name: string; image_url: string | null; is_plain: boolean; is_active: boolean };
@@ -95,3 +97,11 @@ export function similarCodes<T extends { id: number; code: string }>(
 
 // Kasr sonni tekshirish va aniq hisob — `shared/decimal.ts` da (bitta joyda)
 export { parseDecimal } from "@/shared/decimal";
+
+/**
+ * Tovar rasmi — katalogdagi eng aniq rasm: SKU'ning o'zi → gul (gulsiz bo'lmasa) → rang; hech biri bo'lmasa null
+ * (unda rang namunasi yoki kod harflari ko'rsatiladi). Mato rasmi tovarga O'TMAYDI — aks holda bir matoning barcha
+ * ranglari bir xil rasm bilan chiqadi; u faqat mato tanlashda ko'rinadi. docs/03-details/03-katalog.md.
+ */
+export const skuImage = (sku: Sku): string | null =>
+  sku.image_url ?? (sku.pattern.is_plain ? null : sku.pattern.image_url) ?? sku.color.image_url ?? null;

@@ -119,6 +119,11 @@ def _scope(ctx: AuthContext) -> list:
 # ====================== Sotuv ekrani ======================
 
 
+POPULAR_WINDOW = timedelta(days=30)
+POPULAR_LIMIT = 8
+POPULAR_LOOKUP = 40  # bir qismi hozir sotilmasligi mumkin (partiyasi yopilgan) — zaxira bilan olinadi
+
+
 async def context(ctx: AuthContext, store_id: int | None) -> SaleContext:
     """Do'kondagi sotiladigan tovarlar: SKU → ochiq partiyalar (eng eskisi birinchi), tavsiya narx bilan."""
     store = await _store(ctx, store_id)
@@ -163,11 +168,29 @@ async def context(ctx: AuthContext, store_id: int | None) -> SaleContext:
                 ),
             )
         )
+    # "Ko'p sotiladigan" qatori: sotuv qatorlari soni bo'yicha (metr emas — bitta ulgurji sotuv ro'yxatni egallab
+    # olmasin); tengida oxirgi sotilgani oldin. Bekor qilingan sotuvlar kirmaydi. Faqat hozir sotiladigan tovarlar.
+    sold = (
+        await ctx.db.execute(
+            select(SaleLine.sku_id)
+            .join(Sale, Sale.id == SaleLine.sale_id)
+            .where(
+                Sale.store_id == store.id,
+                Sale.status != "cancelled",
+                Sale.created_at >= datetime.now(UTC) - POPULAR_WINDOW,
+            )
+            .group_by(SaleLine.sku_id)
+            .order_by(func.count().desc(), func.max(Sale.created_at).desc())
+            .limit(POPULAR_LOOKUP)
+        )
+    ).scalars()
+    popular = [sku_id for sku_id in sold if sku_id in items][:POPULAR_LIMIT]
     return SaleContext(
         store=Ref(id=store.id, name=store.name),
         sell_by_kg=ctx.business.sell_by_kg,
         credit_enabled=ctx.business.credit_enabled,
         items=list(items.values()),
+        popular_sku_ids=popular,
     )
 
 

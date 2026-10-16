@@ -14,8 +14,7 @@ import {
   Send,
   TriangleAlert,
   Undo2,
-  type LucideIcon,
-} from "lucide-react";
+  type LucideIcon, PackageCheck } from "lucide-react";
 import type { Tone } from "@/shared/ui/tones";
 import { formatDate, formatDecimal, formatNumber } from "@/shared/format";
 
@@ -35,6 +34,7 @@ export const EVENTS = [
   "transfer.diff",
   "transfer.waiting",
   "batch.big_diff",
+  "batch.empty_open",
   "stock.low",
   "sale.returned",
   "sale.negative_stock",
@@ -56,6 +56,7 @@ const STYLES: Record<string, { icon: LucideIcon; tone: Tone }> = {
   "transfer.diff": { icon: ArrowLeftRight, tone: "madder" },
   "transfer.waiting": { icon: Clock, tone: "saffron" },
   "batch.big_diff": { icon: Ruler, tone: "madder" },
+  "batch.empty_open": { icon: PackageCheck, tone: "plum" },
   "stock.low": { icon: PackageMinus, tone: "coral" },
   "sale.returned": { icon: Undo2, tone: "saffron" },
   "sale.negative_stock": { icon: TriangleAlert, tone: "madder" },
@@ -88,6 +89,9 @@ export function describe(item: Notification, t: TFunction): { text: string; link
       };
     case "transfer.waiting":
       return { text: t("notifications.text.transfer.waiting", d), link: `/transfers/${d.transfer_id}` };
+    case "batch.empty_open":
+      // "Partiyani yopish" sahifasi: tugagan partiyalar tepada, bir bosishda yopiladi
+      return { text: t("notifications.text.batch.empty_open", d), link: "/close" };
     case "batch.big_diff":
       return {
         text: t(

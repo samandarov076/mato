@@ -16,7 +16,7 @@ Kod va baza nomlarida inglizcha atamalar ishlatiladi (masalan shortage / surplus
 | Qoida | uz | en | ru |
 |-------|----|----|----|
 | Inglizcha imlo — **Britaniya** (metre, colour, catalogue, soʻm) | — | colour, catalogue, metre | — |
-| SKU'ning narxi — bitta atama | **Tavsiya narx** | **Recommended price** | **Рекомендуемая цена** (tor ustunda «Рекоменд. цена») |
+| SKU'ning narxi — bitta atama (2026-10-06: "Tavsiya narx" emas — "tavsiya" so'zi xaridorga "ancha arzon olsa bo'ladi" degan ma'no beradi) | **Narx** (kirimda, tannarx yonida — **Sotuv narxi**; sotuvchi o'zgartirmagan bo'lsa — **Belgilangan narxda**) | **Price** (Selling price; At the set price) | **Цена** (Цена продажи; По установленной цене) |
 | Kassaga tushgan pul (savdo emas: naqd/karta + boshlang'ich to'lov + qarz to'lovi − qaytarilgan pul) | **Tushum** | **Money in** | **Поступления** |
 | Savdo (sotuvlar − qaytarishlar) | **Savdo** | Sales | Продажи |
 | Ha/yo'q tasdiq panelidagi "yo'q" tugmasi (`common.keep`) — «Bekor qilish» faqat Saqlash/Bekor qilish juftligida | **Yo'q, qolsin** | No, keep it | Нет, оставить |

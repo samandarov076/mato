@@ -123,10 +123,8 @@ export function TransferCreatePage() {
     // Boshida — bitta rulon; rulon soni o'zgarsa metr o'zi hisoblanadi
     const rolls = batch.rolls > 0 ? "1" : "0";
     const meters = batch.rolls > 0 ? metersForRolls("1", batch.roll_m) : batch.qty_m;
-    setLines((all) => [
-      ...all,
-      { batch, rolls, meters: minDecimal(meters, batch.qty_m, 2) },
-    ]);
+    // Yangi qator TEPAGA: ko'p partiya qo'shilganda ham hozirgina qo'shilgani ko'rinib turadi
+    setLines((all) => [{ batch, rolls, meters: minDecimal(meters, batch.qty_m, 2) }, ...all]);
     setSearch("");
     setError(null);
     searchBox.current?.querySelector("input")?.focus();
@@ -272,7 +270,9 @@ export function TransferCreatePage() {
             </div>
           </Card>
 
-          {/* Qidiruv tanlangan qatorlardan TEPADA: har qo'shilgan partiya maydonni pastga surmaydi, skaner ketma-ket o'qiydi */}
+          {/* Qidiruv tanlangan qatorlardan TEPADA: har qo'shilgan partiya maydonni pastga surmaydi, skaner ketma-ket o'qiydi.
+              Keng ekranda — yonma-yon: nomzodlar chapda, tanlanganlar o'ngda */}
+          <div className={lines.length > 0 ? "space-y-5 xl:grid xl:grid-cols-2 xl:items-start xl:gap-5 xl:space-y-0" : ""}>
           {from && (
             <Card title={t("inventory.transfer.add_batch")} icon={PackagePlus} tone="coral">
               <div ref={searchBox}>
@@ -289,7 +289,8 @@ export function TransferCreatePage() {
                   {t(search.trim() || lines.length > 0 ? "catalog.nothing_found" : "inventory.transfer.nothing_to_send")}
                 </Empty>
               )}
-              <ul className="mt-3 divide-y divide-line">
+              {/* Nomzodlar o'z ichida suriladi — ro'yxat uzun bo'lsa ham tanlangan partiyalar ekrandan chiqib ketmaydi */}
+              <ul className="mt-3 max-h-80 divide-y divide-line overflow-y-auto overscroll-contain pr-1">
                 {candidates.slice(0, 20).map((batch) => (
                   <li key={batch.batch_id} className="flex items-center gap-3 py-2.5">
                     <Thumb imageUrl={batch.sku.image_url} hex={batch.sku.hex} code={batch.sku.code} size="sm" />
@@ -325,7 +326,7 @@ export function TransferCreatePage() {
           {lines.length > 0 && (
             <section className="overflow-hidden rounded-card border border-line bg-panel shadow-card">
               <SectionHeader>{t("inventory.transfer.lines")}</SectionHeader>
-              <ul className="divide-y divide-line">
+              <ul aria-label={t("inventory.transfer.lines")} className="divide-y divide-line">
                 {lines.map((line) => {
                   const issue = checked ? problem(line) : null;
                   return (
@@ -388,6 +389,7 @@ export function TransferCreatePage() {
               </ul>
             </section>
           )}
+          </div>
 
           {/* Jami va "Jo'natish" — ekran pastida turadi; xato xulosasi ham shu yerda, tugma yonida */}
           <div className="sticky bottom-3 z-10 rounded-card border border-line bg-panel p-4 shadow-pop">

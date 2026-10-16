@@ -77,6 +77,64 @@ export function saveCart(key: string, cart: Cart): void {
 
 export const cartKey = (userId: number, storeId: number) => `mato.cart.${userId}.${storeId}`;
 
+/** Bir vaqtda ochiq cheklar soni (docs/03-details/06-sotuv.md, "Bir nechta chek") */
+export const MAX_CHECKS = 5;
+
+/** Chek savatining kaliti. 1-chek — avvalgi kalitda: eski savat (noaniq sotuv ham) joyida qoladi */
+export const checkKey = (userId: number, storeId: number, slot: number) =>
+  slot === 1 ? cartKey(userId, storeId) : `${cartKey(userId, storeId)}.${slot}`;
+
+export const checksKey = (userId: number, storeId: number) => `mato.checks.${userId}.${storeId}`;
+
+/** Ochiq cheklar (raqamlari o'sish tartibida) va joriy chek */
+export type Checks = { slots: number[]; active: number };
+
+/** Savatda saqlashga arziydigan narsa bormi: qator yoki javobi kelmagan sotuv */
+const worthKeeping = (key: string) => {
+  const cart = loadCart(key);
+  return cart.lines.length > 0 || cart.pending;
+};
+
+export function loadChecks(userId: number, storeId: number): Checks {
+  let slots: number[] = [];
+  let active = 1;
+  try {
+    const saved = JSON.parse(localStorage.getItem(checksKey(userId, storeId)) ?? "null");
+    if (saved && Array.isArray(saved.slots)) {
+      slots = saved.slots.filter((slot: unknown) => Number.isInteger(slot) && (slot as number) >= 1 && (slot as number) <= MAX_CHECKS);
+      active = Number(saved.active);
+    }
+    // Ro'yxatda yo'q, lekin savati saqlanib qolgan chek ham ko'rsatiladi — hech bir sotuv ko'zdan yo'qolmasin
+    for (let slot = 1; slot <= MAX_CHECKS; slot += 1) {
+      if (!slots.includes(slot) && localStorage.getItem(checkKey(userId, storeId, slot)) !== null && worthKeeping(checkKey(userId, storeId, slot))) {
+        slots.push(slot);
+      }
+    }
+  } catch {
+    /* ro'yxat buzilgan yoki xotira yopiq — bitta chekdan boshlanadi */
+  }
+  slots = [...new Set(slots)].sort((a, b) => a - b);
+  if (slots.length === 0) slots = [1];
+  return { slots, active: slots.includes(active) ? active : slots[0] };
+}
+
+export function saveChecks(userId: number, storeId: number, checks: Checks): void {
+  try {
+    localStorage.setItem(checksKey(userId, storeId), JSON.stringify(checks));
+  } catch {
+    /* xotira yopiq — cheklar faqat shu sahifada yashaydi */
+  }
+}
+
+/** Yopilgan chekning savatini xotiradan olib tashlaydi */
+export function dropCart(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* xotira yopiq */
+  }
+}
+
 /**
  * Shu qurilmada, shu do'konda boshqa xodimlarning tasdiqlanmagan sotuvlari. Savat xodim bo'yicha alohida,
  * shuning uchun boshqa sotuvchi PIN bilan kirsa, kutayotgan sotuv ko'zdan yo'qolmasligi kerak.
@@ -86,7 +144,8 @@ export function pendingElsewhere(userId: number, storeId: number): { seller: str
   try {
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index) ?? "";
-      const [, owner, store] = /^mato\.cart\.(\d+)\.(\d+)$/.exec(key) ?? [];
+      // Har xodimning bir nechta cheki bo'lishi mumkin: "….<raqam>" qo'shimchali kalitlar ham
+      const [, owner, store] = /^mato\.cart\.(\d+)\.(\d+)(?:\.\d+)?$/.exec(key) ?? [];
       if (!owner || Number(owner) === userId || Number(store) !== storeId) continue;
       const cart = loadCart(key);
       if (!cart.pending || cart.lines.length === 0) continue;

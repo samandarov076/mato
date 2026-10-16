@@ -4,7 +4,8 @@
  * Aks holda yangilanish kutadi (keyingi qulay payt yoki ilovaning keyingi ochilishi).
  */
 
-const CART = /^mato\.cart\.\d+\.\d+$/;
+// Savat kalitlari: 1-chek — "mato.cart.<xodim>.<do'kon>", qolgan cheklar — "….<raqam>" qo'shimchasi bilan
+const CART = /^mato\.cart\.\d+\.\d+(?:\.\d+)?$/;
 const DRAFT = /^mato\.(receipt|transfer)\.\d+$/;
 
 type Field = HTMLInputElement | HTMLTextAreaElement;
